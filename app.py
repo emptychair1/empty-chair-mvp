@@ -5,7 +5,6 @@ import io
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -19,7 +18,10 @@ from twilio.rest import Client
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-DB_PATH = os.getenv("EMPTY_CHAIR_DB", "empty_chair.db")
+DB_PATH = os.getenv(
+    "EMPTY_CHAIR_DB",
+    "empty_chair.db",
+)
 
 PUBLIC_BASE_URL = os.getenv(
     "EMPTY_CHAIR_BASE_URL",
@@ -27,16 +29,28 @@ PUBLIC_BASE_URL = os.getenv(
 )
 
 DEMO_MODE = (
-    os.getenv("EMPTY_CHAIR_DEMO_MODE", "true").lower() == "true"
+    os.getenv(
+        "EMPTY_CHAIR_DEMO_MODE",
+        "true",
+    ).lower()
+    == "true"
 )
 
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER")
+TWILIO_ACCOUNT_SID = os.getenv(
+    "TWILIO_ACCOUNT_SID"
+)
+
+TWILIO_AUTH_TOKEN = os.getenv(
+    "TWILIO_AUTH_TOKEN"
+)
+
+TWILIO_FROM_NUMBER = os.getenv(
+    "TWILIO_FROM_NUMBER"
+)
 
 
 # ============================================================
-# DATABASE
+# DATABASE CONFIGURATION
 # ============================================================
 
 USE_POSTGRES = bool(DATABASE_URL)
@@ -45,11 +59,12 @@ if USE_POSTGRES:
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
-    except ImportError:
+    except ImportError as exc:
         raise RuntimeError(
-            "PostgreSQL is configured but psycopg2-binary is not installed. "
-            "Add psycopg2-binary to requirements.txt."
-        )
+            "PostgreSQL is configured but psycopg2-binary "
+            "is not installed. Add psycopg2-binary to "
+            "requirements.txt."
+        ) from exc
 
 
 def connect():
@@ -75,60 +90,101 @@ def connect():
         )
 
     conn = sqlite3.connect(DB_PATH)
+
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+
+    conn.execute(
+        "PRAGMA foreign_keys = ON"
+    )
 
     return conn
 
 
-def db_execute(conn, query, params=()):
+def db_execute(
+    conn,
+    query,
+    params=(),
+):
     """
-    Execute SQL using the correct parameter syntax.
-
-    The application internally uses ? placeholders.
+    Execute SQL using the correct placeholder syntax.
+    Application SQL uses ? placeholders.
     PostgreSQL requires %s.
     """
 
     if USE_POSTGRES:
-        query = query.replace("?", "%s")
+        query = query.replace(
+            "?",
+            "%s",
+        )
 
     cursor = conn.cursor()
-    cursor.execute(query, params)
+
+    cursor.execute(
+        query,
+        params,
+    )
+
     return cursor
 
 
-def db_fetchone(conn, query, params=()):
+def db_fetchone(
+    conn,
+    query,
+    params=(),
+):
     """
-    Execute a SELECT query and safely return one row.
+    Execute a query and return one row.
 
-    Returns None when no row exists.
-    """
-
-    cursor = db_execute(conn, query, params)
-
-    try:
-        return cursor.fetchone()
-    except Exception:
-        return None
-
-
-def db_fetchall(conn, query, params=()):
-    """
-    Execute a SELECT query and return all rows.
+    IMPORTANT:
+    The same cursor that executes the query must
+    also perform fetchone().
     """
 
-    cursor = db_execute(conn, query, params)
+    cursor = db_execute(
+        conn,
+        query,
+        params,
+    )
 
-    try:
-        return cursor.fetchall()
-    except Exception:
-        return []
+    return cursor.fetchone()
 
+
+def db_fetchall(
+    conn,
+    query,
+    params=(),
+):
+    """
+    Execute a query and return all rows.
+    """
+
+    cursor = db_execute(
+        conn,
+        query,
+        params,
+    )
+
+    return cursor.fetchall()
+
+
+def db_last_insert_id(cursor):
+    """
+    PostgreSQL and SQLite handle generated IDs differently.
+    This helper is reserved for future use.
+    """
+
+    return None
+
+
+# ============================================================
+# DATABASE SCHEMA
+# ============================================================
 
 def init_db():
     conn = connect()
 
     if USE_POSTGRES:
+
         schema = """
         CREATE TABLE IF NOT EXISTS shops (
             id TEXT PRIMARY KEY,
@@ -240,6 +296,7 @@ def init_db():
         """
 
     else:
+
         schema = """
         CREATE TABLE IF NOT EXISTS shops (
             id TEXT PRIMARY KEY,
@@ -351,6 +408,7 @@ def init_db():
         """
 
     cursor = conn.cursor()
+
     cursor.execute(schema)
 
     conn.commit()
@@ -362,10 +420,17 @@ def init_db():
 # ============================================================
 
 def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
-def event(event_type, entity_type, entity_id, metadata=""):
+def event(
+    event_type,
+    entity_type,
+    entity_id,
+    metadata="",
+):
     conn = connect()
 
     db_execute(
@@ -401,7 +466,10 @@ def csv_values(value):
     }
 
 
-def recovery_score(customer, opening):
+def recovery_score(
+    customer,
+    opening,
+):
     score = 0
 
     artist_prefs = csv_values(
@@ -416,13 +484,22 @@ def recovery_score(customer, opening):
         customer["preferred_services"]
     )
 
-    if opening["artist_id"].lower() in artist_prefs:
+    if (
+        opening["artist_id"].lower()
+        in artist_prefs
+    ):
         score += 30
 
-    if (opening["style"] or "").lower() in style_prefs:
+    if (
+        (opening["style"] or "").lower()
+        in style_prefs
+    ):
         score += 25
 
-    if opening["service"].lower() in service_prefs:
+    if (
+        opening["service"].lower()
+        in service_prefs
+    ):
         score += 20
 
     if customer["completed_count"] >= 3:
@@ -435,24 +512,36 @@ def recovery_score(customer, opening):
         score += 5
 
     if customer["last_offer_at"]:
+
         try:
             last = datetime.fromisoformat(
                 customer["last_offer_at"]
             )
 
             if (
-                datetime.now(timezone.utc) - last
+                datetime.now(timezone.utc)
+                - last
                 < timedelta(days=30)
             ):
                 score -= 5
 
-        except (ValueError, TypeError):
+        except ValueError:
             pass
 
-    return max(0, min(100, score))
+    return max(
+        0,
+        min(
+            100,
+            score,
+        ),
+    )
 
 
-def send_sms(customer, opening, offer_id):
+def send_sms(
+    customer,
+    opening,
+    offer_id,
+):
     claim_url = (
         f"{PUBLIC_BASE_URL.rstrip('/')}"
         f"/offer/{offer_id}"
@@ -469,10 +558,14 @@ def send_sms(customer, opening, offer_id):
     )
 
     if DEMO_MODE:
+
         print("\n--- DEMO SMS ---")
-        print(f"To: {customer['phone']}")
+        print(
+            f"To: {customer['phone']}"
+        )
         print(message)
         print("----------------\n")
+
         return True
 
     if not all(
@@ -483,7 +576,8 @@ def send_sms(customer, opening, offer_id):
         ]
     ):
         raise RuntimeError(
-            "Twilio is not configured and DEMO_MODE is false."
+            "Twilio is not configured and "
+            "DEMO_MODE is false."
         )
 
     client = Client(
@@ -501,12 +595,215 @@ def send_sms(customer, opening, offer_id):
 
 
 # ============================================================
+# DEMO DATA
+# ============================================================
+
+def ensure_demo_data():
+    """
+    Create a demo shop and sample data if the
+    database is currently empty.
+
+    This is especially important for a fresh
+    PostgreSQL database on Render.
+    """
+
+    conn = connect()
+
+    shop = db_fetchone(
+        conn,
+        """
+        SELECT id
+        FROM shops
+        LIMIT 1
+        """,
+    )
+
+    if shop:
+        conn.close()
+        return
+
+    shop_id = "shop_demo"
+
+    db_execute(
+        conn,
+        """
+        INSERT INTO shops(
+            id,
+            name,
+            timezone,
+            booking_url,
+            status,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            shop_id,
+            "Demo Tattoo Studio",
+            "America/New_York",
+            "https://example.com/book",
+            "active",
+            now_iso(),
+        ),
+    )
+
+    artists = [
+        (
+            "artist_alex",
+            "Alex",
+            "traditional,neo_traditional",
+            "tattoo",
+        ),
+        (
+            "artist_jordan",
+            "Jordan",
+            "blackwork,traditional",
+            "tattoo",
+        ),
+    ]
+
+    for (
+        artist_id,
+        name,
+        styles,
+        services,
+    ) in artists:
+
+        db_execute(
+            conn,
+            """
+            INSERT INTO artists(
+                id,
+                shop_id,
+                name,
+                styles,
+                services
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                artist_id,
+                shop_id,
+                name,
+                styles,
+                services,
+            ),
+        )
+
+    customers = [
+        (
+            "cust_sarah",
+            "Sarah Miller",
+            "+15555550101",
+            "artist_alex",
+            "traditional",
+            "tattoo",
+            8,
+            7,
+            0,
+        ),
+        (
+            "cust_mike",
+            "Mike Rivera",
+            "+15555550102",
+            "artist_alex",
+            "traditional",
+            "tattoo",
+            5,
+            5,
+            0,
+        ),
+        (
+            "cust_jess",
+            "Jessica Lee",
+            "+15555550103",
+            "artist_jordan",
+            "blackwork",
+            "tattoo",
+            3,
+            3,
+            0,
+        ),
+        (
+            "cust_taylor",
+            "Taylor Smith",
+            "+15555550104",
+            "artist_alex,artist_jordan",
+            "traditional,blackwork",
+            "tattoo",
+            2,
+            2,
+            0,
+        ),
+    ]
+
+    for row in customers:
+
+        (
+            customer_id,
+            name,
+            phone,
+            preferred_artists,
+            preferred_styles,
+            preferred_services,
+            appointments,
+            completed,
+            cancellations,
+        ) = row
+
+        timestamp = now_iso()
+
+        db_execute(
+            conn,
+            """
+            INSERT INTO customers(
+                id,
+                shop_id,
+                name,
+                phone,
+                communication_consent,
+                preferred_artists,
+                preferred_styles,
+                preferred_services,
+                appointment_count,
+                completed_count,
+                cancellation_count,
+                created_at,
+                updated_at
+            )
+            VALUES(
+                ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?
+            )
+            """,
+            (
+                customer_id,
+                shop_id,
+                name,
+                phone,
+                1,
+                preferred_artists,
+                preferred_styles,
+                preferred_services,
+                appointments,
+                completed,
+                cancellations,
+                timestamp,
+                timestamp,
+            ),
+        )
+
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
 # APP
 # ============================================================
 
 app = FastAPI(
     title="Empty Chair",
-    version="0.2.1",
+    version="0.3.0",
 )
 
 templates = Jinja2Templates(
@@ -520,15 +817,24 @@ templates = Jinja2Templates(
 
 @app.on_event("startup")
 def startup():
+
     init_db()
+
+    ensure_demo_data()
 
 
 # ============================================================
 # DASHBOARD
 # ============================================================
 
-@app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request):
+@app.get(
+    "/",
+    response_class=HTMLResponse,
+)
+def dashboard(
+    request: Request,
+):
+
     conn = connect()
 
     shop = db_fetchone(
@@ -560,7 +866,9 @@ def dashboard(request: Request):
         FROM openings o
         JOIN artists a
             ON a.id = o.artist_id
-        ORDER BY o.date, o.start_time
+        ORDER BY
+            o.date,
+            o.start_time
         """,
     )
 
@@ -568,16 +876,13 @@ def dashboard(request: Request):
         conn,
         """
         SELECT
-            COALESCE(SUM(b.amount), 0) AS total
-        FROM bookings b
-        WHERE b.status = 'COMPLETED'
+            COALESCE(
+                SUM(amount),
+                0
+            ) AS total
+        FROM bookings
+        WHERE status = 'COMPLETED'
         """,
-    )
-
-    recovered = (
-        float(recovered_row["total"])
-        if recovered_row and recovered_row["total"] is not None
-        else 0
     )
 
     completed_row = db_fetchone(
@@ -589,13 +894,7 @@ def dashboard(request: Request):
         """,
     )
 
-    completed = (
-        int(completed_row["n"])
-        if completed_row
-        else 0
-    )
-
-    openings_row = db_fetchone(
+    total_openings_row = db_fetchone(
         conn,
         """
         SELECT COUNT(*) AS n
@@ -603,13 +902,7 @@ def dashboard(request: Request):
         """,
     )
 
-    total_openings = (
-        int(openings_row["n"])
-        if openings_row
-        else 0
-    )
-
-    customers_row = db_fetchone(
+    customer_count_row = db_fetchone(
         conn,
         """
         SELECT COUNT(*) AS n
@@ -617,108 +910,31 @@ def dashboard(request: Request):
         """,
     )
 
+    recovered = (
+        recovered_row["total"]
+        if recovered_row
+        else 0
+    )
+
+    completed = (
+        completed_row["n"]
+        if completed_row
+        else 0
+    )
+
+    total_openings = (
+        total_openings_row["n"]
+        if total_openings_row
+        else 0
+    )
+
     customer_count = (
-        int(customers_row["n"])
-        if customers_row
+        customer_count_row["n"]
+        if customer_count_row
         else 0
     )
 
     conn.close()
-
-    if shop is None:
-        return HTMLResponse(
-            f"""
-            <!doctype html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport"
-                      content="width=device-width, initial-scale=1">
-                <title>Empty Chair</title>
-                <style>
-                    body {{
-                        font-family:
-                            Inter,
-                            system-ui,
-                            -apple-system,
-                            sans-serif;
-                        max-width: 720px;
-                        margin: 0 auto;
-                        padding: 32px;
-                        background: #f7f7f5;
-                        color: #161616;
-                    }}
-
-                    .card {{
-                        background: white;
-                        border: 1px solid #ddd;
-                        border-radius: 16px;
-                        padding: 28px;
-                    }}
-
-                    .notice {{
-                        background: #eef6ff;
-                        border: 1px solid #c9def5;
-                        padding: 16px;
-                        border-radius: 10px;
-                        margin: 20px 0;
-                    }}
-
-                    button,
-                    a {{
-                        background: #111;
-                        color: white;
-                        border: 0;
-                        border-radius: 9px;
-                        padding: 12px 16px;
-                        text-decoration: none;
-                        display: inline-block;
-                        margin-top: 10px;
-                        cursor: pointer;
-                        font-size: 15px;
-                    }}
-
-                    .secondary {{
-                        background: #eee;
-                        color: #111;
-                    }}
-                </style>
-            </head>
-
-            <body>
-                <div class="card">
-                    <h1>Empty Chair</h1>
-
-                    <div class="notice">
-                        <strong>
-                            PostgreSQL is connected,
-                            but the database is empty.
-                        </strong>
-
-                        <p>
-                            Create the demo shop first.
-                            After that you can import your
-                            real customer CSV.
-                        </p>
-                    </div>
-
-                    <form method="post" action="/demo/setup">
-                        <button type="submit">
-                            Load Demo Studio
-                        </button>
-                    </form>
-
-                    <a
-                        class="secondary"
-                        href="/import/customers"
-                    >
-                        Import Customers
-                    </a>
-                </div>
-            </body>
-            </html>
-            """
-        )
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -744,6 +960,7 @@ def dashboard(request: Request):
     response_class=HTMLResponse,
 )
 def customer_import_page():
+
     database_type = (
         "PostgreSQL"
         if USE_POSTGRES
@@ -752,164 +969,238 @@ def customer_import_page():
 
     return HTMLResponse(
         f"""
-        <!doctype html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport"
-                  content="width=device-width, initial-scale=1">
-            <title>Import Customers · Empty Chair</title>
+<!doctype html>
+<html>
+<head>
 
-            <style>
-                body {{
-                    font-family:
-                        Inter,
-                        system-ui,
-                        -apple-system,
-                        sans-serif;
-                    max-width: 720px;
-                    margin: 0 auto;
-                    padding: 32px;
-                    background: #f7f7f5;
-                    color: #161616;
-                }}
+<meta charset="utf-8">
 
-                .card {{
-                    background: white;
-                    border: 1px solid #ddd;
-                    border-radius: 16px;
-                    padding: 28px;
-                }}
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+>
 
-                h1 {{
-                    margin-top: 0;
-                }}
+<title>Import Customers · Empty Chair</title>
 
-                .notice {{
-                    background: #eef6ff;
-                    border: 1px solid #c9def5;
-                    padding: 14px;
-                    border-radius: 10px;
-                    margin: 18px 0;
-                }}
+<style>
 
-                .warning {{
-                    background: #fff4d6;
-                    border: 1px solid #ead28b;
-                    padding: 14px;
-                    border-radius: 10px;
-                    margin: 18px 0;
-                }}
+body {{
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        sans-serif;
 
-                input[type=file] {{
-                    width: 100%;
-                    padding: 12px;
-                    border: 1px solid #bbb;
-                    border-radius: 9px;
-                    background: white;
-                    box-sizing: border-box;
-                }}
+    max-width: 720px;
 
-                button {{
-                    background: #111;
-                    color: white;
-                    border: 0;
-                    border-radius: 9px;
-                    padding: 13px 18px;
-                    cursor: pointer;
-                    font-size: 15px;
-                    margin-top: 15px;
-                }}
+    margin:
+        0 auto;
 
-                code {{
-                    background: #f1f1f1;
-                    padding: 3px 5px;
-                    border-radius: 5px;
-                }}
+    padding:
+        32px;
 
-                a {{
-                    color: #111;
-                }}
-            </style>
-        </head>
+    background:
+        #f7f7f5;
 
-        <body>
+    color:
+        #161616;
+}}
 
-        <div class="card">
+.card {{
+    background:
+        white;
 
-            <h1>Import Customers</h1>
+    border:
+        1px solid #ddd;
 
-            <p>
-                Import your customer history into Empty Chair.
-            </p>
+    border-radius:
+        16px;
 
-            <div class="notice">
-                <strong>Database:</strong>
-                {database_type}
-            </div>
+    padding:
+        28px;
+}}
 
-            <div class="warning">
-                <strong>SMS consent matters.</strong><br>
-                Only import customers who have consented to
-                receiving SMS communications from the shop.
-            </div>
+h1 {{
+    margin-top:
+        0;
+}}
 
-            <h2>CSV columns</h2>
+.notice {{
+    background:
+        #eef6ff;
 
-            <p>
-                Your CSV should contain these columns:
-            </p>
+    border:
+        1px solid #c9def5;
 
-            <p>
-                <code>name</code>,
-                <code>phone</code>,
-                <code>email</code>,
-                <code>communication_consent</code>,
-                <code>preferred_artists</code>,
-                <code>preferred_styles</code>,
-                <code>preferred_services</code>,
-                <code>appointment_count</code>,
-                <code>completed_count</code>,
-                <code>cancellation_count</code>
-            </p>
+    padding:
+        14px;
 
-            <p>
-                Optional column:
-                <code>id</code>
-            </p>
+    border-radius:
+        10px;
 
-            <h2>Upload CSV</h2>
+    margin:
+        18px 0;
+}}
 
-            <form
-                method="post"
-                action="/import/customers"
-                enctype="multipart/form-data"
-            >
+.warning {{
+    background:
+        #fff4d6;
 
-                <input
-                    type="file"
-                    name="file"
-                    accept=".csv,text/csv"
-                    required
-                >
+    border:
+        1px solid #ead28b;
 
-                <button type="submit">
-                    Import Customers
-                </button>
+    padding:
+        14px;
 
-            </form>
+    border-radius:
+        10px;
 
-            <p style="margin-top:25px;">
-                <a href="/">
-                    ← Back to dashboard
-                </a>
-            </p>
+    margin:
+        18px 0;
+}}
 
-        </div>
+input[type=file] {{
+    width:
+        100%;
 
-        </body>
-        </html>
-        """
+    padding:
+        12px;
+
+    border:
+        1px solid #bbb;
+
+    border-radius:
+        9px;
+
+    background:
+        white;
+
+    box-sizing:
+        border-box;
+}}
+
+button {{
+    background:
+        #111;
+
+    color:
+        white;
+
+    border:
+        0;
+
+    border-radius:
+        9px;
+
+    padding:
+        13px 18px;
+
+    cursor:
+        pointer;
+
+    font-size:
+        15px;
+
+    margin-top:
+        15px;
+}}
+
+code {{
+    background:
+        #f1f1f1;
+
+    padding:
+        3px 5px;
+
+    border-radius:
+        5px;
+}}
+
+a {{
+    color:
+        #111;
+}}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<h1>Import Customers</h1>
+
+<p>
+Import your customer history into Empty Chair.
+</p>
+
+<div class="notice">
+<strong>Database:</strong>
+{database_type}
+</div>
+
+<div class="warning">
+<strong>SMS consent matters.</strong>
+<br>
+Only import customers who have consented to receiving
+SMS communications from the shop.
+</div>
+
+<h2>CSV columns</h2>
+
+<p>
+Your CSV should contain:
+</p>
+
+<p>
+<code>name</code>,
+<code>phone</code>,
+<code>email</code>,
+<code>communication_consent</code>,
+<code>preferred_artists</code>,
+<code>preferred_styles</code>,
+<code>preferred_services</code>,
+<code>appointment_count</code>,
+<code>completed_count</code>,
+<code>cancellation_count</code>
+</p>
+
+<p>
+Optional:
+<code>id</code>
+</p>
+
+<h2>Upload CSV</h2>
+
+<form
+    method="post"
+    action="/import/customers"
+    enctype="multipart/form-data"
+>
+
+<input
+    type="file"
+    name="file"
+    accept=".csv,text/csv"
+    required
+>
+
+<button type="submit">
+Import Customers
+</button>
+
+</form>
+
+<p style="margin-top:25px;">
+<a href="/">← Back to dashboard</a>
+</p>
+
+</div>
+
+</body>
+</html>
+"""
     )
 
 
@@ -924,13 +1215,16 @@ def customer_import_page():
 async def import_customers(
     file: UploadFile = File(...),
 ):
+
     if not file.filename:
         raise HTTPException(
             400,
             "No CSV file selected.",
         )
 
-    if not file.filename.lower().endswith(".csv"):
+    if not file.filename.lower().endswith(
+        ".csv"
+    ):
         raise HTTPException(
             400,
             "Please upload a CSV file.",
@@ -939,12 +1233,14 @@ async def import_customers(
     raw_data = await file.read()
 
     try:
-        text = raw_data.decode("utf-8-sig")
-    except UnicodeDecodeError:
+        text = raw_data.decode(
+            "utf-8-sig"
+        )
+    except UnicodeDecodeError as exc:
         raise HTTPException(
             400,
             "CSV must be UTF-8 encoded.",
-        )
+        ) from exc
 
     reader = csv.DictReader(
         io.StringIO(text)
@@ -967,13 +1263,17 @@ async def import_customers(
         "phone",
     }
 
-    missing = required_headers - headers
+    missing = (
+        required_headers - headers
+    )
 
     if missing:
         raise HTTPException(
             400,
             "Missing required columns: "
-            + ", ".join(sorted(missing)),
+            + ", ".join(
+                sorted(missing)
+            ),
         )
 
     conn = connect()
@@ -989,18 +1289,30 @@ async def import_customers(
     )
 
     if not shop:
+
         conn.close()
 
         return HTMLResponse(
             """
-            <h1>No shop configured</h1>
-            <p>
-                Load the demo studio first or create a shop.
-            </p>
-            <p>
-                <a href="/">Back to dashboard</a>
-            </p>
-            """,
+<!doctype html>
+<html>
+<body>
+
+<h1>No shop configured</h1>
+
+<p>
+No shop exists in the database.
+</p>
+
+<p>
+<a href="/">
+Back to dashboard
+</a>
+</p>
+
+</body>
+</html>
+""",
             status_code=400,
         )
 
@@ -1011,34 +1323,60 @@ async def import_customers(
     skipped = 0
     errors = []
 
-    for row_number, raw_row in enumerate(
+    for (
+        row_number,
+        raw_row,
+    ) in enumerate(
         reader,
         start=2,
     ):
+
         try:
+
             row = {
                 (key or "").strip().lower():
-                    (value or "").strip()
-                for key, value in raw_row.items()
+                (value or "").strip()
+                for key, value
+                in raw_row.items()
             }
 
-            name = row.get("name", "").strip()
-            phone = row.get("phone", "").strip()
+            name = row.get(
+                "name",
+                "",
+            ).strip()
+
+            phone = row.get(
+                "phone",
+                "",
+            ).strip()
 
             if not name or not phone:
+
                 skipped += 1
+
                 errors.append(
                     f"Row {row_number}: "
                     "name and phone are required."
                 )
+
                 continue
 
             customer_id = (
-                row.get("id", "").strip()
-                or f"cust_{uuid.uuid4().hex[:12]}"
+                row.get(
+                    "id",
+                    "",
+                ).strip()
+                or
+                f"cust_{uuid.uuid4().hex[:12]}"
             )
 
-            email = row.get("email", "").strip() or None
+            email = (
+                row.get(
+                    "email",
+                    "",
+                ).strip()
+                or None
+            )
 
             consent_value = (
                 row.get(
@@ -1104,7 +1442,7 @@ async def import_customers(
                 or 0
             )
 
-            now = now_iso()
+            timestamp = now_iso()
 
             existing = db_fetchone(
                 conn,
@@ -1126,6 +1464,7 @@ async def import_customers(
             )
 
             if existing:
+
                 db_execute(
                     conn,
                     """
@@ -1155,7 +1494,7 @@ async def import_customers(
                         appointment_count,
                         completed_count,
                         cancellation_count,
-                        now,
+                        timestamp,
                         existing["id"],
                     ),
                 )
@@ -1163,6 +1502,7 @@ async def import_customers(
                 updated += 1
 
             else:
+
                 db_execute(
                     conn,
                     """
@@ -1200,14 +1540,15 @@ async def import_customers(
                         appointment_count,
                         completed_count,
                         cancellation_count,
-                        now,
-                        now,
+                        timestamp,
+                        timestamp,
                     ),
                 )
 
                 imported += 1
 
         except Exception as exc:
+
             skipped += 1
 
             errors.append(
@@ -1220,300 +1561,173 @@ async def import_customers(
     error_html = ""
 
     if errors:
+
         error_html = (
             "<h3>Rows needing attention</h3>"
             "<ul>"
-            + "".join(
+            +
+            "".join(
                 f"<li>{error}</li>"
                 for error in errors[:50]
             )
-            + "</ul>"
+            +
+            "</ul>"
         )
 
     return HTMLResponse(
         f"""
-        <!doctype html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport"
-                  content="width=device-width, initial-scale=1">
+<!doctype html>
+<html>
 
-            <title>Import Complete · Empty Chair</title>
+<head>
 
-            <style>
-                body {{
-                    font-family:
-                        Inter,
-                        system-ui,
-                        -apple-system,
-                        sans-serif;
-                    max-width: 720px;
-                    margin: 0 auto;
-                    padding: 32px;
-                    background: #f7f7f5;
-                    color: #161616;
-                }}
+<meta charset="utf-8">
 
-                .card {{
-                    background: white;
-                    border: 1px solid #ddd;
-                    border-radius: 16px;
-                    padding: 28px;
-                }}
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+>
 
-                .metric {{
-                    font-size: 32px;
-                    font-weight: 700;
-                    margin: 8px 0 20px;
-                }}
+<title>Import Complete · Empty Chair</title>
 
-                button,
-                a {{
-                    background: #111;
-                    color: white;
-                    border: 0;
-                    border-radius: 9px;
-                    padding: 12px 16px;
-                    text-decoration: none;
-                    display: inline-block;
-                    margin-top: 10px;
-                }}
-            </style>
-        </head>
+<style>
 
-        <body>
+body {{
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        sans-serif;
 
-        <div class="card">
+    max-width:
+        720px;
 
-            <h1>Import complete</h1>
+    margin:
+        0 auto;
 
-            <p>
-                <strong>New customers:</strong>
-            </p>
+    padding:
+        32px;
 
-            <div class="metric">
-                {imported}
-            </div>
+    background:
+        #f7f7f5;
 
-            <p>
-                <strong>Updated customers:</strong>
-            </p>
+    color:
+        #161616;
+}}
 
-            <div class="metric">
-                {updated}
-            </div>
+.card {{
+    background:
+        white;
 
-            <p>
-                <strong>Skipped/error rows:</strong>
-            </p>
+    border:
+        1px solid #ddd;
 
-            <div class="metric">
-                {skipped}
-            </div>
+    border-radius:
+        16px;
 
-            {error_html}
+    padding:
+        28px;
+}}
 
-            <a href="/import/customers">
-                Import another CSV
-            </a>
+.metric {{
+    font-size:
+        32px;
 
-            <a href="/">
-                Back to dashboard
-            </a>
+    font-weight:
+        700;
 
-        </div>
+    margin:
+        8px 0 20px;
+}}
 
-        </body>
-        </html>
-        """
+button,
+a {{
+    background:
+        #111;
+
+    color:
+        white;
+
+    border:
+        0;
+
+    border-radius:
+        9px;
+
+    padding:
+        12px 16px;
+
+    text-decoration:
+        none;
+
+    display:
+        inline-block;
+
+    margin-top:
+        10px;
+}}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<h1>Import complete</h1>
+
+<p>
+<strong>New customers:</strong>
+</p>
+
+<div class="metric">
+{imported}
+</div>
+
+<p>
+<strong>Updated customers:</strong>
+</p>
+
+<div class="metric">
+{updated}
+</div>
+
+<p>
+<strong>Skipped/error rows:</strong>
+</p>
+
+<div class="metric">
+{skipped}
+</div>
+
+{error_html}
+
+<a href="/import/customers">
+Import another CSV
+</a>
+
+<a href="/">
+Back to dashboard
+</a>
+
+</div>
+
+</body>
+
+</html>
+"""
     )
 
 
 # ============================================================
-# DEMO SETUP
+# DEMO SETUP ROUTE
 # ============================================================
 
 @app.post("/demo/setup")
 def demo_setup():
-    conn = connect()
 
-    shop = db_fetchone(
-        conn,
-        "SELECT id FROM shops LIMIT 1",
-    )
-
-    if not shop:
-        shop_id = "shop_demo"
-
-        db_execute(
-            conn,
-            """
-            INSERT INTO shops(
-                id,
-                name,
-                timezone,
-                booking_url,
-                status,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                shop_id,
-                "Demo Tattoo Studio",
-                "America/New_York",
-                "https://example.com/book",
-                "active",
-                now_iso(),
-            ),
-        )
-
-        artists = [
-            (
-                "artist_alex",
-                "Alex",
-                "traditional,neo_traditional",
-                "tattoo",
-            ),
-            (
-                "artist_jordan",
-                "Jordan",
-                "blackwork,traditional",
-                "tattoo",
-            ),
-        ]
-
-        for (
-            artist_id,
-            name,
-            styles,
-            services,
-        ) in artists:
-            db_execute(
-                conn,
-                """
-                INSERT INTO artists(
-                    id,
-                    shop_id,
-                    name,
-                    styles,
-                    services
-                )
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    artist_id,
-                    shop_id,
-                    name,
-                    styles,
-                    services,
-                ),
-            )
-
-        customers = [
-            (
-                "cust_sarah",
-                "Sarah Miller",
-                "+15555550101",
-                "artist_alex",
-                "traditional",
-                "tattoo",
-                8,
-                7,
-                0,
-            ),
-            (
-                "cust_mike",
-                "Mike Rivera",
-                "+15555550102",
-                "artist_alex",
-                "traditional",
-                "tattoo",
-                5,
-                5,
-                0,
-            ),
-            (
-                "cust_jess",
-                "Jessica Lee",
-                "+15555550103",
-                "artist_jordan",
-                "blackwork",
-                "tattoo",
-                3,
-                3,
-                0,
-            ),
-            (
-                "cust_taylor",
-                "Taylor Smith",
-                "+15555550104",
-                "artist_alex,artist_jordan",
-                "traditional,blackwork",
-                "tattoo",
-                2,
-                2,
-                0,
-            ),
-        ]
-
-        for row in customers:
-            (
-                customer_id,
-                name,
-                phone,
-                preferred_artists,
-                preferred_styles,
-                preferred_services,
-                appointments,
-                completed,
-                cancellations,
-            ) = row
-
-            db_execute(
-                conn,
-                """
-                INSERT INTO customers(
-                    id,
-                    shop_id,
-                    name,
-                    phone,
-                    communication_consent,
-                    preferred_artists,
-                    preferred_styles,
-                    preferred_services,
-                    appointment_count,
-                    completed_count,
-                    cancellation_count,
-                    created_at,
-                    updated_at
-                )
-                VALUES(
-                    ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?
-                )
-                """,
-                (
-                    customer_id,
-                    shop_id,
-                    name,
-                    phone,
-                    1,
-                    preferred_artists,
-                    preferred_styles,
-                    preferred_services,
-                    appointments,
-                    completed,
-                    cancellations,
-                    now_iso(),
-                    now_iso(),
-                ),
-            )
-
-        conn.commit()
-
-    conn.close()
+    ensure_demo_data()
 
     return RedirectResponse(
         "/",
@@ -1534,6 +1748,7 @@ def create_opening(
     style: str = Form(""),
     price: float = Form(...),
 ):
+
     conn = connect()
 
     artist = db_fetchone(
@@ -1547,7 +1762,9 @@ def create_opening(
     )
 
     if not artist:
+
         conn.close()
+
         raise HTTPException(
             404,
             "Artist not found",
@@ -1624,6 +1841,7 @@ def opening_page(
     request: Request,
     opening_id: str,
 ):
+
     conn = connect()
 
     opening = db_fetchone(
@@ -1659,6 +1877,7 @@ def opening_page(
     conn.close()
 
     if not opening:
+
         raise HTTPException(
             404,
             "Opening not found",
@@ -1684,6 +1903,7 @@ def opening_page(
 def start_recovery(
     opening_id: str,
 ):
+
     conn = connect()
 
     opening = db_fetchone(
@@ -1697,7 +1917,9 @@ def start_recovery(
     )
 
     if not opening:
+
         conn.close()
+
         raise HTTPException(
             404,
             "Opening not found",
@@ -1707,7 +1929,9 @@ def start_recovery(
         "OPEN",
         "RECOVERY_ACTIVE",
     ):
+
         conn.close()
+
         raise HTTPException(
             400,
             "Opening is not available for recovery",
@@ -1730,7 +1954,9 @@ def start_recovery(
     for customer in customers:
 
         if customer["last_offer_at"]:
+
             try:
+
                 last = datetime.fromisoformat(
                     customer["last_offer_at"]
                 )
@@ -1742,7 +1968,7 @@ def start_recovery(
                 ):
                     continue
 
-            except (ValueError, TypeError):
+            except ValueError:
                 pass
 
         score = recovery_score(
@@ -1863,6 +2089,8 @@ def start_recovery(
             (opening_id,),
         )
 
+        timestamp = now_iso()
+
         db_execute(
             conn2,
             """
@@ -1873,7 +2101,7 @@ def start_recovery(
             WHERE id = ?
             """,
             (
-                now_iso(),
+                timestamp,
                 offer["id"],
             ),
         )
@@ -1888,8 +2116,8 @@ def start_recovery(
             WHERE id = ?
             """,
             (
-                now_iso(),
-                now_iso(),
+                timestamp,
+                timestamp,
                 customer["id"],
             ),
         )
@@ -1898,6 +2126,7 @@ def start_recovery(
         conn2.close()
 
         try:
+
             send_sms(
                 customer,
                 opening_row,
@@ -1911,6 +2140,7 @@ def start_recovery(
             )
 
         except Exception as exc:
+
             event(
                 "offer.send_failed",
                 "offer",
@@ -1942,6 +2172,7 @@ def offer_page(
     request: Request,
     offer_id: str,
 ):
+
     conn = connect()
 
     offer = db_fetchone(
@@ -1974,13 +2205,16 @@ def offer_page(
     )
 
     if not offer:
+
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
         )
 
     if not offer["opened_at"]:
+
         db_execute(
             conn,
             """
@@ -2023,6 +2257,7 @@ def offer_page(
 def claim_offer(
     offer_id: str,
 ):
+
     conn = connect()
 
     offer = db_fetchone(
@@ -2044,7 +2279,9 @@ def claim_offer(
     )
 
     if not offer:
+
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
@@ -2056,7 +2293,9 @@ def claim_offer(
         "CANCELLED",
         "DECLINED",
     ):
+
         conn.close()
+
         raise HTTPException(
             400,
             "This offer is no longer available.",
@@ -2066,11 +2305,15 @@ def claim_offer(
         "OPEN",
         "RECOVERY_ACTIVE",
     ):
+
         conn.close()
+
         raise HTTPException(
             400,
             "This opening is no longer available.",
         )
+
+    timestamp = now_iso()
 
     db_execute(
         conn,
@@ -2083,8 +2326,8 @@ def claim_offer(
         WHERE id = ?
         """,
         (
-            now_iso(),
-            now_iso(),
+            timestamp,
+            timestamp,
             offer_id,
         ),
     )
@@ -2122,7 +2365,7 @@ def claim_offer(
         f"booking_{uuid.uuid4().hex[:12]}"
     )
 
-    booking_row = db_fetchone(
+    shop = db_fetchone(
         conn,
         """
         SELECT booking_url
@@ -2133,8 +2376,8 @@ def claim_offer(
     )
 
     booking_url = (
-        booking_row["booking_url"]
-        if booking_row
+        shop["booking_url"]
+        if shop
         else None
     )
 
@@ -2212,6 +2455,7 @@ def decline_offer(
     offer_id: str,
     reason: str = Form("skip"),
 ):
+
     conn = connect()
 
     offer = db_fetchone(
@@ -2225,11 +2469,15 @@ def decline_offer(
     )
 
     if not offer:
+
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
         )
+
+    timestamp = now_iso()
 
     db_execute(
         conn,
@@ -2243,8 +2491,8 @@ def decline_offer(
         WHERE id = ?
         """,
         (
-            now_iso(),
-            now_iso(),
+            timestamp,
+            timestamp,
             reason,
             offer_id,
         ),
@@ -2278,6 +2526,7 @@ def booking_page(
     request: Request,
     booking_id: str,
 ):
+
     conn = connect()
 
     booking = db_fetchone(
@@ -2306,6 +2555,7 @@ def booking_page(
     conn.close()
 
     if not booking:
+
         raise HTTPException(
             404,
             "Booking not found",
@@ -2330,6 +2580,7 @@ def booking_page(
 def confirm_booking(
     booking_id: str,
 ):
+
     conn = connect()
 
     booking = db_fetchone(
@@ -2343,7 +2594,9 @@ def confirm_booking(
     )
 
     if not booking:
+
         conn.close()
+
         raise HTTPException(
             404,
             "Booking not found",
@@ -2399,6 +2652,7 @@ def confirm_booking(
 def complete_booking(
     booking_id: str,
 ):
+
     conn = connect()
 
     booking = db_fetchone(
@@ -2412,7 +2666,9 @@ def complete_booking(
     )
 
     if not booking:
+
         conn.close()
+
         raise HTTPException(
             404,
             "Booking not found",
@@ -2454,17 +2710,30 @@ def complete_booking(
     )
 
     if customer:
+
+        old_completed = (
+            customer["completed_count"]
+            or 0
+        )
+
+        old_average = (
+            customer["average_spend"]
+            or 0
+        )
+
         new_completed_count = (
-            customer["completed_count"] + 1
+            old_completed + 1
         )
 
         new_average_spend = (
             (
-                customer["average_spend"]
-                * customer["completed_count"]
+                old_average
+                * old_completed
             )
             + booking["amount"]
         ) / new_completed_count
+
+        timestamp = now_iso()
 
         db_execute(
             conn,
@@ -2482,8 +2751,8 @@ def complete_booking(
             (
                 new_completed_count,
                 new_average_spend,
-                now_iso(),
-                now_iso(),
+                timestamp,
+                timestamp,
                 booking["customer_id"],
             ),
         )
@@ -2510,18 +2779,20 @@ def complete_booking(
 
 
 # ============================================================
-# HEALTH
+# HEALTH CHECK
 # ============================================================
 
 @app.get("/health")
 def health():
-    database = (
+
+    database_type = (
         "postgresql"
         if USE_POSTGRES
         else "sqlite"
     )
 
     try:
+
         conn = connect()
 
         db_fetchone(
@@ -2531,21 +2802,20 @@ def health():
 
         conn.close()
 
-        return {
-            "status": "ok",
-            "demo_mode": DEMO_MODE,
-            "database": database,
-            "database_connected": True,
-        }
+        database_status = "connected"
 
     except Exception as exc:
-        return {
-            "status": "error",
-            "demo_mode": DEMO_MODE,
-            "database": database,
-            "database_connected": False,
-            "error": str(exc),
-        }
+
+        database_status = (
+            f"error: {str(exc)}"
+        )
+
+    return {
+        "status": "ok",
+        "demo_mode": DEMO_MODE,
+        "database": database_type,
+        "database_status": database_status,
+    }
 
 
 # ============================================================
@@ -2553,6 +2823,7 @@ def health():
 # ============================================================
 
 if __name__ == "__main__":
+
     import uvicorn
 
     uvicorn.run(
@@ -2561,4 +2832,3 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
     )
-```
