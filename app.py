@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import uuid
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -9,7 +10,14 @@ from fastapi.templating import Jinja2Templates
 from twilio.rest import Client
 
 
-DB_PATH = os.getenv("EMPTY_CHAIR_DB", "empty_chair.db")
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+DB_PATH = os.getenv(
+    "EMPTY_CHAIR_DB",
+    "empty_chair.db",
+)
 
 PUBLIC_BASE_URL = os.getenv(
     "EMPTY_CHAIR_BASE_URL",
@@ -21,27 +29,74 @@ DEMO_MODE = os.getenv(
     "true",
 ).lower() == "true"
 
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER")
+TWILIO_ACCOUNT_SID = os.getenv(
+    "TWILIO_ACCOUNT_SID"
+)
 
+TWILIO_AUTH_TOKEN = os.getenv(
+    "TWILIO_AUTH_TOKEN"
+)
+
+TWILIO_FROM_NUMBER = os.getenv(
+    "TWILIO_FROM_NUMBER"
+)
+
+# Number of minutes each customer gets the opening.
+RECOVERY_OFFER_MINUTES = int(
+    os.getenv(
+        "RECOVERY_OFFER_MINUTES",
+        "15",
+    )
+)
+
+# How often the background worker checks
+# for expired offers.
+RECOVERY_CHECK_SECONDS = int(
+    os.getenv(
+        "RECOVERY_CHECK_SECONDS",
+        "10",
+    )
+)
+
+
+# ============================================================
+# APP
+# ============================================================
 
 app = FastAPI(
     title="Empty Chair",
-    version="0.1.0",
+    version="0.2.0",
 )
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(
+    directory="templates"
+)
 
+recovery_worker_task = None
+
+
+# ============================================================
+# DATABASE
+# ============================================================
 
 def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
 def connect():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(
+        DB_PATH,
+        timeout=30,
+    )
+
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+
+    conn.execute(
+        "PRAGMA foreign_keys = ON"
+    )
+
     return conn
 
 
@@ -164,7 +219,16 @@ def init_db():
     conn.close()
 
 
-def event(event_type, entity_type, entity_id, metadata=""):
+# ============================================================
+# EVENTS
+# ============================================================
+
+def event(
+    event_type,
+    entity_type,
+    entity_id,
+    metadata="",
+):
     conn = connect()
 
     conn.execute(
@@ -191,6 +255,10 @@ def event(event_type, entity_type, entity_id, metadata=""):
     conn.close()
 
 
+# ============================================================
+# MATCHING
+# ============================================================
+
 def csv_values(value):
     return {
         x.strip().lower()
@@ -199,20 +267,39 @@ def csv_values(value):
     }
 
 
-def recovery_score(customer, opening):
+def recovery_score(
+    customer,
+    opening,
+):
     score = 0
 
-    artist_prefs = csv_values(customer["preferred_artists"])
-    style_prefs = csv_values(customer["preferred_styles"])
-    service_prefs = csv_values(customer["preferred_services"])
+    artist_prefs = csv_values(
+        customer["preferred_artists"]
+    )
 
-    if opening["artist_id"].lower() in artist_prefs:
+    style_prefs = csv_values(
+        customer["preferred_styles"]
+    )
+
+    service_prefs = csv_values(
+        customer["preferred_services"]
+    )
+
+    if (
+        opening["artist_id"].lower()
+        in artist_prefs
+    ):
         score += 30
 
-    if (opening["style"] or "").lower() in style_prefs:
+    if (
+        opening["style"] or ""
+    ).lower() in style_prefs:
         score += 25
 
-    if opening["service"].lower() in service_prefs:
+    if (
+        opening["service"].lower()
+        in service_prefs
+    ):
         score += 20
 
     if customer["completed_count"] >= 3:
@@ -230,35 +317,60 @@ def recovery_score(customer, opening):
                 customer["last_offer_at"]
             )
 
-            if datetime.now(timezone.utc) - last < timedelta(days=30):
+            if (
+                datetime.now(timezone.utc)
+                - last
+                < timedelta(days=30)
+            ):
                 score -= 5
 
         except ValueError:
             pass
 
-    return max(0, min(100, score))
+    return max(
+        0,
+        min(100, score),
+    )
 
 
-def send_sms(customer, opening, offer_id):
+# ============================================================
+# SMS
+# ============================================================
+
+def send_sms(
+    customer,
+    opening,
+    offer_id,
+):
     claim_url = (
         f"{PUBLIC_BASE_URL.rstrip('/')}"
         f"/offer/{offer_id}"
     )
 
     message = (
-        f"Hey {customer['name'].split()[0]} — "
-        f"{opening['style'] or 'Tattoo'} opening with your artist "
-        f"is available on {opening['date']} at "
-        f"{opening['start_time']} for "
-        f"${opening['price']:.0f}. "
-        f"Claim it: {claim_url}"
+        f"Hey "
+        f"{customer['name'].split()[0]} — "
+        f"{opening['style'] or 'Tattoo'} opening "
+        f"with your artist is available "
+        f"on {opening['date']} at "
+        f"{opening['start_time']} "
+        f"for ${opening['price']:.0f}. "
+        f"You have "
+        f"{RECOVERY_OFFER_MINUTES} minutes "
+        f"to claim it: "
+        f"{claim_url}"
     )
 
     if DEMO_MODE:
-        print("\n--- DEMO SMS ---")
-        print(f"To: {customer['phone']}")
+        print("")
+        print("--- DEMO SMS ---")
+        print(
+            f"To: {customer['phone']}"
+        )
         print(message)
-        print("----------------\n")
+        print("----------------")
+        print("")
+
         return True
 
     if not all(
@@ -269,7 +381,8 @@ def send_sms(customer, opening, offer_id):
         ]
     ):
         raise RuntimeError(
-            "Twilio is not configured and DEMO_MODE is false."
+            "Twilio is not configured "
+            "and DEMO_MODE is false."
         )
 
     client = Client(
@@ -286,13 +399,369 @@ def send_sms(customer, opening, offer_id):
     return True
 
 
+# ============================================================
+# SEND NEXT OFFER
+# ============================================================
+
+def send_next_offer(
+    opening_id,
+):
+    conn = connect()
+
+    opening = conn.execute(
+        """
+        SELECT *
+        FROM openings
+        WHERE id = ?
+        """,
+        (opening_id,),
+    ).fetchone()
+
+    if not opening:
+        conn.close()
+        return False
+
+    # Never send another offer if somebody
+    # already claimed/booked/completed the opening.
+    if opening["status"] not in (
+        "OPEN",
+        "RECOVERY_ACTIVE",
+    ):
+        conn.close()
+        return False
+
+    # Check whether there is already an active offer.
+    active_offer = conn.execute(
+        """
+        SELECT *
+        FROM offers
+        WHERE opening_id = ?
+          AND status IN ('SENT', 'OPENED')
+        LIMIT 1
+        """,
+        (opening_id,),
+    ).fetchone()
+
+    if active_offer:
+        conn.close()
+        return False
+
+    # Find the next candidate who has not already
+    # received an offer for this opening.
+    next_offer = conn.execute(
+        """
+        SELECT
+            o.*,
+            c.name AS customer_name,
+            c.phone AS customer_phone
+        FROM offers o
+        JOIN customers c
+            ON c.id = o.customer_id
+        WHERE o.opening_id = ?
+          AND o.status = 'PENDING'
+        ORDER BY o.rank ASC
+        LIMIT 1
+        """,
+        (opening_id,),
+    ).fetchone()
+
+    if not next_offer:
+        conn.execute(
+            """
+            UPDATE openings
+            SET status = 'RECOVERY_EXHAUSTED'
+            WHERE id = ?
+              AND status IN (
+                  'OPEN',
+                  'RECOVERY_ACTIVE'
+              )
+            """,
+            (opening_id,),
+        )
+
+        conn.commit()
+        conn.close()
+
+        event(
+            "recovery.exhausted",
+            "opening",
+            opening_id,
+        )
+
+        return False
+
+    offer_id = next_offer["id"]
+
+    expires_at = (
+        datetime.now(timezone.utc)
+        + timedelta(
+            minutes=RECOVERY_OFFER_MINUTES
+        )
+    )
+
+    conn.execute(
+        """
+        UPDATE offers
+        SET
+            status = 'SENT',
+            sent_at = ?,
+            expires_at = ?
+        WHERE id = ?
+          AND status = 'PENDING'
+        """,
+        (
+            now_iso(),
+            expires_at.isoformat(),
+            offer_id,
+        ),
+    )
+
+    conn.execute(
+        """
+        UPDATE openings
+        SET status = 'RECOVERY_ACTIVE'
+        WHERE id = ?
+        """,
+        (opening_id,),
+    )
+
+    conn.execute(
+        """
+        UPDATE customers
+        SET
+            last_offer_at = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            now_iso(),
+            now_iso(),
+            next_offer["customer_id"],
+        ),
+    )
+
+    conn.commit()
+
+    customer = conn.execute(
+        """
+        SELECT *
+        FROM customers
+        WHERE id = ?
+        """,
+        (next_offer["customer_id"],),
+    ).fetchone()
+
+    opening_row = conn.execute(
+        """
+        SELECT *
+        FROM openings
+        WHERE id = ?
+        """,
+        (opening_id,),
+    ).fetchone()
+
+    conn.close()
+
+    try:
+        send_sms(
+            customer,
+            opening_row,
+            offer_id,
+        )
+
+        event(
+            "offer.sent",
+            "offer",
+            offer_id,
+        )
+
+        return True
+
+    except Exception as exc:
+        event(
+            "offer.send_failed",
+            "offer",
+            offer_id,
+            str(exc),
+        )
+
+        return False
+
+
+# ============================================================
+# ADVANCE RECOVERY
+# ============================================================
+
+def advance_recovery(
+    opening_id,
+):
+    conn = connect()
+
+    opening = conn.execute(
+        """
+        SELECT *
+        FROM openings
+        WHERE id = ?
+        """,
+        (opening_id,),
+    ).fetchone()
+
+    if not opening:
+        conn.close()
+        return False
+
+    if opening["status"] not in (
+        "OPEN",
+        "RECOVERY_ACTIVE",
+    ):
+        conn.close()
+        return False
+
+    active_offer = conn.execute(
+        """
+        SELECT *
+        FROM offers
+        WHERE opening_id = ?
+          AND status IN ('SENT', 'OPENED')
+        LIMIT 1
+        """,
+        (opening_id,),
+    ).fetchone()
+
+    if active_offer:
+        try:
+            expires_at = datetime.fromisoformat(
+                active_offer["expires_at"]
+            )
+
+            if (
+                datetime.now(timezone.utc)
+                < expires_at
+            ):
+                conn.close()
+                return False
+
+        except (
+            ValueError,
+            TypeError,
+        ):
+            pass
+
+        # Active offer has expired.
+        conn.execute(
+            """
+            UPDATE offers
+            SET status = 'EXPIRED'
+            WHERE id = ?
+              AND status IN (
+                  'SENT',
+                  'OPENED'
+              )
+            """,
+            (active_offer["id"],),
+        )
+
+        conn.commit()
+        conn.close()
+
+        event(
+            "offer.expired",
+            "offer",
+            active_offer["id"],
+        )
+
+        return send_next_offer(
+            opening_id
+        )
+
+    conn.close()
+
+    return send_next_offer(
+        opening_id
+    )
+
+
+# ============================================================
+# BACKGROUND RECOVERY WORKER
+# ============================================================
+
+async def recovery_worker():
+    while True:
+        try:
+            conn = connect()
+
+            openings = conn.execute(
+                """
+                SELECT id
+                FROM openings
+                WHERE status = 'RECOVERY_ACTIVE'
+                """
+            ).fetchall()
+
+            conn.close()
+
+            for opening in openings:
+                try:
+                    advance_recovery(
+                        opening["id"]
+                    )
+                except Exception as exc:
+                    print(
+                        "Recovery worker error:",
+                        opening["id"],
+                        exc,
+                    )
+
+        except Exception as exc:
+            print(
+                "Recovery worker database error:",
+                exc,
+            )
+
+        await asyncio.sleep(
+            RECOVERY_CHECK_SECONDS
+        )
+
+
+# ============================================================
+# STARTUP / SHUTDOWN
+# ============================================================
+
 @app.on_event("startup")
-def startup():
+async def startup():
+    global recovery_worker_task
+
     init_db()
 
+    recovery_worker_task = asyncio.create_task(
+        recovery_worker()
+    )
 
-@app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request):
+
+@app.on_event("shutdown")
+async def shutdown():
+    global recovery_worker_task
+
+    if recovery_worker_task:
+        recovery_worker_task.cancel()
+
+        try:
+            await recovery_worker_task
+        except asyncio.CancelledError:
+            pass
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+@app.get(
+    "/",
+    response_class=HTMLResponse,
+)
+def dashboard(
+    request: Request,
+):
     conn = connect()
 
     shop = conn.execute(
@@ -366,6 +835,10 @@ def dashboard(request: Request):
         },
     )
 
+
+# ============================================================
+# DEMO SETUP
+# ============================================================
 
 @app.post("/demo/setup")
 def demo_setup():
@@ -547,6 +1020,10 @@ def demo_setup():
     )
 
 
+# ============================================================
+# CREATE OPENING
+# ============================================================
+
 @app.post("/openings")
 def create_opening(
     artist_id: str = Form(...),
@@ -569,6 +1046,7 @@ def create_opening(
 
     if not artist:
         conn.close()
+
         raise HTTPException(
             404,
             "Artist not found",
@@ -630,6 +1108,10 @@ def create_opening(
     )
 
 
+# ============================================================
+# OPENING PAGE
+# ============================================================
+
 @app.get(
     "/openings/{opening_id}",
     response_class=HTMLResponse,
@@ -686,8 +1168,16 @@ def opening_page(
     )
 
 
-@app.post("/openings/{opening_id}/recover")
-def start_recovery(opening_id: str):
+# ============================================================
+# START RECOVERY
+# ============================================================
+
+@app.post(
+    "/openings/{opening_id}/recover"
+)
+def start_recovery(
+    opening_id: str,
+):
     conn = connect()
 
     opening = conn.execute(
@@ -701,6 +1191,7 @@ def start_recovery(opening_id: str):
 
     if not opening:
         conn.close()
+
         raise HTTPException(
             404,
             "Opening not found",
@@ -711,10 +1202,28 @@ def start_recovery(opening_id: str):
         "RECOVERY_ACTIVE",
     ):
         conn.close()
+
         raise HTTPException(
             400,
             "Opening is not available for recovery",
         )
+
+    # Cancel any previous unfinished offers
+    # for this opening so a recovery restart
+    # begins cleanly.
+    conn.execute(
+        """
+        UPDATE offers
+        SET status = 'CANCELLED'
+        WHERE opening_id = ?
+          AND status IN (
+              'PENDING',
+              'SENT',
+              'OPENED'
+          )
+        """,
+        (opening_id,),
+    )
 
     customers = conn.execute(
         """
@@ -730,6 +1239,8 @@ def start_recovery(opening_id: str):
     scored = []
 
     for customer in customers:
+        # Do not offer the same customer again
+        # if they were offered something recently.
         if customer["last_offer_at"]:
             try:
                 last = datetime.fromisoformat(
@@ -737,7 +1248,8 @@ def start_recovery(opening_id: str):
                 )
 
                 if (
-                    datetime.now(timezone.utc) - last
+                    datetime.now(timezone.utc)
+                    - last
                     < timedelta(hours=24)
                 ):
                     continue
@@ -784,9 +1296,14 @@ def start_recovery(opening_id: str):
             f"offer_{uuid.uuid4().hex[:12]}"
         )
 
+        # PENDING means this customer is
+        # in the recovery queue but has not
+        # received the offer yet.
         expires_at = (
             datetime.now(timezone.utc)
-            + timedelta(minutes=30)
+            + timedelta(
+                minutes=RECOVERY_OFFER_MINUTES
+            )
         )
 
         conn.execute(
@@ -816,96 +1333,12 @@ def start_recovery(opening_id: str):
         )
 
     conn.commit()
-
-    offers = conn.execute(
-        """
-        SELECT
-            o.*,
-            c.name AS customer_name
-        FROM offers o
-        JOIN customers c
-            ON c.id = o.customer_id
-        WHERE o.opening_id = ?
-        ORDER BY o.rank
-        """,
-        (opening_id,),
-    ).fetchall()
-
     conn.close()
 
-    for offer in offers:
-        conn2 = connect()
-
-        customer = conn2.execute(
-            """
-            SELECT *
-            FROM customers
-            WHERE id = ?
-            """,
-            (offer["customer_id"],),
-        ).fetchone()
-
-        opening_row = conn2.execute(
-            """
-            SELECT *
-            FROM openings
-            WHERE id = ?
-            """,
-            (opening_id,),
-        ).fetchone()
-
-        conn2.execute(
-            """
-            UPDATE offers
-            SET
-                status = 'SENT',
-                sent_at = ?
-            WHERE id = ?
-            """,
-            (
-                now_iso(),
-                offer["id"],
-            ),
-        )
-
-        conn2.execute(
-            """
-            UPDATE customers
-            SET
-                last_offer_at = ?,
-                updated_at = ?
-            WHERE id = ?
-            """,
-            (
-                now_iso(),
-                now_iso(),
-                customer["id"],
-            ),
-        )
-
-        conn2.commit()
-        conn2.close()
-
-        try:
-            send_sms(
-                customer,
-                opening_row,
-                offer["id"],
-            )
-
-            event(
-                "offer.sent",
-                "offer",
-                offer["id"],
-            )
-
-        except Exception as exc:
-            event(
-                "offer.send_failed",
-                "offer",
-                offer["id"],
-                str(exc),
-            )
+    # Send ONLY the first offer.
+    send_next_offer(
+        opening_id
+    )
 
     event(
         "recovery.started",
@@ -918,6 +1351,10 @@ def start_recovery(opening_id: str):
         status_code=303,
     )
 
+
+# ============================================================
+# OFFER PAGE
+# ============================================================
 
 @app.get(
     "/offer/{offer_id}",
@@ -959,6 +1396,7 @@ def offer_page(
 
     if not offer:
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
@@ -996,9 +1434,24 @@ def offer_page(
     )
 
 
-@app.post("/offer/{offer_id}/claim")
-def claim_offer(offer_id: str):
+# ============================================================
+# CLAIM OFFER
+# ============================================================
+
+@app.post(
+    "/offer/{offer_id}/claim"
+)
+def claim_offer(
+    offer_id: str,
+):
     conn = connect()
+
+    # Lock the database transaction so that
+    # two customers cannot simultaneously
+    # claim the same opening.
+    conn.execute(
+        "BEGIN IMMEDIATE"
+    )
 
     offer = conn.execute(
         """
@@ -1008,7 +1461,9 @@ def claim_offer(offer_id: str):
             op.booking_id,
             op.shop_id,
             op.artist_id,
-            op.price
+            op.price,
+            op.date,
+            op.start_time
         FROM offers o
         JOIN openings op
             ON op.id = o.opening_id
@@ -1018,18 +1473,22 @@ def claim_offer(offer_id: str):
     ).fetchone()
 
     if not offer:
+        conn.rollback()
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
         )
 
+    # Check offer status.
     if offer["status"] in (
         "CLAIMED",
         "EXPIRED",
         "CANCELLED",
         "DECLINED",
     ):
+        conn.rollback()
         conn.close()
 
         raise HTTPException(
@@ -1037,10 +1496,12 @@ def claim_offer(offer_id: str):
             "This offer is no longer available.",
         )
 
+    # Check opening status.
     if offer["opening_status"] not in (
         "OPEN",
         "RECOVERY_ACTIVE",
     ):
+        conn.rollback()
         conn.close()
 
         raise HTTPException(
@@ -1048,6 +1509,47 @@ def claim_offer(offer_id: str):
             "This opening is no longer available.",
         )
 
+    # Check expiration.
+    try:
+        expires_at = datetime.fromisoformat(
+            offer["expires_at"]
+        )
+
+        if (
+            datetime.now(timezone.utc)
+            >= expires_at
+        ):
+            conn.execute(
+                """
+                UPDATE offers
+                SET status = 'EXPIRED'
+                WHERE id = ?
+                """,
+                (offer_id,),
+            )
+
+            conn.commit()
+            conn.close()
+
+            event(
+                "offer.expired",
+                "offer",
+                offer_id,
+            )
+
+            advance_recovery(
+                offer["opening_id"]
+            )
+
+            raise HTTPException(
+                400,
+                "This offer has expired.",
+            )
+
+    except ValueError:
+        pass
+
+    # Claim the offer.
     conn.execute(
         """
         UPDATE offers
@@ -1064,6 +1566,7 @@ def claim_offer(offer_id: str):
         ),
     )
 
+    # Claim the opening.
     conn.execute(
         """
         UPDATE openings
@@ -1073,6 +1576,7 @@ def claim_offer(offer_id: str):
         (offer["opening_id"],),
     )
 
+    # Cancel all other offers.
     conn.execute(
         """
         UPDATE offers
@@ -1162,7 +1666,13 @@ def claim_offer(offer_id: str):
     )
 
 
-@app.post("/offer/{offer_id}/decline")
+# ============================================================
+# DECLINE OFFER
+# ============================================================
+
+@app.post(
+    "/offer/{offer_id}/decline"
+)
 def decline_offer(
     offer_id: str,
     reason: str = Form("skip"),
@@ -1180,9 +1690,21 @@ def decline_offer(
 
     if not offer:
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
+        )
+
+    if offer["status"] not in (
+        "SENT",
+        "OPENED",
+    ):
+        conn.close()
+
+        raise HTTPException(
+            400,
+            "This offer is no longer active.",
         )
 
     conn.execute(
@@ -1213,11 +1735,20 @@ def decline_offer(
         reason,
     )
 
+    # Immediately move to the next customer.
+    advance_recovery(
+        offer["opening_id"]
+    )
+
     return RedirectResponse(
         f"/offer/{offer_id}",
         status_code=303,
     )
 
+
+# ============================================================
+# BOOKING PAGE
+# ============================================================
 
 @app.get(
     "/booking/{booking_id}",
@@ -1268,8 +1799,16 @@ def booking_page(
     )
 
 
-@app.post("/bookings/{booking_id}/confirm")
-def confirm_booking(booking_id: str):
+# ============================================================
+# CONFIRM BOOKING
+# ============================================================
+
+@app.post(
+    "/bookings/{booking_id}/confirm"
+)
+def confirm_booking(
+    booking_id: str,
+):
     conn = connect()
 
     booking = conn.execute(
@@ -1283,6 +1822,7 @@ def confirm_booking(booking_id: str):
 
     if not booking:
         conn.close()
+
         raise HTTPException(
             404,
             "Booking not found",
@@ -1326,8 +1866,16 @@ def confirm_booking(booking_id: str):
     )
 
 
-@app.post("/bookings/{booking_id}/complete")
-def complete_booking(booking_id: str):
+# ============================================================
+# COMPLETE BOOKING
+# ============================================================
+
+@app.post(
+    "/bookings/{booking_id}/complete"
+)
+def complete_booking(
+    booking_id: str,
+):
     conn = connect()
 
     booking = conn.execute(
@@ -1341,6 +1889,7 @@ def complete_booking(booking_id: str):
 
     if not booking:
         conn.close()
+
         raise HTTPException(
             404,
             "Booking not found",
@@ -1373,17 +1922,28 @@ def complete_booking(booking_id: str):
         """
         UPDATE customers
         SET
-            completed_count = completed_count + 1,
-            appointment_count = appointment_count + 1,
+            completed_count =
+                completed_count + 1,
+
+            appointment_count =
+                appointment_count + 1,
+
             average_spend =
                 (
-                    (average_spend * completed_count)
+                    (
+                        average_spend
+                        * completed_count
+                    )
                     + ?
                 )
                 /
-                (completed_count + 1),
+                (
+                    completed_count + 1
+                ),
+
             last_appointment_at = ?,
             updated_at = ?
+
         WHERE id = ?
         """,
         (
@@ -1415,8 +1975,16 @@ def complete_booking(booking_id: str):
     )
 
 
-@app.get("/debug/offer/{offer_id}")
-def debug_offer(offer_id: str):
+# ============================================================
+# DEBUG OFFER
+# ============================================================
+
+@app.get(
+    "/debug/offer/{offer_id}"
+)
+def debug_offer(
+    offer_id: str,
+):
     conn = connect()
 
     offer = conn.execute(
@@ -1455,25 +2023,41 @@ def debug_offer(offer_id: str):
 
     result = dict(offer)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(
+        timezone.utc
+    )
 
     try:
         expires_at = datetime.fromisoformat(
             result["offer_expires_at"]
         )
 
-        result["current_time_utc"] = now.isoformat()
-        result["is_expired"] = now >= expires_at
+        result["current_time_utc"] = (
+            now.isoformat()
+        )
+
+        result["is_expired"] = (
+            now >= expires_at
+        )
 
     except (
         ValueError,
         TypeError,
     ):
-        result["current_time_utc"] = now.isoformat()
-        result["is_expired"] = "unable to determine"
+        result["current_time_utc"] = (
+            now.isoformat()
+        )
+
+        result["is_expired"] = (
+            "unable to determine"
+        )
 
     return result
 
+
+# ============================================================
+# HEALTH
+# ============================================================
 
 @app.get("/health")
 def health():
@@ -1481,8 +2065,16 @@ def health():
         "status": "ok",
         "demo_mode": DEMO_MODE,
         "base_url": PUBLIC_BASE_URL,
+        "recovery_offer_minutes":
+            RECOVERY_OFFER_MINUTES,
+        "recovery_check_seconds":
+            RECOVERY_CHECK_SECONDS,
     }
 
+
+# ============================================================
+# LOCAL DEVELOPMENT
+# ============================================================
 
 if __name__ == "__main__":
     import uvicorn
