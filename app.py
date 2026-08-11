@@ -2,7 +2,6 @@ import os
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -21,7 +20,6 @@ DEMO_MODE = os.getenv(
     "EMPTY_CHAIR_DEMO_MODE",
     "true",
 ).lower() == "true"
-
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
@@ -228,7 +226,9 @@ def recovery_score(customer, opening):
 
     if customer["last_offer_at"]:
         try:
-            last = datetime.fromisoformat(customer["last_offer_at"])
+            last = datetime.fromisoformat(
+                customer["last_offer_at"]
+            )
 
             if datetime.now(timezone.utc) - last < timedelta(days=30):
                 score -= 5
@@ -686,9 +686,7 @@ def opening_page(
     )
 
 
-@app.post(
-    "/openings/{opening_id}/recover"
-)
+@app.post("/openings/{opening_id}/recover")
 def start_recovery(opening_id: str):
     conn = connect()
 
@@ -997,28 +995,8 @@ def offer_page(
         },
     )
 
-        conn.commit()
 
-        event(
-            "offer.opened",
-            "offer",
-            offer_id,
-        )
-
-    conn.close()
-
-    return templates.TemplateResponse(
-        "offer.html",
-        {
-            "request": request,
-            "offer": offer,
-        },
-    )
-
-
-@app.post(
-    "/offer/{offer_id}/claim"
-)
+@app.post("/offer/{offer_id}/claim")
 def claim_offer(offer_id: str):
     conn = connect()
 
@@ -1184,9 +1162,7 @@ def claim_offer(offer_id: str):
     )
 
 
-@app.post(
-    "/offer/{offer_id}/decline"
-)
+@app.post("/offer/{offer_id}/decline")
 def decline_offer(
     offer_id: str,
     reason: str = Form("skip"),
@@ -1292,9 +1268,7 @@ def booking_page(
     )
 
 
-@app.post(
-    "/bookings/{booking_id}/confirm"
-)
+@app.post("/bookings/{booking_id}/confirm")
 def confirm_booking(booking_id: str):
     conn = connect()
 
@@ -1352,9 +1326,7 @@ def confirm_booking(booking_id: str):
     )
 
 
-@app.post(
-    "/bookings/{booking_id}/complete"
-)
+@app.post("/bookings/{booking_id}/complete")
 def complete_booking(booking_id: str):
     conn = connect()
 
@@ -1445,13 +1417,6 @@ def complete_booking(booking_id: str):
 
 @app.get("/debug/offer/{offer_id}")
 def debug_offer(offer_id: str):
-    """
-    Temporary diagnostic endpoint.
-
-    Example:
-    /debug/offer/offer_abc123
-    """
-
     conn = connect()
 
     offer = conn.execute(
