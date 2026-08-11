@@ -942,6 +942,7 @@ def offer_page(
             op.service,
             op.style,
             op.price,
+            op.status AS opening_status,
             a.name AS artist_name,
             s.booking_url
         FROM offers o
@@ -977,6 +978,24 @@ def offer_page(
                 offer_id,
             ),
         )
+
+        conn.commit()
+
+        event(
+            "offer.opened",
+            "offer",
+            offer_id,
+        )
+
+    conn.close()
+
+    return templates.TemplateResponse(
+        "offer.html",
+        {
+            "request": request,
+            "offer": offer,
+        },
+    )
 
         conn.commit()
 
