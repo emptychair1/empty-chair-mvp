@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Booking · Empty Chair</title>
+<style>
+body{font-family:Inter,system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:30px;background:#f7f7f5;color:#161616}
+.card{background:white;border:1px solid #ddd;border-radius:16px;padding:24px}
+button,.button{background:#111;color:white;border:0;border-radius:9px;padding:13px 16px;text-decoration:none;cursor:pointer;display:block;width:100%;margin-top:12px}
+</style></head>
+<body>
+<div class="card">
+<h1>Opening claimed ✓</h1>
+<p><strong>{{ booking["customer_name"] }}</strong></p>
+<p>{{ booking["artist_name"] }} · {{ booking["date"] }} · {{ booking["start_time"] }}</p>
+<p>{{ booking["style"] or "Tattoo" }} · ${{ "%.0f"|format(booking["amount"]) }}</p>
+<p>Status: <strong>{{ booking["status"] }}</strong></p>
+
+{% if booking["status"] == "PENDING" %}
+<a class="button" href="{{ booking['booking_url'] }}" target="_blank">Continue to studio booking</a>
+<form method="post" action="/bookings/{{ booking['id'] }}/confirm">
+<button>Demo: confirm booking</button>
+</form>
+{% elif booking["status"] == "CONFIRMED" %}
+<form method="post" action="/bookings/{{ booking['id'] }}/complete">
+<button>Demo: mark appointment completed</button>
+</form>
+{% elif booking["status"] == "COMPLETED" %}
+<p><strong>Completed. Revenue recovered: ${{ "%.0f"|format(booking["amount"]) }}</strong></p>
+{% endif %}
+</div>
+</body></html>
