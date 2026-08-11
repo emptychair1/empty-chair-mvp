@@ -1,11 +1,9 @@
-```python
 import os
 import csv
 import io
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -53,13 +51,9 @@ if USE_POSTGRES:
 
 
 def connect():
-    """
-    Connect to PostgreSQL when DATABASE_URL exists.
-    Otherwise use local SQLite.
-    """
+    """Connect to PostgreSQL when DATABASE_URL exists, otherwise SQLite."""
 
     if USE_POSTGRES:
-        # Render may provide postgres:// instead of postgresql://
         database_url = DATABASE_URL
 
         if database_url.startswith("postgres://"):
@@ -69,13 +63,11 @@ def connect():
                 1,
             )
 
-        conn = psycopg2.connect(
+        return psycopg2.connect(
             database_url,
             cursor_factory=RealDictCursor,
             sslmode="require",
         )
-
-        return conn
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -86,9 +78,10 @@ def connect():
 
 def db_execute(conn, query, params=()):
     """
-    Execute SQL using the correct parameter syntax.
-    The application internally uses ? placeholders.
-    PostgreSQL requires %s.
+    Execute SQL using the application's ? placeholder format.
+
+    SQLite uses ?.
+    PostgreSQL uses %s.
     """
 
     if USE_POSTGRES:
@@ -111,6 +104,7 @@ def db_fetchall(conn, query, params=()):
 
 def init_db():
     conn = connect()
+    cursor = conn.cursor()
 
     if USE_POSTGRES:
         schema = """
@@ -222,7 +216,6 @@ def init_db():
             created_at TEXT NOT NULL
         );
         """
-
     else:
         schema = """
         CREATE TABLE IF NOT EXISTS shops (
@@ -334,7 +327,6 @@ def init_db():
         );
         """
 
-    cursor = conn.cursor()
     cursor.execute(schema)
 
     conn.commit()
@@ -430,7 +422,7 @@ def recovery_score(customer, opening):
             ):
                 score -= 5
 
-        except ValueError:
+        except (ValueError, TypeError):
             pass
 
     return max(0, min(100, score))
@@ -490,7 +482,7 @@ def send_sms(customer, opening, offer_id):
 
 app = FastAPI(
     title="Empty Chair",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 templates = Jinja2Templates(
@@ -851,14 +843,14 @@ async def import_customers(
 
         return HTMLResponse(
             """
-            <h1>No shop configured</h1>
-            <p>
-            Load the demo studio first or create a shop.
-            </p>
-            <p>
-            <a href="/">Back to dashboard</a>
-            </p>
-            """,
+<h1>No shop configured</h1>
+<p>
+Load the demo studio first or create a shop.
+</p>
+<p>
+<a href="/">Back to dashboard</a>
+</p>
+""",
             status_code=400,
         )
 
@@ -876,7 +868,7 @@ async def import_customers(
         try:
             row = {
                 (key or "").strip().lower():
-                    (value or "").strip()
+                (value or "").strip()
                 for key, value in raw_row.items()
             }
 
@@ -962,6 +954,22 @@ async def import_customers(
                 or 0
             )
 
+            no_show_count = int(
+                row.get(
+                    "no_show_count",
+                    "0",
+                )
+                or 0
+            )
+
+            average_spend = float(
+                row.get(
+                    "average_spend",
+                    "0",
+                )
+                or 0
+            )
+
             now = now_iso()
 
             # ------------------------------------------------
@@ -1004,6 +1012,8 @@ async def import_customers(
                         appointment_count = ?,
                         completed_count = ?,
                         cancellation_count = ?,
+                        no_show_count = ?,
+                        average_spend = ?,
                         updated_at = ?
                     WHERE id = ?
                     """,
@@ -1018,6 +1028,8 @@ async def import_customers(
                         appointment_count,
                         completed_count,
                         cancellation_count,
+                        no_show_count,
+                        average_spend,
                         now,
                         existing["id"],
                     ),
@@ -1042,12 +1054,14 @@ async def import_customers(
                         appointment_count,
                         completed_count,
                         cancellation_count,
+                        no_show_count,
+                        average_spend,
                         created_at,
                         updated_at
                     )
                     VALUES(
                         ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?
+                        ?, ?, ?, ?, ?, ?, ?
                     )
                     """,
                     (
@@ -1063,6 +1077,8 @@ async def import_customers(
                         appointment_count,
                         completed_count,
                         cancellation_count,
+                        no_show_count,
+                        average_spend,
                         now,
                         now,
                     ),
@@ -1083,14 +1099,14 @@ async def import_customers(
     error_html = ""
 
     if errors:
+        error_items = "".join(
+            f"<li>{error}</li>"
+            for error in errors[:50]
+        )
+
         error_html = (
             "<h3>Rows needing attention</h3>"
-            "<ul>"
-            + "".join(
-                f"<li>{error}</li>"
-                for error in errors[:50]
-            )
-            + "</ul>"
+            f"<ul>{error_items}</ul>"
         )
 
     return HTMLResponse(
@@ -1330,6 +1346,8 @@ def demo_setup():
                 cancellations,
             ) = row
 
+            now = now_iso()
+
             db_execute(
                 conn,
                 """
@@ -1365,8 +1383,8 @@ def demo_setup():
                     appointments,
                     completed,
                     cancellations,
-                    now_iso(),
-                    now_iso(),
+                    now,
+                    now,
                 ),
             )
 
@@ -1407,6 +1425,7 @@ def create_opening(
 
     if not artist:
         conn.close()
+
         raise HTTPException(
             404,
             "Artist not found",
@@ -1557,6 +1576,7 @@ def start_recovery(
 
     if not opening:
         conn.close()
+
         raise HTTPException(
             404,
             "Opening not found",
@@ -1567,6 +1587,7 @@ def start_recovery(
         "RECOVERY_ACTIVE",
     ):
         conn.close()
+
         raise HTTPException(
             400,
             "Opening is not available for recovery",
@@ -1601,7 +1622,7 @@ def start_recovery(
                 ):
                     continue
 
-            except ValueError:
+            except (ValueError, TypeError):
                 pass
 
         score = recovery_score(
@@ -1699,7 +1720,8 @@ def start_recovery(
     conn.close()
 
     # MVP pilot behavior:
-    # send all top candidates in demo mode.
+    # send all top candidates.
+
     for offer in offers:
 
         conn2 = connect()
@@ -1724,6 +1746,8 @@ def start_recovery(
             (opening_id,),
         )
 
+        sent_at = now_iso()
+
         db_execute(
             conn2,
             """
@@ -1734,7 +1758,7 @@ def start_recovery(
             WHERE id = ?
             """,
             (
-                now_iso(),
+                sent_at,
                 offer["id"],
             ),
         )
@@ -1749,8 +1773,8 @@ def start_recovery(
             WHERE id = ?
             """,
             (
-                now_iso(),
-                now_iso(),
+                sent_at,
+                sent_at,
                 customer["id"],
             ),
         )
@@ -1836,6 +1860,7 @@ def offer_page(
 
     if not offer:
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
@@ -1906,10 +1931,15 @@ def claim_offer(
 
     if not offer:
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
         )
+
+    # --------------------------------------------------------
+    # Check offer status
+    # --------------------------------------------------------
 
     if offer["status"] in (
         "CLAIMED",
@@ -1918,20 +1948,66 @@ def claim_offer(
         "DECLINED",
     ):
         conn.close()
+
         raise HTTPException(
             400,
             "This offer is no longer available.",
         )
+
+    # --------------------------------------------------------
+    # Check opening status
+    # --------------------------------------------------------
 
     if offer["opening_status"] not in (
         "OPEN",
         "RECOVERY_ACTIVE",
     ):
         conn.close()
+
         raise HTTPException(
             400,
             "This opening is no longer available.",
         )
+
+    # --------------------------------------------------------
+    # Check expiration
+    # --------------------------------------------------------
+
+    try:
+        expires_at = datetime.fromisoformat(
+            offer["expires_at"]
+        )
+
+        if (
+            datetime.now(timezone.utc)
+            >= expires_at
+        ):
+            db_execute(
+                conn,
+                """
+                UPDATE offers
+                SET status = 'EXPIRED'
+                WHERE id = ?
+                """,
+                (offer_id,),
+            )
+
+            conn.commit()
+            conn.close()
+
+            raise HTTPException(
+                400,
+                "This offer has expired.",
+            )
+
+    except (ValueError, TypeError):
+        pass
+
+    timestamp = now_iso()
+
+    # --------------------------------------------------------
+    # Claim offer
+    # --------------------------------------------------------
 
     db_execute(
         conn,
@@ -1944,11 +2020,15 @@ def claim_offer(
         WHERE id = ?
         """,
         (
-            now_iso(),
-            now_iso(),
+            timestamp,
+            timestamp,
             offer_id,
         ),
     )
+
+    # --------------------------------------------------------
+    # Claim opening
+    # --------------------------------------------------------
 
     db_execute(
         conn,
@@ -1959,6 +2039,10 @@ def claim_offer(
         """,
         (offer["opening_id"],),
     )
+
+    # --------------------------------------------------------
+    # Cancel competing offers
+    # --------------------------------------------------------
 
     db_execute(
         conn,
@@ -1979,11 +2063,15 @@ def claim_offer(
         ),
     )
 
+    # --------------------------------------------------------
+    # Create booking
+    # --------------------------------------------------------
+
     booking_id = (
         f"booking_{uuid.uuid4().hex[:12]}"
     )
 
-    booking_url = db_fetchone(
+    booking_row = db_fetchone(
         conn,
         """
         SELECT booking_url
@@ -1991,7 +2079,13 @@ def claim_offer(
         WHERE id = ?
         """,
         (offer["shop_id"],),
-    )["booking_url"]
+    )
+
+    booking_url = (
+        booking_row["booking_url"]
+        if booking_row
+        else None
+    )
 
     db_execute(
         conn,
@@ -2018,9 +2112,13 @@ def claim_offer(
             booking_url,
             "PENDING",
             offer["price"],
-            now_iso(),
+            timestamp,
         ),
     )
+
+    # --------------------------------------------------------
+    # Link booking to opening
+    # --------------------------------------------------------
 
     db_execute(
         conn,
@@ -2081,10 +2179,13 @@ def decline_offer(
 
     if not offer:
         conn.close()
+
         raise HTTPException(
             404,
             "Offer not found",
         )
+
+    timestamp = now_iso()
 
     db_execute(
         conn,
@@ -2098,8 +2199,8 @@ def decline_offer(
         WHERE id = ?
         """,
         (
-            now_iso(),
-            now_iso(),
+            timestamp,
+            timestamp,
             reason,
             offer_id,
         ),
@@ -2199,10 +2300,13 @@ def confirm_booking(
 
     if not booking:
         conn.close()
+
         raise HTTPException(
             404,
             "Booking not found",
         )
+
+    timestamp = now_iso()
 
     db_execute(
         conn,
@@ -2214,7 +2318,7 @@ def confirm_booking(
         WHERE id = ?
         """,
         (
-            now_iso(),
+            timestamp,
             booking_id,
         ),
     )
@@ -2268,10 +2372,13 @@ def complete_booking(
 
     if not booking:
         conn.close()
+
         raise HTTPException(
             404,
             "Booking not found",
         )
+
+    timestamp = now_iso()
 
     db_execute(
         conn,
@@ -2283,7 +2390,7 @@ def complete_booking(
         WHERE id = ?
         """,
         (
-            now_iso(),
+            timestamp,
             booking_id,
         ),
     )
@@ -2308,16 +2415,26 @@ def complete_booking(
         (booking["customer_id"],),
     )
 
-    new_completed_count = (
-        customer["completed_count"] + 1
-    )
+    if not customer:
+        conn.rollback()
+        conn.close()
+
+        raise HTTPException(
+            404,
+            "Customer not found",
+        )
+
+    old_completed = customer["completed_count"] or 0
+    old_average = customer["average_spend"] or 0
+    amount = booking["amount"] or 0
+
+    new_completed_count = old_completed + 1
 
     new_average_spend = (
         (
-            customer["average_spend"]
-            * customer["completed_count"]
+            old_average * old_completed
         )
-        + booking["amount"]
+        + amount
     ) / new_completed_count
 
     db_execute(
@@ -2335,8 +2452,8 @@ def complete_booking(
         (
             new_completed_count,
             new_average_spend,
-            now_iso(),
-            now_iso(),
+            timestamp,
+            timestamp,
             booking["customer_id"],
         ),
     )
@@ -2392,4 +2509,3 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
     )
-```
