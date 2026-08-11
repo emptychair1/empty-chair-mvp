@@ -1,4 +1,3 @@
-
 import os
 import csv
 import io
@@ -107,15 +106,13 @@ def db_execute(
 ):
     """
     Execute SQL using the correct placeholder syntax.
+
     Application SQL uses ? placeholders.
     PostgreSQL requires %s.
     """
 
     if USE_POSTGRES:
-        query = query.replace(
-            "?",
-            "%s",
-        )
+        query = query.replace("?", "%s")
 
     cursor = conn.cursor()
 
@@ -132,14 +129,6 @@ def db_fetchone(
     query,
     params=(),
 ):
-    """
-    Execute a query and return one row.
-
-    IMPORTANT:
-    The same cursor that executes the query must
-    also perform fetchone().
-    """
-
     cursor = db_execute(
         conn,
         query,
@@ -154,10 +143,6 @@ def db_fetchall(
     query,
     params=(),
 ):
-    """
-    Execute a query and return all rows.
-    """
-
     cursor = db_execute(
         conn,
         query,
@@ -165,15 +150,6 @@ def db_fetchall(
     )
 
     return cursor.fetchall()
-
-
-def db_last_insert_id(cursor):
-    """
-    PostgreSQL and SQLite handle generated IDs differently.
-    This helper is reserved for future use.
-    """
-
-    return None
 
 
 # ============================================================
@@ -184,7 +160,6 @@ def init_db():
     conn = connect()
 
     if USE_POSTGRES:
-
         schema = """
         CREATE TABLE IF NOT EXISTS shops (
             id TEXT PRIMARY KEY,
@@ -296,7 +271,6 @@ def init_db():
         """
 
     else:
-
         schema = """
         CREATE TABLE IF NOT EXISTS shops (
             id TEXT PRIMARY KEY,
@@ -408,7 +382,6 @@ def init_db():
         """
 
     cursor = conn.cursor()
-
     cursor.execute(schema)
 
     conn.commit()
@@ -484,22 +457,13 @@ def recovery_score(
         customer["preferred_services"]
     )
 
-    if (
-        opening["artist_id"].lower()
-        in artist_prefs
-    ):
+    if opening["artist_id"].lower() in artist_prefs:
         score += 30
 
-    if (
-        (opening["style"] or "").lower()
-        in style_prefs
-    ):
+    if (opening["style"] or "").lower() in style_prefs:
         score += 25
 
-    if (
-        opening["service"].lower()
-        in service_prefs
-    ):
+    if opening["service"].lower() in service_prefs:
         score += 20
 
     if customer["completed_count"] >= 3:
@@ -512,15 +476,13 @@ def recovery_score(
         score += 5
 
     if customer["last_offer_at"]:
-
         try:
             last = datetime.fromisoformat(
                 customer["last_offer_at"]
             )
 
             if (
-                datetime.now(timezone.utc)
-                - last
+                datetime.now(timezone.utc) - last
                 < timedelta(days=30)
             ):
                 score -= 5
@@ -558,14 +520,10 @@ def send_sms(
     )
 
     if DEMO_MODE:
-
         print("\n--- DEMO SMS ---")
-        print(
-            f"To: {customer['phone']}"
-        )
+        print(f"To: {customer['phone']}")
         print(message)
         print("----------------\n")
-
         return True
 
     if not all(
@@ -601,10 +559,7 @@ def send_sms(
 def ensure_demo_data():
     """
     Create a demo shop and sample data if the
-    database is currently empty.
-
-    This is especially important for a fresh
-    PostgreSQL database on Render.
+    database currently has no shop.
     """
 
     conn = connect()
@@ -620,7 +575,7 @@ def ensure_demo_data():
 
     if shop:
         conn.close()
-        return
+        return False
 
     shop_id = "shop_demo"
 
@@ -668,7 +623,6 @@ def ensure_demo_data():
         styles,
         services,
     ) in artists:
-
         db_execute(
             conn,
             """
@@ -738,7 +692,6 @@ def ensure_demo_data():
     ]
 
     for row in customers:
-
         (
             customer_id,
             name,
@@ -796,6 +749,8 @@ def ensure_demo_data():
     conn.commit()
     conn.close()
 
+    return True
+
 
 # ============================================================
 # APP
@@ -817,9 +772,7 @@ templates = Jinja2Templates(
 
 @app.on_event("startup")
 def startup():
-
     init_db()
-
     ensure_demo_data()
 
 
@@ -834,7 +787,6 @@ def startup():
 def dashboard(
     request: Request,
 ):
-
     conn = connect()
 
     shop = db_fetchone(
@@ -947,7 +899,53 @@ def dashboard(
             "completed": completed,
             "total_openings": total_openings,
             "customer_count": customer_count,
+            "demo_mode": DEMO_MODE,
         },
+    )
+
+
+# ============================================================
+# DEMO SETUP
+# ============================================================
+
+@app.get("/demo/setup")
+def demo_setup_get():
+    """
+    GET version allows a normal dashboard link/button
+    to activate demo setup.
+    """
+
+    created = ensure_demo_data()
+
+    if created:
+        return RedirectResponse(
+            "/?demo=created",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        "/?demo=exists",
+        status_code=303,
+    )
+
+
+@app.post("/demo/setup")
+def demo_setup_post():
+    """
+    POST version supports an HTML form button.
+    """
+
+    created = ensure_demo_data()
+
+    if created:
+        return RedirectResponse(
+            "/?demo=created",
+            status_code=303,
+        )
+
+    return RedirectResponse(
+        "/?demo=exists",
+        status_code=303,
     )
 
 
@@ -992,133 +990,67 @@ body {{
         sans-serif;
 
     max-width: 720px;
-
-    margin:
-        0 auto;
-
-    padding:
-        32px;
-
-    background:
-        #f7f7f5;
-
-    color:
-        #161616;
+    margin: 0 auto;
+    padding: 32px;
+    background: #f7f7f5;
+    color: #161616;
 }}
 
 .card {{
-    background:
-        white;
-
-    border:
-        1px solid #ddd;
-
-    border-radius:
-        16px;
-
-    padding:
-        28px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 16px;
+    padding: 28px;
 }}
 
 h1 {{
-    margin-top:
-        0;
+    margin-top: 0;
 }}
 
 .notice {{
-    background:
-        #eef6ff;
-
-    border:
-        1px solid #c9def5;
-
-    padding:
-        14px;
-
-    border-radius:
-        10px;
-
-    margin:
-        18px 0;
+    background: #eef6ff;
+    border: 1px solid #c9def5;
+    padding: 14px;
+    border-radius: 10px;
+    margin: 18px 0;
 }}
 
 .warning {{
-    background:
-        #fff4d6;
-
-    border:
-        1px solid #ead28b;
-
-    padding:
-        14px;
-
-    border-radius:
-        10px;
-
-    margin:
-        18px 0;
+    background: #fff4d6;
+    border: 1px solid #ead28b;
+    padding: 14px;
+    border-radius: 10px;
+    margin: 18px 0;
 }}
 
 input[type=file] {{
-    width:
-        100%;
-
-    padding:
-        12px;
-
-    border:
-        1px solid #bbb;
-
-    border-radius:
-        9px;
-
-    background:
-        white;
-
-    box-sizing:
-        border-box;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #bbb;
+    border-radius: 9px;
+    background: white;
+    box-sizing: border-box;
 }}
 
 button {{
-    background:
-        #111;
-
-    color:
-        white;
-
-    border:
-        0;
-
-    border-radius:
-        9px;
-
-    padding:
-        13px 18px;
-
-    cursor:
-        pointer;
-
-    font-size:
-        15px;
-
-    margin-top:
-        15px;
+    background: #111;
+    color: white;
+    border: 0;
+    border-radius: 9px;
+    padding: 13px 18px;
+    cursor: pointer;
+    font-size: 15px;
+    margin-top: 15px;
 }}
 
 code {{
-    background:
-        #f1f1f1;
-
-    padding:
-        3px 5px;
-
-    border-radius:
-        5px;
+    background: #f1f1f1;
+    padding: 3px 5px;
+    border-radius: 5px;
 }}
 
 a {{
-    color:
-        #111;
+    color: #111;
 }}
 
 </style>
@@ -1222,9 +1154,7 @@ async def import_customers(
             "No CSV file selected.",
         )
 
-    if not file.filename.lower().endswith(
-        ".csv"
-    ):
+    if not file.filename.lower().endswith(".csv"):
         raise HTTPException(
             400,
             "Please upload a CSV file.",
@@ -1233,9 +1163,7 @@ async def import_customers(
     raw_data = await file.read()
 
     try:
-        text = raw_data.decode(
-            "utf-8-sig"
-        )
+        text = raw_data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise HTTPException(
             400,
@@ -1263,17 +1191,13 @@ async def import_customers(
         "phone",
     }
 
-    missing = (
-        required_headers - headers
-    )
+    missing = required_headers - headers
 
     if missing:
         raise HTTPException(
             400,
             "Missing required columns: "
-            + ", ".join(
-                sorted(missing)
-            ),
+            + ", ".join(sorted(missing)),
         )
 
     conn = connect()
@@ -1289,7 +1213,6 @@ async def import_customers(
     )
 
     if not shop:
-
         conn.close()
 
         return HTMLResponse(
@@ -1323,21 +1246,15 @@ Back to dashboard
     skipped = 0
     errors = []
 
-    for (
-        row_number,
-        raw_row,
-    ) in enumerate(
+    for row_number, raw_row in enumerate(
         reader,
         start=2,
     ):
-
         try:
-
             row = {
                 (key or "").strip().lower():
                 (value or "").strip()
-                for key, value
-                in raw_row.items()
+                for key, value in raw_row.items()
             }
 
             name = row.get(
@@ -1351,7 +1268,6 @@ Back to dashboard
             ).strip()
 
             if not name or not phone:
-
                 skipped += 1
 
                 errors.append(
@@ -1362,12 +1278,8 @@ Back to dashboard
                 continue
 
             customer_id = (
-                row.get(
-                    "id",
-                    "",
-                ).strip()
-                or
-                f"cust_{uuid.uuid4().hex[:12]}"
+                row.get("id", "").strip()
+                or f"cust_{uuid.uuid4().hex[:12]}"
             )
 
             email = (
@@ -1464,7 +1376,6 @@ Back to dashboard
             )
 
             if existing:
-
                 db_execute(
                     conn,
                     """
@@ -1502,7 +1413,6 @@ Back to dashboard
                 updated += 1
 
             else:
-
                 db_execute(
                     conn,
                     """
@@ -1548,7 +1458,6 @@ Back to dashboard
                 imported += 1
 
         except Exception as exc:
-
             skipped += 1
 
             errors.append(
@@ -1561,17 +1470,14 @@ Back to dashboard
     error_html = ""
 
     if errors:
-
         error_html = (
             "<h3>Rows needing attention</h3>"
             "<ul>"
-            +
-            "".join(
+            + "".join(
                 f"<li>{error}</li>"
                 for error in errors[:50]
             )
-            +
-            "</ul>"
+            + "</ul>"
         )
 
     return HTMLResponse(
@@ -1599,72 +1505,36 @@ body {{
         -apple-system,
         sans-serif;
 
-    max-width:
-        720px;
-
-    margin:
-        0 auto;
-
-    padding:
-        32px;
-
-    background:
-        #f7f7f5;
-
-    color:
-        #161616;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px;
+    background: #f7f7f5;
+    color: #161616;
 }}
 
 .card {{
-    background:
-        white;
-
-    border:
-        1px solid #ddd;
-
-    border-radius:
-        16px;
-
-    padding:
-        28px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 16px;
+    padding: 28px;
 }}
 
 .metric {{
-    font-size:
-        32px;
-
-    font-weight:
-        700;
-
-    margin:
-        8px 0 20px;
+    font-size: 32px;
+    font-weight: 700;
+    margin: 8px 0 20px;
 }}
 
 button,
 a {{
-    background:
-        #111;
-
-    color:
-        white;
-
-    border:
-        0;
-
-    border-radius:
-        9px;
-
-    padding:
-        12px 16px;
-
-    text-decoration:
-        none;
-
-    display:
-        inline-block;
-
-    margin-top:
-        10px;
+    background: #111;
+    color: white;
+    border: 0;
+    border-radius: 9px;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: inline-block;
+    margin-top: 10px;
 }}
 
 </style>
@@ -1721,21 +1591,6 @@ Back to dashboard
 
 
 # ============================================================
-# DEMO SETUP ROUTE
-# ============================================================
-
-@app.post("/demo/setup")
-def demo_setup():
-
-    ensure_demo_data()
-
-    return RedirectResponse(
-        "/",
-        status_code=303,
-    )
-
-
-# ============================================================
 # CREATE OPENING
 # ============================================================
 
@@ -1748,7 +1603,6 @@ def create_opening(
     style: str = Form(""),
     price: float = Form(...),
 ):
-
     conn = connect()
 
     artist = db_fetchone(
@@ -1762,7 +1616,6 @@ def create_opening(
     )
 
     if not artist:
-
         conn.close()
 
         raise HTTPException(
@@ -1841,7 +1694,6 @@ def opening_page(
     request: Request,
     opening_id: str,
 ):
-
     conn = connect()
 
     opening = db_fetchone(
@@ -1877,7 +1729,6 @@ def opening_page(
     conn.close()
 
     if not opening:
-
         raise HTTPException(
             404,
             "Opening not found",
@@ -1903,7 +1754,6 @@ def opening_page(
 def start_recovery(
     opening_id: str,
 ):
-
     conn = connect()
 
     opening = db_fetchone(
@@ -1917,7 +1767,6 @@ def start_recovery(
     )
 
     if not opening:
-
         conn.close()
 
         raise HTTPException(
@@ -1929,7 +1778,6 @@ def start_recovery(
         "OPEN",
         "RECOVERY_ACTIVE",
     ):
-
         conn.close()
 
         raise HTTPException(
@@ -1952,18 +1800,14 @@ def start_recovery(
     scored = []
 
     for customer in customers:
-
         if customer["last_offer_at"]:
-
             try:
-
                 last = datetime.fromisoformat(
                     customer["last_offer_at"]
                 )
 
                 if (
-                    datetime.now(timezone.utc)
-                    - last
+                    datetime.now(timezone.utc) - last
                     < timedelta(hours=24)
                 ):
                     continue
@@ -2007,7 +1851,6 @@ def start_recovery(
         selected,
         start=1,
     ):
-
         offer_id = (
             f"offer_{uuid.uuid4().hex[:12]}"
         )
@@ -2066,7 +1909,6 @@ def start_recovery(
     conn.close()
 
     for offer in offers:
-
         conn2 = connect()
 
         customer = db_fetchone(
@@ -2126,7 +1968,6 @@ def start_recovery(
         conn2.close()
 
         try:
-
             send_sms(
                 customer,
                 opening_row,
@@ -2140,7 +1981,6 @@ def start_recovery(
             )
 
         except Exception as exc:
-
             event(
                 "offer.send_failed",
                 "offer",
@@ -2172,7 +2012,6 @@ def offer_page(
     request: Request,
     offer_id: str,
 ):
-
     conn = connect()
 
     offer = db_fetchone(
@@ -2205,7 +2044,6 @@ def offer_page(
     )
 
     if not offer:
-
         conn.close()
 
         raise HTTPException(
@@ -2214,7 +2052,6 @@ def offer_page(
         )
 
     if not offer["opened_at"]:
-
         db_execute(
             conn,
             """
@@ -2257,7 +2094,6 @@ def offer_page(
 def claim_offer(
     offer_id: str,
 ):
-
     conn = connect()
 
     offer = db_fetchone(
@@ -2279,7 +2115,6 @@ def claim_offer(
     )
 
     if not offer:
-
         conn.close()
 
         raise HTTPException(
@@ -2293,7 +2128,6 @@ def claim_offer(
         "CANCELLED",
         "DECLINED",
     ):
-
         conn.close()
 
         raise HTTPException(
@@ -2305,7 +2139,6 @@ def claim_offer(
         "OPEN",
         "RECOVERY_ACTIVE",
     ):
-
         conn.close()
 
         raise HTTPException(
@@ -2455,7 +2288,6 @@ def decline_offer(
     offer_id: str,
     reason: str = Form("skip"),
 ):
-
     conn = connect()
 
     offer = db_fetchone(
@@ -2469,7 +2301,6 @@ def decline_offer(
     )
 
     if not offer:
-
         conn.close()
 
         raise HTTPException(
@@ -2526,7 +2357,6 @@ def booking_page(
     request: Request,
     booking_id: str,
 ):
-
     conn = connect()
 
     booking = db_fetchone(
@@ -2555,7 +2385,6 @@ def booking_page(
     conn.close()
 
     if not booking:
-
         raise HTTPException(
             404,
             "Booking not found",
@@ -2580,7 +2409,6 @@ def booking_page(
 def confirm_booking(
     booking_id: str,
 ):
-
     conn = connect()
 
     booking = db_fetchone(
@@ -2594,7 +2422,6 @@ def confirm_booking(
     )
 
     if not booking:
-
         conn.close()
 
         raise HTTPException(
@@ -2652,7 +2479,6 @@ def confirm_booking(
 def complete_booking(
     booking_id: str,
 ):
-
     conn = connect()
 
     booking = db_fetchone(
@@ -2666,7 +2492,6 @@ def complete_booking(
     )
 
     if not booking:
-
         conn.close()
 
         raise HTTPException(
@@ -2710,7 +2535,6 @@ def complete_booking(
     )
 
     if customer:
-
         old_completed = (
             customer["completed_count"]
             or 0
@@ -2792,7 +2616,6 @@ def health():
     )
 
     try:
-
         conn = connect()
 
         db_fetchone(
@@ -2805,7 +2628,6 @@ def health():
         database_status = "connected"
 
     except Exception as exc:
-
         database_status = (
             f"error: {str(exc)}"
         )
@@ -2823,7 +2645,6 @@ def health():
 # ============================================================
 
 if __name__ == "__main__":
-
     import uvicorn
 
     uvicorn.run(
