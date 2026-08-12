@@ -16,10 +16,15 @@ import notifications  # noqa: F401,E402
 # notification overrides are installed.
 import claim_flow  # noqa: F401,E402
 
+# Register Pilot v1.0 readiness, health, and outcome reporting last so it sees
+# the final notification configuration and claim-flow overrides.
+import pilot  # noqa: F401,E402
+
 app = core.app
 
 print(
     "Empty Chair bootstrap loaded: "
+    f"version={pilot.PILOT_VERSION}, "
     f"sms_live={notifications.SMS_LIVE}, "
     f"email_live={notifications.EMAIL_LIVE}, "
     f"resend_configured={bool(core.RESEND_API_KEY)}"
