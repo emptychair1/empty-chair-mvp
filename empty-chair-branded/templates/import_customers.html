@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import Customers · Empty Chair</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body class="inner-page">
+<div class="inner-wrap" style="max-width:760px;">
+  <div class="inner-top">
+    <a class="inner-brand" href="/"><img src="{{ url_for('static', path='/empty-chair-logo.png') }}" alt="Empty Chair"></a>
+    <a class="inner-back" href="/">← Dashboard</a>
+  </div>
+
+  <section class="hero-panel">
+    <div class="hero-kicker">Customer Data</div>
+    <h1 class="hero-heading">Import Customers</h1>
+    <p class="hero-copy">Upload your shop customer CSV so Empty Chair can rank recovery opportunities. Database: <strong>{{ database_type }}</strong>.</p>
+
+    <div style="margin:18px 0;padding:14px;border:1px solid #745525;border-radius:7px;background:#181207;color:#e6c995;line-height:1.55;">
+      <strong>SMS consent matters.</strong> Only mark customers as opted in when the shop has valid permission to text them.
+    </div>
+
+    <p class="hero-copy">Required columns: <strong>name</strong>, <strong>phone</strong>. Supported optional columns: email, communication_consent, preferred_artists, preferred_styles, preferred_services, appointment_count, completed_count, cancellation_count, id.</p>
+
+    <form class="create-form" method="post" action="/import/customers" enctype="multipart/form-data" style="margin-top:18px;">
+      <label>CSV File<input type="file" name="file" accept=".csv,text/csv" required style="padding-top:10px;"></label>
+      <button class="button" type="submit">Import Customers</button>
+    </form>
+  </section>
+
+  <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+</div>
+</body>
+</html>

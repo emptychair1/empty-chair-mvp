@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empty Chair · Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+
+<aside class="sidebar">
+  <div class="brand-wrap">
+    <img class="brand-logo" src="{{ url_for('static', path='/empty-chair-logo.png') }}" alt="Empty Chair — Fill More Chairs">
+  </div>
+
+  <nav class="sidebar-nav">
+    <a class="nav-link active" href="/"><span class="nav-icon">⌂</span><span>Dashboard</span></a>
+    <a class="nav-link" href="#openings"><span class="nav-icon">▣</span><span>Openings</span></a>
+    <a class="nav-link" href="#openings"><span class="nav-icon">◎</span><span>Recovery</span></a>
+    <a class="nav-link" href="/"><span class="nav-icon">✓</span><span>Bookings</span></a>
+    <a class="nav-link" href="/import/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
+    <a class="nav-link" href="/health"><span class="nav-icon">⚙</span><span>Settings</span></a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="studio-card">
+      <div class="kicker">Studio</div>
+      <div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div>
+      <div class="online">● Studio Online</div>
+    </div>
+
+    <div class="owner-card">
+      <div class="kicker">Owner</div>
+      <div class="owner-name">Alex Artist</div>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="menu-mark">☰</div>
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">Welcome back, Alex.</div>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <div class="top-actions-row">
+        <div class="notification">♧<span class="notification-badge">3</span></div>
+        <a class="button" href="#create-opening">＋ New Opening</a>
+      </div>
+      <a class="button secondary" href="/import/customers">↑ Import Customers</a>
+    </div>
+  </header>
+
+  <div class="content">
+    {% if not shop %}
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="panel-head"><h2 class="panel-title">Start the Pilot</h2></div>
+      <p style="color:var(--cream-dim);margin-top:0;">Load the demo studio so you can test the full recovery flow.</p>
+      <form method="post" action="/demo/setup"><button class="button" type="submit">Load Demo Studio</button></form>
+    </div>
+    {% endif %}
+
+    <section class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-icon chair">♜</div>
+        <div class="metric-label">Openings</div>
+        <div class="metric-value">{{ total_openings }}</div>
+        <div class="metric-sub">This Week</div>
+        <div class="metric-trend">↑ 20% <span style="color:var(--cream-dim)">vs last week</span></div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon">$</div>
+        <div class="metric-label">Recovered Revenue</div>
+        <div class="metric-value">${{ "%.0f"|format(recovered) }}</div>
+        <div class="metric-sub">Revenue</div>
+        <div class="metric-trend">↑ 34% <span style="color:var(--cream-dim)">vs last week</span></div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon">✓</div>
+        <div class="metric-label">Completed Recoveries</div>
+        <div class="metric-value">{{ completed }}</div>
+        <div class="metric-sub">Completed</div>
+        <div class="metric-trend">↑ 14% <span style="color:var(--cream-dim)">vs last week</span></div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon">♙</div>
+        <div class="metric-label">Customers</div>
+        <div class="metric-value">{{ customer_count }}</div>
+        <div class="metric-sub">Total</div>
+        <div class="metric-trend">↑ 8% <span style="color:var(--cream-dim)">vs last week</span></div>
+      </div>
+    </section>
+
+    <div class="dashboard-grid">
+      <section class="panel" id="openings">
+        <div class="panel-head">
+          <h2 class="panel-title">Openings</h2>
+          <span class="live-pill">LIVE</span>
+        </div>
+
+        <div class="opening-list">
+          {% for opening in openings %}
+          <div class="opening-row">
+            <div class="date-block">
+              <div class="date-month">{{ opening["display_month"] }}</div>
+              <div class="date-day">{{ opening["display_day"] }}</div>
+              <div class="date-dow">{{ opening["display_dow"] }}</div>
+            </div>
+
+            <div>
+              <div class="opening-time">{{ opening["start_time"] }}</div>
+              <div class="opening-artist">{{ opening["artist_name"] }}</div>
+              <div class="opening-meta">{{ opening["style"] or "Tattoo" }} · {{ opening["service"] }} · ${{ "%.0f"|format(opening["price"]) }}</div>
+            </div>
+
+            <div class="opening-actions">
+              <span class="status {{ opening['status'] }}">{{ opening["status"] }}</span>
+              <a class="button secondary compact" href="/openings/{{ opening['id'] }}">View</a>
+            </div>
+          </div>
+          {% else %}
+          <div class="opening-row">
+            <div class="date-block"><div class="date-day">—</div></div>
+            <div>
+              <div class="opening-time">No openings yet</div>
+              <div class="opening-meta">Create your first opening to start recovery.</div>
+            </div>
+            <div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel" id="create-opening">
+        <div class="panel-head"><h2 class="panel-title">New Opening</h2></div>
+
+        <form class="create-form" method="post" action="/openings">
+          <label>
+            Artist
+            <select name="artist_id" required>
+              {% for artist in artists %}<option value="{{ artist['id'] }}">{{ artist["name"] }}</option>{% endfor %}
+            </select>
+          </label>
+
+          <div class="form-row">
+            <label>Date<input type="date" name="date" required></label>
+            <label>Time<input type="time" name="start_time" required></label>
+          </div>
+
+          <div class="form-row">
+            <label>Service<input name="service" value="tattoo" required></label>
+            <label>Style <span style="color:var(--muted)">(optional)</span><input name="style" placeholder="e.g. Traditional"></label>
+          </div>
+
+          <label>Price<input type="number" name="price" step="1" min="0" placeholder="e.g. 600" required></label>
+          <button class="button" type="submit">Create Opening</button>
+        </form>
+      </section>
+    </div>
+
+    <div class="import-banner">
+      <div class="import-icon">⇧</div>
+      <div>
+        <div class="import-title">Bring in your real customer history</div>
+        <div class="import-copy">Upload your shop customer CSV and let the recovery engine rank real opportunities.</div>
+      </div>
+      <a class="button secondary" href="/import/customers">Import CSV</a>
+    </div>
+
+    <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+  </div>
+</main>
+</div>
+</body>
+</html>
