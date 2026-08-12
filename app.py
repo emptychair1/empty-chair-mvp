@@ -2625,7 +2625,7 @@ def dashboard(
         user["shop_id"],
     ),
 )
-)
+
 
     completed_row = db_fetchone(
     conn,
