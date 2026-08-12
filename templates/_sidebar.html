@@ -5,7 +5,7 @@
 <script src="{{ url_for('static', path='/flashy.js') }}" defer></script>
 <script src="{{ url_for('static', path='/pwa.js') }}" defer></script>
 <style>
-.setup-mascot-link{display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;align-items:center;margin:12px 8px 8px;padding:8px 10px;border:1px solid rgba(159,17,24,.42);border-radius:14px;background:linear-gradient(145deg,#120707,#080808);box-shadow:0 10px 24px rgba(0,0,0,.28);text-decoration:none;overflow:hidden;transition:transform .18s ease,border-color .18s ease}.setup-mascot-link:hover{transform:translateY(-2px);border-color:rgba(225,38,38,.72)}.setup-mascot-link img{display:block;width:92px;height:118px;object-fit:contain;object-position:center;filter:drop-shadow(0 8px 14px rgba(0,0,0,.35))}.setup-mascot-copy strong{display:block;color:var(--cream);font-size:14px}.setup-mascot-copy small{display:block;color:var(--muted);font-size:10px;line-height:1.35;margin-top:3px}.setup-mascot-copy b{display:block;color:var(--red-bright);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-top:7px}.setup-mascot-mobile{display:none}.setup-mascot-mobile img{width:52px;height:66px;object-fit:contain;object-position:center;flex:0 0 auto}@media(max-width:1050px){.setup-mascot-link{grid-template-columns:72px minmax(0,1fr);padding:7px 8px}.setup-mascot-link img{width:72px;height:92px}.setup-mascot-copy strong{font-size:12px}}@media(max-width:760px){.setup-mascot-link{display:none}.setup-mascot-mobile{display:flex!important;align-items:center;gap:10px}.setup-mascot-mobile strong{display:block}.setup-mascot-mobile small{display:block;color:var(--muted);margin-top:2px}}
+.setup-mascot-link{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:center;margin:12px 8px 8px;padding:8px 10px;border:1px solid rgba(159,17,24,.42);border-radius:14px;background:linear-gradient(145deg,#120707,#080808);box-shadow:0 10px 24px rgba(0,0,0,.28);text-decoration:none;overflow:hidden;transition:transform .18s ease,border-color .18s ease}.setup-mascot-link:hover{transform:translateY(-2px);border-color:rgba(225,38,38,.72)}.setup-mascot-art{width:96px;height:118px;overflow:hidden;border-radius:10px;background:#080808}.setup-mascot-link img{display:block;width:100%;height:100%;object-fit:cover;object-position:63% 60%;filter:drop-shadow(0 8px 14px rgba(0,0,0,.35));transform:scale(1.42)}.setup-mascot-copy strong{display:block;color:var(--cream);font-size:14px}.setup-mascot-copy small{display:block;color:var(--muted);font-size:10px;line-height:1.35;margin-top:3px}.setup-mascot-copy b{display:block;color:var(--red-bright);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-top:7px}.setup-mascot-mobile{display:none}.setup-mascot-mobile .setup-mobile-art{width:52px;height:66px;overflow:hidden;border-radius:8px;flex:0 0 auto;background:#080808}.setup-mascot-mobile img{width:100%;height:100%;object-fit:cover;object-position:63% 60%;transform:scale(1.45)}@media(max-width:1050px){.setup-mascot-link{grid-template-columns:76px minmax(0,1fr);padding:7px 8px}.setup-mascot-art{width:76px;height:94px}.setup-mascot-copy strong{font-size:12px}}@media(max-width:760px){.setup-mascot-link{display:none}.setup-mascot-mobile{display:flex!important;align-items:center;gap:10px}.setup-mascot-mobile strong{display:block}.setup-mascot-mobile small{display:block;color:var(--muted);margin-top:2px}}
 </style>
 
 <aside class="sidebar">
@@ -21,7 +21,7 @@
     <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
 
     <a class="setup-mascot-link" href="/setup" aria-label="Open Setup Guide">
-      <img src="{{ url_for('static', path='/empty-chair-reaper-setup.svg') }}" alt="Empty Chair Grim Reaper mascot">
+      <span class="setup-mascot-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span>
       <span class="setup-mascot-copy"><strong>Setup Guide</strong><small>New here? Follow the four-step setup.</small><b>Start here →</b></span>
     </a>
 
@@ -32,7 +32,7 @@
       <div class="mobile-more-sheet">
         <a href="/customers"><span>♙</span><strong>Customers</strong></a>
         <a href="/bookings"><span>✓</span><strong>Bookings</strong></a>
-        <a class="setup-mascot-mobile" href="/setup"><img src="{{ url_for('static', path='/empty-chair-reaper-setup.svg') }}" alt="Empty Chair Grim Reaper mascot"><span><strong>Setup Guide</strong><small>New here? Start here.</small></span></a>
+        <a class="setup-mascot-mobile" href="/setup"><span class="setup-mobile-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span><span><strong>Setup Guide</strong><small>New here? Start here.</small></span></a>
         <a href="/settings"><span>⚙</span><strong>Settings</strong></a>
       </div>
     </details>
