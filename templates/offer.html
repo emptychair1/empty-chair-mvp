@@ -1,42 +1,305 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Opening Available · Empty Chair</title>
-<style>
-body{font-family:Inter,system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#f7f7f5;color:#161616}
-.card{background:white;border:1px solid #ddd;border-radius:18px;padding:28px;text-align:center;margin-top:40px}
-h1{font-size:28px}.big{font-size:30px;font-weight:700;margin:20px 0}.muted{color:#666}
-button{width:100%;padding:14px;border:0;border-radius:10px;background:#111;color:white;font-size:16px;cursor:pointer;margin-top:10px}
-select{width:100%;padding:12px;border-radius:9px;border:1px solid #bbb;margin-top:10px}
-</style></head>
-<body>
-<div class="card">
-<div class="muted">EMPTY CHAIR</div>
-<h1>Opening available</h1>
-<div class="big">{{ offer["date"] }}<br>{{ offer["start_time"] }}</div>
-<p><strong>{{ offer["artist_name"] }}</strong></p>
-<p>{{ offer["style"] or "Tattoo" }} · {{ offer["service"] }}</p>
-<p class="big">${{ "%.0f"|format(offer["price"]) }}</p>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-{% if offer["status"] in ["SENT","OPENED"] and offer["opening_status"] in ["OPEN","RECOVERY_ACTIVE"] %}
-<form method="post" action="/offer/{{ request.path_params['offer_id'] }}/claim">
-<button>Claim this opening</button>
+<title>Opening Available · Empty Chair</title>
+
+<style>
+:root{
+    --black:#0d0d0d;
+    --red:#c62828;
+    --bright:#e32626;
+    --cream:#f1e6d2;
+    --gold:#b08d57;
+    --muted:#988f84;
+    --border:rgba(176,141,87,.4);
+}
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    min-height:100vh;
+    padding:24px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    color:var(--cream);
+    background:
+        radial-gradient(circle at 50% 18%,rgba(198,40,40,.16),transparent 24rem),
+        #080808;
+    font-family:Inter,system-ui,-apple-system,sans-serif;
+}
+
+.card{
+    width:100%;
+    max-width:480px;
+    background:linear-gradient(145deg,#171717,#090909);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:28px;
+    text-align:center;
+    box-shadow:0 22px 70px rgba(0,0,0,.55);
+}
+
+.brand{
+    font-family:"Old English Text MT",Georgia,serif;
+    font-size:35px;
+    line-height:.9;
+    margin-bottom:24px;
+}
+
+.brand .cream{
+    color:var(--cream);
+}
+
+.brand .red{
+    color:var(--red);
+}
+
+.tagline{
+    margin-top:12px;
+    color:var(--gold);
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.23em;
+}
+
+.icon{
+    width:88px;
+    height:88px;
+    margin:10px auto 20px;
+    border:1px solid var(--gold);
+    border-radius:45px 45px 7px 7px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:40px;
+    color:var(--red);
+    background:#0c0c0c;
+}
+
+.eyebrow{
+    color:var(--gold);
+    text-transform:uppercase;
+    letter-spacing:.18em;
+    font-size:10px;
+}
+
+h1{
+    font-family:Georgia,serif;
+    font-size:29px;
+    margin:10px 0 20px;
+}
+
+.date{
+    font-family:Georgia,serif;
+    font-size:31px;
+    font-weight:700;
+}
+
+.artist{
+    margin-top:17px;
+    color:var(--cream);
+    font-size:19px;
+}
+
+.description{
+    color:var(--muted);
+    margin-top:6px;
+}
+
+.price{
+    color:var(--cream);
+    font-family:Georgia,serif;
+    font-size:38px;
+    font-weight:700;
+    margin:22px 0;
+}
+
+form{
+    margin:9px 0;
+}
+
+button{
+    width:100%;
+    border-radius:7px;
+    padding:14px 16px;
+    font-size:16px;
+    cursor:pointer;
+}
+
+.claim{
+    color:white;
+    border:1px solid var(--bright);
+    background:linear-gradient(#d42626,#951010);
+}
+
+.decline{
+    color:var(--gold);
+    border:1px solid var(--border);
+    background:#111;
+}
+
+select{
+    width:100%;
+    padding:12px;
+    border-radius:7px;
+    border:1px solid var(--border);
+    color:var(--cream);
+    background:#0a0a0a;
+    margin-bottom:8px;
+}
+
+.message{
+    padding:16px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    color:var(--gold);
+    background:#101010;
+}
+
+.footer{
+    margin-top:26px;
+    color:#6f665c;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.17em;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+<div class="brand">
+<span class="cream">Empty</span>
+<span class="red">Chair</span>
+
+<div class="tagline">
+Fill More Chairs
+</div>
+</div>
+
+<div class="icon">
+♜
+</div>
+
+<div class="eyebrow">
+Opening Available
+</div>
+
+<h1>
+A chair just opened up.
+</h1>
+
+<div class="date">
+{{ offer["date"] }}
+<br>
+{{ offer["start_time"] }}
+</div>
+
+<div class="artist">
+{{ offer["artist_name"] }}
+</div>
+
+<div class="description">
+{{ offer["style"] or "Tattoo" }}
+·
+{{ offer["service"] }}
+</div>
+
+<div class="price">
+${{ "%.0f"|format(offer["price"]) }}
+</div>
+
+
+{% if
+offer["status"] in ["SENT","PENDING"]
+and
+offer["opening_status"] in ["OPEN","RECOVERY_ACTIVE"]
+%}
+
+<form
+method="post"
+action="/offer/{{ request.path_params['offer_id'] }}/claim"
+>
+
+<button
+class="claim"
+type="submit"
+>
+Claim This Opening
+</button>
+
 </form>
-<form method="post" action="/offer/{{ request.path_params['offer_id'] }}/decline">
+
+
+<form
+method="post"
+action="/offer/{{ request.path_params['offer_id'] }}/decline"
+>
+
 <select name="reason">
 <option value="skip">Not this time</option>
 <option value="time">Can't make the time</option>
-<option value="price">Too expensive</option>
+<option value="price">Price doesn't work</option>
 <option value="artist">Not the right artist</option>
 <option value="style">Not the right style</option>
 </select>
-<button type="submit" style="background:#777">Decline</button>
+
+<button
+class="decline"
+type="submit"
+>
+Pass on This Opening
+</button>
+
 </form>
+
+
 {% elif offer["status"] == "CLAIMED" %}
-<p><strong>Opening claimed.</strong></p>
-{% else %}
-<p><strong>This opening is no longer available.</strong></p>
-{% endif %}
+
+<div class="message">
+<strong>This opening is yours.</strong>
+<br><br>
+Continue to booking to finish securing the appointment.
 </div>
-</body></html>
+
+
+{% elif offer["status"] == "DECLINED" %}
+
+<div class="message">
+Thanks — we've passed the opening to the next customer.
+</div>
+
+
+{% elif offer["status"] == "EXPIRED" %}
+
+<div class="message">
+This offer has expired and the opening has moved to the next customer.
+</div>
+
+
+{% else %}
+
+<div class="message">
+This opening is no longer available.
+</div>
+
+{% endif %}
+
+
+<div class="footer">
+Empty Chairs Don't Pay the Bills
+</div>
+
+</div>
+
+</body>
+</html>
