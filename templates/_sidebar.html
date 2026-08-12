@@ -17,13 +17,15 @@
     <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
     <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
     <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'pilot' else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Pilot</span></a>
     <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
 
-    <details class="mobile-more {{ 'active' if active_page in ['bookings', 'artists', 'settings'] else '' }}">
+    <details class="mobile-more {{ 'active' if active_page in ['bookings', 'artists', 'pilot', 'settings'] else '' }}">
       <summary><span class="nav-icon">•••</span><span>More</span></summary>
       <div class="mobile-more-sheet">
         <a href="/bookings"><span>✓</span><strong>Bookings</strong></a>
         <a href="/artists"><span>✦</span><strong>Artists</strong></a>
+        <a href="/pilot"><span>◈</span><strong>Pilot</strong></a>
         <a href="/settings"><span>⚙</span><strong>Settings</strong></a>
       </div>
     </details>
