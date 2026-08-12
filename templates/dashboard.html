@@ -46,7 +46,6 @@
 <main class="main">
   <header class="topbar">
     <div class="topbar-left">
-      
       <div>
         <div class="page-title">Dashboard</div>
         <div class="page-subtitle">Welcome back, {{ user["name"] if user else "there" }}.</div>
@@ -55,7 +54,6 @@
 
     <div class="top-actions">
       <div class="top-actions-row">
-        <div class="notification">♧<span class="notification-badge">3</span></div>
         <a class="button" href="#create-opening">＋ New Opening</a>
       </div>
       <a class="button secondary" href="/import/customers">↑ Import Customers</a>
@@ -77,32 +75,28 @@
         <div class="metric-icon chair">♜</div>
         <div class="metric-label">Openings</div>
         <div class="metric-value">{{ total_openings }}</div>
-        <div class="metric-sub">This Week</div>
-        <div class="metric-trend">↑ 20% <span style="color:var(--cream-dim)">vs last week</span></div>
+        <div class="metric-sub">Total created</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-icon">$</div>
         <div class="metric-label">Recovered Revenue</div>
         <div class="metric-value">${{ "%.0f"|format(recovered) }}</div>
-        <div class="metric-sub">Revenue</div>
-        <div class="metric-trend">↑ 34% <span style="color:var(--cream-dim)">vs last week</span></div>
+        <div class="metric-sub">Booked + completed</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-icon">✓</div>
         <div class="metric-label">Recovered Bookings</div>
         <div class="metric-value">{{ completed }}</div>
-        <div class="metric-sub">Confirmed</div>
-        <div class="metric-trend">↑ 14% <span style="color:var(--cream-dim)">vs last week</span></div>
+        <div class="metric-sub">Booked + completed</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-icon">♙</div>
         <div class="metric-label">Customers</div>
         <div class="metric-value">{{ customer_count }}</div>
-        <div class="metric-sub">Total</div>
-        <div class="metric-trend">↑ 8% <span style="color:var(--cream-dim)">vs last week</span></div>
+        <div class="metric-sub">Imported customers</div>
       </div>
     </section>
 
@@ -114,12 +108,17 @@
         </div>
 
         <div class="opening-list">
+          {% set month_names = {
+            '01': 'JAN', '02': 'FEB', '03': 'MAR', '04': 'APR',
+            '05': 'MAY', '06': 'JUN', '07': 'JUL', '08': 'AUG',
+            '09': 'SEP', '10': 'OCT', '11': 'NOV', '12': 'DEC'
+          } %}
           {% for opening in openings %}
           <div class="opening-row">
             <div class="date-block">
-              <div class="date-month">{{ opening["display_month"] }}</div>
-              <div class="date-day">{{ opening["display_day"] }}</div>
-              <div class="date-dow">{{ opening["display_dow"] }}</div>
+              <div class="date-month">{{ month_names.get(opening["date"][5:7], opening["date"][5:7]) }}</div>
+              <div class="date-day">{{ opening["date"][8:10] }}</div>
+              <div class="date-dow">{{ opening["date"][0:4] }}</div>
             </div>
 
             <div>
