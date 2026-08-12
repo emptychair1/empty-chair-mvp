@@ -1,15 +1,14 @@
 import os
 import csv
 import io
+import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import sqlite3
-
-from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-
 from twilio.rest import Client
 
 
@@ -18,24 +17,12 @@ from twilio.rest import Client
 # ============================================================
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-
-DB_PATH = os.getenv(
-    "EMPTY_CHAIR_DB",
-    "empty_chair.db",
-)
-
+DB_PATH = os.getenv("EMPTY_CHAIR_DB", "empty_chair.db")
 PUBLIC_BASE_URL = os.getenv(
     "EMPTY_CHAIR_BASE_URL",
     "http://localhost:8000",
 )
-
-DEMO_MODE = (
-    os.getenv(
-        "EMPTY_CHAIR_DEMO_MODE",
-        "true",
-    ).lower()
-    == "true"
-)
+DEMO_MODE = os.getenv("EMPTY_CHAIR_DEMO_MODE", "true").lower() == "true"
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
@@ -77,7 +64,6 @@ def connect():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-
     return conn
 
 
@@ -87,7 +73,6 @@ def db_execute(conn, query, params=()):
 
     cursor = conn.cursor()
     cursor.execute(query, params)
-
     return cursor
 
 
@@ -107,231 +92,127 @@ def db_fetchall(conn, query, params=()):
 
 def init_db():
     conn = connect()
-    cursor = conn.cursor()
+
+    postgres_schema = """
+    CREATE TABLE IF NOT EXISTS shops (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        timezone TEXT NOT NULL DEFAULT 'America/New_York',
+        phone TEXT,
+        email TEXT,
+        booking_url TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS artists (
+        id TEXT PRIMARY KEY,
+        shop_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        styles TEXT NOT NULL DEFAULT '',
+        services TEXT NOT NULL DEFAULT 'tattoo',
+        active INTEGER NOT NULL DEFAULT 1,
+        FOREIGN KEY(shop_id) REFERENCES shops(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY,
+        shop_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        email TEXT,
+        communication_consent INTEGER NOT NULL DEFAULT 0,
+        preferred_artists TEXT NOT NULL DEFAULT '',
+        preferred_styles TEXT NOT NULL DEFAULT '',
+        preferred_services TEXT NOT NULL DEFAULT 'tattoo',
+        appointment_count INTEGER NOT NULL DEFAULT 0,
+        completed_count INTEGER NOT NULL DEFAULT 0,
+        cancellation_count INTEGER NOT NULL DEFAULT 0,
+        no_show_count INTEGER NOT NULL DEFAULT 0,
+        average_spend REAL NOT NULL DEFAULT 0,
+        last_appointment_at TEXT,
+        last_offer_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS openings (
+        id TEXT PRIMARY KEY,
+        shop_id TEXT NOT NULL,
+        artist_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        service TEXT NOT NULL,
+        style TEXT,
+        price REAL NOT NULL,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        booking_id TEXT,
+        FOREIGN KEY(shop_id) REFERENCES shops(id),
+        FOREIGN KEY(artist_id) REFERENCES artists(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS offers (
+        id TEXT PRIMARY KEY,
+        opening_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        score REAL NOT NULL,
+        rank INTEGER NOT NULL,
+        channel TEXT NOT NULL DEFAULT 'sms',
+        sent_at TEXT,
+        opened_at TEXT,
+        responded_at TEXT,
+        claimed_at TEXT,
+        declined_at TEXT,
+        expires_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        decline_reason TEXT,
+        FOREIGN KEY(opening_id) REFERENCES openings(id),
+        FOREIGN KEY(customer_id) REFERENCES customers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS bookings (
+        id TEXT PRIMARY KEY,
+        opening_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        artist_id TEXT NOT NULL,
+        external_booking_id TEXT,
+        booking_url TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        amount REAL NOT NULL,
+        deposit_amount REAL NOT NULL DEFAULT 0,
+        booked_at TEXT,
+        completed_at TEXT,
+        cancelled_at TEXT,
+        FOREIGN KEY(opening_id) REFERENCES openings(id),
+        FOREIGN KEY(customer_id) REFERENCES customers(id),
+        FOREIGN KEY(artist_id) REFERENCES artists(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+        id BIGSERIAL PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        metadata TEXT,
+        created_at TEXT NOT NULL
+    );
+    """
+
+    sqlite_schema = postgres_schema.replace(
+        "id BIGSERIAL PRIMARY KEY",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+    )
 
     if USE_POSTGRES:
-        schema = """
-        CREATE TABLE IF NOT EXISTS shops (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            timezone TEXT NOT NULL DEFAULT 'America/New_York',
-            phone TEXT,
-            email TEXT,
-            booking_url TEXT,
-            status TEXT NOT NULL DEFAULT 'active',
-            created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS artists (
-            id TEXT PRIMARY KEY,
-            shop_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            email TEXT,
-            phone TEXT,
-            styles TEXT NOT NULL DEFAULT '',
-            services TEXT NOT NULL DEFAULT 'tattoo',
-            active INTEGER NOT NULL DEFAULT 1,
-            FOREIGN KEY(shop_id) REFERENCES shops(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS customers (
-            id TEXT PRIMARY KEY,
-            shop_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            email TEXT,
-            communication_consent INTEGER NOT NULL DEFAULT 0,
-            preferred_artists TEXT NOT NULL DEFAULT '',
-            preferred_styles TEXT NOT NULL DEFAULT '',
-            preferred_services TEXT NOT NULL DEFAULT 'tattoo',
-            appointment_count INTEGER NOT NULL DEFAULT 0,
-            completed_count INTEGER NOT NULL DEFAULT 0,
-            cancellation_count INTEGER NOT NULL DEFAULT 0,
-            no_show_count INTEGER NOT NULL DEFAULT 0,
-            average_spend REAL NOT NULL DEFAULT 0,
-            last_appointment_at TEXT,
-            last_offer_at TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS openings (
-            id TEXT PRIMARY KEY,
-            shop_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT,
-            service TEXT NOT NULL,
-            style TEXT,
-            price REAL NOT NULL,
-            status TEXT NOT NULL DEFAULT 'OPEN',
-            created_at TEXT NOT NULL,
-            expires_at TEXT NOT NULL,
-            booking_id TEXT,
-            FOREIGN KEY(shop_id) REFERENCES shops(id),
-            FOREIGN KEY(artist_id) REFERENCES artists(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS offers (
-            id TEXT PRIMARY KEY,
-            opening_id TEXT NOT NULL,
-            customer_id TEXT NOT NULL,
-            score REAL NOT NULL,
-            rank INTEGER NOT NULL,
-            channel TEXT NOT NULL DEFAULT 'sms',
-            sent_at TEXT,
-            opened_at TEXT,
-            responded_at TEXT,
-            claimed_at TEXT,
-            declined_at TEXT,
-            expires_at TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'PENDING',
-            decline_reason TEXT,
-            FOREIGN KEY(opening_id) REFERENCES openings(id),
-            FOREIGN KEY(customer_id) REFERENCES customers(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS bookings (
-            id TEXT PRIMARY KEY,
-            opening_id TEXT NOT NULL,
-            customer_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
-            external_booking_id TEXT,
-            booking_url TEXT,
-            status TEXT NOT NULL DEFAULT 'PENDING',
-            amount REAL NOT NULL,
-            deposit_amount REAL NOT NULL DEFAULT 0,
-            booked_at TEXT,
-            completed_at TEXT,
-            cancelled_at TEXT,
-            FOREIGN KEY(opening_id) REFERENCES openings(id),
-            FOREIGN KEY(customer_id) REFERENCES customers(id),
-            FOREIGN KEY(artist_id) REFERENCES artists(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS events (
-            id BIGSERIAL PRIMARY KEY,
-            event_type TEXT NOT NULL,
-            entity_type TEXT NOT NULL,
-            entity_id TEXT NOT NULL,
-            metadata TEXT,
-            created_at TEXT NOT NULL
-        );
-        """
-
+        cursor = conn.cursor()
+        cursor.execute(postgres_schema)
     else:
-        schema = """
-        CREATE TABLE IF NOT EXISTS shops (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            timezone TEXT NOT NULL DEFAULT 'America/New_York',
-            phone TEXT,
-            email TEXT,
-            booking_url TEXT,
-            status TEXT NOT NULL DEFAULT 'active',
-            created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS artists (
-            id TEXT PRIMARY KEY,
-            shop_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            email TEXT,
-            phone TEXT,
-            styles TEXT NOT NULL DEFAULT '',
-            services TEXT NOT NULL DEFAULT 'tattoo',
-            active INTEGER NOT NULL DEFAULT 1,
-            FOREIGN KEY(shop_id) REFERENCES shops(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS customers (
-            id TEXT PRIMARY KEY,
-            shop_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            email TEXT,
-            communication_consent INTEGER NOT NULL DEFAULT 0,
-            preferred_artists TEXT NOT NULL DEFAULT '',
-            preferred_styles TEXT NOT NULL DEFAULT '',
-            preferred_services TEXT NOT NULL DEFAULT 'tattoo',
-            appointment_count INTEGER NOT NULL DEFAULT 0,
-            completed_count INTEGER NOT NULL DEFAULT 0,
-            cancellation_count INTEGER NOT NULL DEFAULT 0,
-            no_show_count INTEGER NOT NULL DEFAULT 0,
-            average_spend REAL NOT NULL DEFAULT 0,
-            last_appointment_at TEXT,
-            last_offer_at TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS openings (
-            id TEXT PRIMARY KEY,
-            shop_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT,
-            service TEXT NOT NULL,
-            style TEXT,
-            price REAL NOT NULL,
-            status TEXT NOT NULL DEFAULT 'OPEN',
-            created_at TEXT NOT NULL,
-            expires_at TEXT NOT NULL,
-            booking_id TEXT,
-            FOREIGN KEY(shop_id) REFERENCES shops(id),
-            FOREIGN KEY(artist_id) REFERENCES artists(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS offers (
-            id TEXT PRIMARY KEY,
-            opening_id TEXT NOT NULL,
-            customer_id TEXT NOT NULL,
-            score REAL NOT NULL,
-            rank INTEGER NOT NULL,
-            channel TEXT NOT NULL DEFAULT 'sms',
-            sent_at TEXT,
-            opened_at TEXT,
-            responded_at TEXT,
-            claimed_at TEXT,
-            declined_at TEXT,
-            expires_at TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'PENDING',
-            decline_reason TEXT,
-            FOREIGN KEY(opening_id) REFERENCES openings(id),
-            FOREIGN KEY(customer_id) REFERENCES customers(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS bookings (
-            id TEXT PRIMARY KEY,
-            opening_id TEXT NOT NULL,
-            customer_id TEXT NOT NULL,
-            artist_id TEXT NOT NULL,
-            external_booking_id TEXT,
-            booking_url TEXT,
-            status TEXT NOT NULL DEFAULT 'PENDING',
-            amount REAL NOT NULL,
-            deposit_amount REAL NOT NULL DEFAULT 0,
-            booked_at TEXT,
-            completed_at TEXT,
-            cancelled_at TEXT,
-            FOREIGN KEY(opening_id) REFERENCES openings(id),
-            FOREIGN KEY(customer_id) REFERENCES customers(id),
-            FOREIGN KEY(artist_id) REFERENCES artists(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_type TEXT NOT NULL,
-            entity_type TEXT NOT NULL,
-            entity_id TEXT NOT NULL,
-            metadata TEXT,
-            created_at TEXT NOT NULL
-        );
-        """
-
-    cursor.execute(schema)
+        conn.executescript(sqlite_schema)
 
     conn.commit()
     conn.close()
@@ -351,22 +232,14 @@ def parse_datetime(value):
 
     try:
         dt = datetime.fromisoformat(value)
-
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
-
         return dt
-
     except ValueError:
         return None
 
 
-def event(
-    event_type,
-    entity_type,
-    entity_id,
-    metadata="",
-):
+def event(event_type, entity_type, entity_id, metadata=""):
     conn = connect()
 
     db_execute(
@@ -402,6 +275,22 @@ def csv_values(value):
     }
 
 
+def opening_display(row):
+    data = dict(row)
+
+    try:
+        dt = datetime.strptime(data["date"], "%Y-%m-%d")
+        data["display_month"] = dt.strftime("%b")
+        data["display_day"] = dt.strftime("%d")
+        data["display_dow"] = dt.strftime("%a")
+    except (ValueError, TypeError):
+        data["display_month"] = "—"
+        data["display_day"] = "—"
+        data["display_dow"] = ""
+
+    return data
+
+
 # ============================================================
 # MATCHING / RECOVERY SCORING
 # ============================================================
@@ -409,37 +298,15 @@ def csv_values(value):
 def recovery_score(customer, opening, artist):
     score = 0
 
-    artist_prefs = csv_values(
-        customer["preferred_artists"]
-    )
+    artist_prefs = csv_values(customer["preferred_artists"])
+    style_prefs = csv_values(customer["preferred_styles"])
+    service_prefs = csv_values(customer["preferred_services"])
 
-    style_prefs = csv_values(
-        customer["preferred_styles"]
-    )
-
-    service_prefs = csv_values(
-        customer["preferred_services"]
-    )
-
-    artist_id = (
-        opening["artist_id"] or ""
-    ).lower()
-
-    artist_name = (
-        artist["name"] or ""
-    ).lower()
-
-    style = (
-        opening["style"] or ""
-    ).lower()
-
-    service = (
-        opening["service"] or ""
-    ).lower()
-
-    artist_styles = csv_values(
-        artist["styles"]
-    )
+    artist_id = (opening["artist_id"] or "").lower()
+    artist_name = (artist["name"] or "").lower()
+    style = (opening["style"] or "").lower()
+    service = (opening["service"] or "").lower()
+    artist_styles = csv_values(artist["styles"])
 
     if artist_id in artist_prefs:
         score += 30
@@ -466,64 +333,35 @@ def recovery_score(customer, opening, artist):
         score += 5
 
     if customer["last_offer_at"]:
-        last = parse_datetime(
-            customer["last_offer_at"]
-        )
+        last = parse_datetime(customer["last_offer_at"])
+        if last and datetime.now(timezone.utc) - last < timedelta(days=30):
+            score -= 5
 
-        if last:
-            age = (
-                datetime.now(timezone.utc)
-                - last
-            )
-
-            if age < timedelta(days=30):
-                score -= 5
-
-    return max(
-        0,
-        min(100, score),
-    )
+    return max(0, min(100, score))
 
 
 # ============================================================
 # SMS
 # ============================================================
 
-def send_sms(
-    customer,
-    opening,
-    offer_id,
-):
-    claim_url = (
-        f"{PUBLIC_BASE_URL.rstrip('/')}"
-        f"/offer/{offer_id}"
-    )
+def send_sms(customer, opening, offer_id):
+    claim_url = f"{PUBLIC_BASE_URL.rstrip('/')}/offer/{offer_id}"
 
-    first_name = (
-        customer["name"].split()[0]
-        if customer["name"]
-        else "there"
-    )
+    first_name = customer["name"].split()[0] if customer["name"] else "there"
 
     message = (
         f"Hey {first_name} — "
-        f"an opening with "
-        f"{opening['style'] or 'your artist'} "
-        f"is available on "
-        f"{opening['date']} at "
-        f"{opening['start_time']} "
+        f"a {opening['style'] or 'tattoo'} opening is available "
+        f"on {opening['date']} at {opening['start_time']} "
         f"for ${opening['price']:.0f}. "
         f"Claim it: {claim_url}"
     )
 
     if DEMO_MODE:
-        print()
-        print("--- DEMO SMS ---")
+        print("\n--- DEMO SMS ---")
         print(f"To: {customer['phone']}")
         print(message)
-        print("----------------")
-        print()
-
+        print("----------------\n")
         return True
 
     if not all(
@@ -534,8 +372,7 @@ def send_sms(
         ]
     ):
         raise RuntimeError(
-            "Twilio is not configured and "
-            "DEMO_MODE is false."
+            "Twilio is not configured and EMPTY_CHAIR_DEMO_MODE is false."
         )
 
     client = Client(
@@ -561,16 +398,12 @@ def ensure_demo_data():
 
     shop = db_fetchone(
         conn,
-        """
-        SELECT id
-        FROM shops
-        LIMIT 1
-        """,
+        "SELECT id FROM shops LIMIT 1",
     )
 
     if shop:
         conn.close()
-        return
+        return False
 
     shop_id = "shop_demo"
 
@@ -601,24 +434,30 @@ def ensure_demo_data():
         (
             "artist_alex",
             "Alex",
-            "traditional,neo_traditional",
+            "traditional,neo_traditional,realism",
             "tattoo",
         ),
         (
             "artist_jordan",
             "Jordan",
-            "blackwork,traditional",
+            "blackwork,traditional,black & grey",
+            "tattoo",
+        ),
+        (
+            "artist_taylor",
+            "Taylor",
+            "black & grey,illustrative",
+            "tattoo",
+        ),
+        (
+            "artist_casey",
+            "Casey",
+            "color,traditional",
             "tattoo",
         ),
     ]
 
-    for (
-        artist_id,
-        name,
-        styles,
-        services,
-    ) in artists:
-
+    for artist_id, name, styles, services in artists:
         db_execute(
             conn,
             """
@@ -645,8 +484,8 @@ def ensure_demo_data():
             "cust_sarah",
             "Sarah Miller",
             "+15555550101",
-            "artist_alex",
-            "traditional",
+            "artist_alex,alex",
+            "traditional,realism",
             "tattoo",
             8,
             7,
@@ -656,7 +495,7 @@ def ensure_demo_data():
             "cust_mike",
             "Mike Rivera",
             "+15555550102",
-            "artist_alex",
+            "artist_alex,alex",
             "traditional",
             "tattoo",
             5,
@@ -667,8 +506,8 @@ def ensure_demo_data():
             "cust_jess",
             "Jessica Lee",
             "+15555550103",
-            "artist_jordan",
-            "blackwork",
+            "artist_jordan,jordan",
+            "blackwork,black & grey",
             "tattoo",
             3,
             3,
@@ -678,7 +517,7 @@ def ensure_demo_data():
             "cust_taylor",
             "Taylor Smith",
             "+15555550104",
-            "artist_alex,artist_jordan",
+            "artist_alex,artist_jordan,alex,jordan",
             "traditional,blackwork",
             "tattoo",
             2,
@@ -744,23 +583,17 @@ def ensure_demo_data():
 
     conn.commit()
     conn.close()
+    return True
 
 
 # ============================================================
 # SEQUENTIAL RECOVERY ENGINE
 # ============================================================
 
-def build_recovery_queue(
-    conn,
-    opening_id,
-):
+def build_recovery_queue(conn, opening_id):
     opening = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM openings
-        WHERE id = ?
-        """,
+        "SELECT * FROM openings WHERE id = ?",
         (opening_id,),
     )
 
@@ -769,11 +602,7 @@ def build_recovery_queue(
 
     artist = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM artists
-        WHERE id = ?
-        """,
+        "SELECT * FROM artists WHERE id = ?",
         (opening["artist_id"],),
     )
 
@@ -793,11 +622,7 @@ def build_recovery_queue(
 
     already_offered = db_fetchall(
         conn,
-        """
-        SELECT customer_id
-        FROM offers
-        WHERE opening_id = ?
-        """,
+        "SELECT customer_id FROM offers WHERE opening_id = ?",
         (opening_id,),
     )
 
@@ -809,7 +634,6 @@ def build_recovery_queue(
     scored = []
 
     for customer in customers:
-
         if customer["id"] in already_offered_ids:
             continue
 
@@ -819,17 +643,10 @@ def build_recovery_queue(
             artist,
         )
 
-        # A zero score means there is no meaningful
-        # matching signal for this opening.
         if score <= 0:
             continue
 
-        scored.append(
-            (
-                score,
-                customer,
-            )
-        )
+        scored.append((score, customer))
 
     scored.sort(
         key=lambda item: (
@@ -843,24 +660,13 @@ def build_recovery_queue(
 
 
 def send_next_recovery_offer(opening_id):
-    """
-    Send exactly ONE offer.
-
-    This is the heart of sequential recovery.
-
-    The function never sends multiple SMS messages
-    for the same opening.
-    """
+    """Send exactly one offer for this opening."""
 
     conn = connect()
 
     opening = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM openings
-        WHERE id = ?
-        """,
+        "SELECT * FROM openings WHERE id = ?",
         (opening_id,),
     )
 
@@ -872,14 +678,11 @@ def send_next_recovery_offer(opening_id):
         "CLAIMED",
         "BOOKED",
         "COMPLETED",
-        "NO_RECOVERY",
         "CANCELLED",
     ):
         conn.close()
         return None
 
-    # Make sure an existing active offer is not
-    # accidentally bypassed.
     active_offer = db_fetchone(
         conn,
         """
@@ -894,8 +697,29 @@ def send_next_recovery_offer(opening_id):
     )
 
     if active_offer:
+        expires_at = parse_datetime(active_offer["expires_at"])
+
+        if (
+            active_offer["status"] == "SENT"
+            and expires_at
+            and datetime.now(timezone.utc) >= expires_at
+        ):
+            db_execute(
+                conn,
+                """
+                UPDATE offers
+                SET status = 'EXPIRED', responded_at = ?
+                WHERE id = ?
+                """,
+                (now_iso(), active_offer["id"]),
+            )
+            conn.commit()
+            conn.close()
+            event("offer.expired", "offer", active_offer["id"])
+            return send_next_recovery_offer(opening_id)
+
         conn.close()
-        return active_offer
+        return active_offer["id"]
 
     candidates = build_recovery_queue(
         conn,
@@ -905,23 +729,12 @@ def send_next_recovery_offer(opening_id):
     if not candidates:
         db_execute(
             conn,
-            """
-            UPDATE openings
-            SET status = 'NO_RECOVERY'
-            WHERE id = ?
-            """,
+            "UPDATE openings SET status = 'NO_RECOVERY' WHERE id = ?",
             (opening_id,),
         )
-
         conn.commit()
         conn.close()
-
-        event(
-            "recovery.exhausted",
-            "opening",
-            opening_id,
-        )
-
+        event("recovery.exhausted", "opening", opening_id)
         return None
 
     score, customer = candidates[0]
@@ -936,15 +749,8 @@ def send_next_recovery_offer(opening_id):
         (opening_id,),
     )
 
-    rank = (
-        (existing_rank["max_rank"] or 0)
-        + 1
-    )
-
-    offer_id = (
-        f"offer_{uuid.uuid4().hex[:12]}"
-    )
-
+    rank = (existing_rank["max_rank"] or 0) + 1
+    offer_id = f"offer_{uuid.uuid4().hex[:12]}"
     expires_at = (
         datetime.now(timezone.utc)
         + timedelta(minutes=30)
@@ -963,9 +769,7 @@ def send_next_recovery_offer(opening_id):
             expires_at,
             status
         )
-        VALUES(
-            ?, ?, ?, ?, ?, ?, ?, ?
-        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             offer_id,
@@ -981,25 +785,11 @@ def send_next_recovery_offer(opening_id):
 
     db_execute(
         conn,
-        """
-        UPDATE openings
-        SET status = 'RECOVERY_ACTIVE'
-        WHERE id = ?
-        """,
+        "UPDATE openings SET status = 'RECOVERY_ACTIVE' WHERE id = ?",
         (opening_id,),
     )
 
     conn.commit()
-
-    opening = db_fetchone(
-        conn,
-        """
-        SELECT *
-        FROM openings
-        WHERE id = ?
-        """,
-        (opening_id,),
-    )
 
     timestamp = now_iso()
 
@@ -1014,24 +804,17 @@ def send_next_recovery_offer(opening_id):
             conn,
             """
             UPDATE offers
-            SET
-                status = 'SENT',
-                sent_at = ?
+            SET status = 'SENT', sent_at = ?
             WHERE id = ?
             """,
-            (
-                timestamp,
-                offer_id,
-            ),
+            (timestamp, offer_id),
         )
 
         db_execute(
             conn,
             """
             UPDATE customers
-            SET
-                last_offer_at = ?,
-                updated_at = ?
+            SET last_offer_at = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -1042,56 +825,27 @@ def send_next_recovery_offer(opening_id):
         )
 
         conn.commit()
-
-        event(
-            "offer.sent",
-            "offer",
-            offer_id,
-        )
+        event("offer.sent", "offer", offer_id)
 
     except Exception as exc:
-
         db_execute(
             conn,
-            """
-            UPDATE offers
-            SET status = 'FAILED'
-            WHERE id = ?
-            """,
+            "UPDATE offers SET status = 'FAILED' WHERE id = ?",
             (offer_id,),
         )
-
         conn.commit()
-
-        event(
-            "offer.send_failed",
-            "offer",
-            offer_id,
-            str(exc),
-        )
+        event("offer.send_failed", "offer", offer_id, str(exc))
 
     conn.close()
-
     return offer_id
 
 
-def expire_offer_and_continue(
-    offer_id,
-):
-    """
-    Expire one offer and immediately advance
-    the recovery queue to the next customer.
-    """
-
+def expire_offer_and_continue(offer_id):
     conn = connect()
 
     offer = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM offers
-        WHERE id = ?
-        """,
+        "SELECT * FROM offers WHERE id = ?",
         (offer_id,),
     )
 
@@ -1099,10 +853,7 @@ def expire_offer_and_continue(
         conn.close()
         return None
 
-    if offer["status"] not in (
-        "PENDING",
-        "SENT",
-    ):
+    if offer["status"] not in ("PENDING", "SENT"):
         conn.close()
         return None
 
@@ -1110,29 +861,18 @@ def expire_offer_and_continue(
         conn,
         """
         UPDATE offers
-        SET
-            status = 'EXPIRED',
-            responded_at = ?
+        SET status = 'EXPIRED', responded_at = ?
         WHERE id = ?
         """,
-        (
-            now_iso(),
-            offer_id,
-        ),
+        (now_iso(), offer_id),
     )
 
+    opening_id = offer["opening_id"]
     conn.commit()
     conn.close()
 
-    event(
-        "offer.expired",
-        "offer",
-        offer_id,
-    )
-
-    return send_next_recovery_offer(
-        offer["opening_id"]
-    )
+    event("offer.expired", "offer", offer_id)
+    return send_next_recovery_offer(opening_id)
 
 
 # ============================================================
@@ -1141,43 +881,34 @@ def expire_offer_and_continue(
 
 app = FastAPI(
     title="Empty Chair",
-    version="0.4.0",
+    version="0.5.0",
 )
 
-templates = Jinja2Templates(
-    directory="templates"
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static",
 )
 
+templates = Jinja2Templates(directory="templates")
 
-# ============================================================
-# STARTUP
-# ============================================================
 
 @app.on_event("startup")
 def startup():
     init_db()
-    ensure_demo_data()
 
 
 # ============================================================
 # DASHBOARD
 # ============================================================
 
-@app.get(
-    "/",
-    response_class=HTMLResponse,
-)
+@app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     conn = connect()
 
     shop = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM shops
-        ORDER BY created_at
-        LIMIT 1
-        """,
+        "SELECT * FROM shops ORDER BY created_at LIMIT 1",
     )
 
     artists = db_fetchall(
@@ -1190,7 +921,7 @@ def dashboard(request: Request):
         """,
     )
 
-    openings = db_fetchall(
+    opening_rows = db_fetchall(
         conn,
         """
         SELECT
@@ -1199,17 +930,19 @@ def dashboard(request: Request):
         FROM openings o
         JOIN artists a
             ON a.id = o.artist_id
-        ORDER BY
-            o.date,
-            o.start_time
+        ORDER BY o.date, o.start_time
         """,
     )
+
+    openings = [
+        opening_display(row)
+        for row in opening_rows
+    ]
 
     recovered_row = db_fetchone(
         conn,
         """
-        SELECT
-            COALESCE(SUM(amount), 0) AS total
+        SELECT COALESCE(SUM(amount), 0) AS total
         FROM bookings
         WHERE status = 'COMPLETED'
         """,
@@ -1226,45 +959,20 @@ def dashboard(request: Request):
 
     total_openings_row = db_fetchone(
         conn,
-        """
-        SELECT COUNT(*) AS n
-        FROM openings
-        """,
+        "SELECT COUNT(*) AS n FROM openings",
     )
 
     customer_count_row = db_fetchone(
         conn,
-        """
-        SELECT COUNT(*) AS n
-        FROM customers
-        """,
-    )
-
-    recovered = (
-        recovered_row["total"]
-        if recovered_row
-        else 0
-    )
-
-    completed = (
-        completed_row["n"]
-        if completed_row
-        else 0
-    )
-
-    total_openings = (
-        total_openings_row["n"]
-        if total_openings_row
-        else 0
-    )
-
-    customer_count = (
-        customer_count_row["n"]
-        if customer_count_row
-        else 0
+        "SELECT COUNT(*) AS n FROM customers",
     )
 
     conn.close()
+
+    recovered = recovered_row["total"] if recovered_row else 0
+    completed = completed_row["n"] if completed_row else 0
+    total_openings = total_openings_row["n"] if total_openings_row else 0
+    customer_count = customer_count_row["n"] if customer_count_row else 0
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -1282,213 +990,58 @@ def dashboard(request: Request):
 
 
 # ============================================================
-# CUSTOMER IMPORT PAGE
+# DEMO SETUP
 # ============================================================
 
-@app.get(
-    "/import/customers",
-    response_class=HTMLResponse,
-)
-def customer_import_page():
-    database_type = (
-        "PostgreSQL"
-        if USE_POSTGRES
-        else "SQLite"
-    )
+@app.post("/demo/setup")
+def demo_setup_post():
+    ensure_demo_data()
+    return RedirectResponse("/", status_code=303)
 
-    return HTMLResponse(
-        f"""
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Import Customers · Empty Chair</title>
 
-<style>
-body {{
-    font-family: Inter, system-ui, sans-serif;
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 32px;
-    background: #f7f7f5;
-    color: #161616;
-}}
+@app.get("/demo/setup")
+def demo_setup_get():
+    ensure_demo_data()
+    return RedirectResponse("/", status_code=303)
 
-.card {{
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 16px;
-    padding: 28px;
-}}
 
-.notice {{
-    background: #eef6ff;
-    border: 1px solid #c9def5;
-    padding: 14px;
-    border-radius: 10px;
-    margin: 18px 0;
-}}
+# ============================================================
+# CUSTOMER IMPORT
+# ============================================================
 
-.warning {{
-    background: #fff4d6;
-    border: 1px solid #ead28b;
-    padding: 14px;
-    border-radius: 10px;
-    margin: 18px 0;
-}}
-
-input[type=file] {{
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #bbb;
-    border-radius: 9px;
-    background: white;
-    box-sizing: border-box;
-}}
-
-button {{
-    background: #111;
-    color: white;
-    border: 0;
-    border-radius: 9px;
-    padding: 13px 18px;
-    cursor: pointer;
-    font-size: 15px;
-    margin-top: 15px;
-}}
-
-code {{
-    background: #f1f1f1;
-    padding: 3px 5px;
-    border-radius: 5px;
-}}
-
-a {{
-    color: #111;
-}}
-</style>
-</head>
-
-<body>
-
-<div class="card">
-
-<h1>Import Customers</h1>
-
-<p>
-Import your customer history into Empty Chair.
-</p>
-
-<div class="notice">
-<strong>Database:</strong>
-{database_type}
-</div>
-
-<div class="warning">
-<strong>SMS consent matters.</strong>
-<br>
-Only import customers who have consented to receiving
-SMS communications from the shop.
-</div>
-
-<h2>CSV columns</h2>
-
-<p>Your CSV should contain:</p>
-
-<p>
-<code>name</code>,
-<code>phone</code>,
-<code>email</code>,
-<code>communication_consent</code>,
-<code>preferred_artists</code>,
-<code>preferred_styles</code>,
-<code>preferred_services</code>,
-<code>appointment_count</code>,
-<code>completed_count</code>,
-<code>cancellation_count</code>
-</p>
-
-<p>
-Optional:
-<code>id</code>
-</p>
-
-<h2>Upload CSV</h2>
-
-<form
-    method="post"
-    action="/import/customers"
-    enctype="multipart/form-data"
->
-
-<input
-    type="file"
-    name="file"
-    accept=".csv,text/csv"
-    required
->
-
-<button type="submit">
-Import Customers
-</button>
-
-</form>
-
-<p style="margin-top:25px;">
-<a href="/">← Back to dashboard</a>
-</p>
-
-</div>
-
-</body>
-</html>
-"""
+@app.get("/import/customers", response_class=HTMLResponse)
+def customer_import_page(request: Request):
+    return templates.TemplateResponse(
+        "import_customers.html",
+        {
+            "request": request,
+            "database_type": "PostgreSQL" if USE_POSTGRES else "SQLite",
+        },
     )
 
 
-# ============================================================
-# CUSTOMER CSV IMPORT
-# ============================================================
-
-@app.post(
-    "/import/customers",
-    response_class=HTMLResponse,
-)
+@app.post("/import/customers", response_class=HTMLResponse)
 async def import_customers(
+    request: Request,
     file: UploadFile = File(...),
 ):
     if not file.filename:
-        raise HTTPException(
-            400,
-            "No CSV file selected.",
-        )
+        raise HTTPException(400, "No CSV file selected.")
 
     if not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            400,
-            "Please upload a CSV file.",
-        )
+        raise HTTPException(400, "Please upload a CSV file.")
 
     raw_data = await file.read()
 
     try:
         text = raw_data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise HTTPException(
-            400,
-            "CSV must be UTF-8 encoded.",
-        ) from exc
+        raise HTTPException(400, "CSV must be UTF-8 encoded.") from exc
 
-    reader = csv.DictReader(
-        io.StringIO(text)
-    )
+    reader = csv.DictReader(io.StringIO(text))
 
     if not reader.fieldnames:
-        raise HTTPException(
-            400,
-            "CSV has no header row.",
-        )
+        raise HTTPException(400, "CSV has no header row.")
 
     headers = {
         h.strip().lower()
@@ -1496,62 +1049,38 @@ async def import_customers(
         if h
     }
 
-    missing = {
-        "name",
-        "phone",
-    } - headers
+    missing = {"name", "phone"} - headers
 
     if missing:
         raise HTTPException(
             400,
-            "Missing required columns: "
-            + ", ".join(sorted(missing)),
+            "Missing required columns: " + ", ".join(sorted(missing)),
         )
 
     conn = connect()
 
     shop = db_fetchone(
         conn,
-        """
-        SELECT id
-        FROM shops
-        ORDER BY created_at
-        LIMIT 1
-        """,
+        "SELECT id FROM shops ORDER BY created_at LIMIT 1",
     )
 
     if not shop:
         conn.close()
-
-        return HTMLResponse(
-            """
-<!doctype html>
-<html>
-<body>
-<h1>No shop configured</h1>
-<p>No shop exists in the database.</p>
-<p><a href="/">Back to dashboard</a></p>
-</body>
-</html>
-""",
-            status_code=400,
+        raise HTTPException(
+            400,
+            "No studio exists yet. Load the demo studio first.",
         )
 
     shop_id = shop["id"]
-
     imported = 0
     updated = 0
     skipped = 0
     errors = []
 
-    for row_number, raw_row in enumerate(
-        reader,
-        start=2,
-    ):
+    for row_number, raw_row in enumerate(reader, start=2):
         try:
             row = {
-                (key or "").strip().lower():
-                (value or "").strip()
+                (key or "").strip().lower(): (value or "").strip()
                 for key, value in raw_row.items()
             }
 
@@ -1560,12 +1089,9 @@ async def import_customers(
 
             if not name or not phone:
                 skipped += 1
-
                 errors.append(
-                    f"Row {row_number}: "
-                    "name and phone are required."
+                    f"Row {row_number}: name and phone are required."
                 )
-
                 continue
 
             customer_id = (
@@ -1573,16 +1099,10 @@ async def import_customers(
                 or f"cust_{uuid.uuid4().hex[:12]}"
             )
 
-            email = (
-                row.get("email", "").strip()
-                or None
-            )
+            email = row.get("email", "").strip() or None
 
             consent_value = (
-                row.get(
-                    "communication_consent",
-                    "0",
-                )
+                row.get("communication_consent", "0")
                 .strip()
                 .lower()
             )
@@ -1599,48 +1119,12 @@ async def import_customers(
                 else 0
             )
 
-            preferred_artists = row.get(
-                "preferred_artists",
-                "",
-            )
-
-            preferred_styles = row.get(
-                "preferred_styles",
-                "",
-            )
-
-            preferred_services = (
-                row.get(
-                    "preferred_services",
-                    "tattoo",
-                )
-                or "tattoo"
-            )
-
-            appointment_count = int(
-                row.get(
-                    "appointment_count",
-                    "0",
-                )
-                or 0
-            )
-
-            completed_count = int(
-                row.get(
-                    "completed_count",
-                    "0",
-                )
-                or 0
-            )
-
-            cancellation_count = int(
-                row.get(
-                    "cancellation_count",
-                    "0",
-                )
-                or 0
-            )
-
+            preferred_artists = row.get("preferred_artists", "")
+            preferred_styles = row.get("preferred_styles", "")
+            preferred_services = row.get("preferred_services", "tattoo") or "tattoo"
+            appointment_count = int(row.get("appointment_count", "0") or 0)
+            completed_count = int(row.get("completed_count", "0") or 0)
+            cancellation_count = int(row.get("cancellation_count", "0") or 0)
             timestamp = now_iso()
 
             existing = db_fetchone(
@@ -1696,9 +1180,7 @@ async def import_customers(
                         existing["id"],
                     ),
                 )
-
                 updated += 1
-
             else:
                 db_execute(
                     conn,
@@ -1741,123 +1223,29 @@ async def import_customers(
                         timestamp,
                     ),
                 )
-
                 imported += 1
 
         except Exception as exc:
             skipped += 1
-            errors.append(
-                f"Row {row_number}: {str(exc)}"
-            )
+            errors.append(f"Row {row_number}: {str(exc)}")
 
     conn.commit()
     conn.close()
 
-    error_html = ""
-
-    if errors:
-        error_html = (
-            "<h3>Rows needing attention</h3>"
-            "<ul>"
-            + "".join(
-                f"<li>{error}</li>"
-                for error in errors[:50]
-            )
-            + "</ul>"
-        )
-
-    return HTMLResponse(
-        f"""
-<!doctype html>
-<html>
-
-<head>
-<meta charset="utf-8">
-
-<style>
-body {{
-    font-family: Inter, system-ui, sans-serif;
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 32px;
-    background: #f7f7f5;
-}}
-
-.card {{
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 16px;
-    padding: 28px;
-}}
-
-.metric {{
-    font-size: 32px;
-    font-weight: 700;
-    margin: 8px 0 20px;
-}}
-
-a {{
-    background: #111;
-    color: white;
-    border-radius: 9px;
-    padding: 12px 16px;
-    text-decoration: none;
-    display: inline-block;
-    margin-top: 10px;
-}}
-</style>
-
-</head>
-
-<body>
-
-<div class="card">
-
-<h1>Import complete</h1>
-
-<p><strong>New customers:</strong></p>
-<div class="metric">{imported}</div>
-
-<p><strong>Updated customers:</strong></p>
-<div class="metric">{updated}</div>
-
-<p><strong>Skipped/error rows:</strong></p>
-<div class="metric">{skipped}</div>
-
-{error_html}
-
-<a href="/import/customers">
-Import another CSV
-</a>
-
-<a href="/">
-Back to dashboard
-</a>
-
-</div>
-
-</body>
-</html>
-"""
+    return templates.TemplateResponse(
+        "import_result.html",
+        {
+            "request": request,
+            "imported": imported,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
+        },
     )
 
 
 # ============================================================
-# DEMO SETUP
-# ============================================================
-
-@app.post("/demo/setup")
-def demo_setup():
-    ensure_demo_data()
-
-    return RedirectResponse(
-        "/",
-        status_code=303,
-    )
-
-
-# ============================================================
-# CREATE OPENING
+# OPENINGS
 # ============================================================
 
 @app.post("/openings")
@@ -1873,26 +1261,15 @@ def create_opening(
 
     artist = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM artists
-        WHERE id = ?
-        """,
+        "SELECT * FROM artists WHERE id = ?",
         (artist_id,),
     )
 
     if not artist:
         conn.close()
+        raise HTTPException(404, "Artist not found")
 
-        raise HTTPException(
-            404,
-            "Artist not found",
-        )
-
-    opening_id = (
-        f"opening_{uuid.uuid4().hex[:12]}"
-    )
-
+    opening_id = f"opening_{uuid.uuid4().hex[:12]}"
     expires_at = (
         datetime.now(timezone.utc)
         + timedelta(hours=24)
@@ -1914,9 +1291,7 @@ def create_opening(
             created_at,
             expires_at
         )
-        VALUES(
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             opening_id,
@@ -1936,11 +1311,7 @@ def create_opening(
     conn.commit()
     conn.close()
 
-    event(
-        "opening.created",
-        "opening",
-        opening_id,
-    )
+    event("opening.created", "opening", opening_id)
 
     return RedirectResponse(
         f"/openings/{opening_id}",
@@ -1948,14 +1319,7 @@ def create_opening(
     )
 
 
-# ============================================================
-# OPENING PAGE
-# ============================================================
-
-@app.get(
-    "/openings/{opening_id}",
-    response_class=HTMLResponse,
-)
+@app.get("/openings/{opening_id}", response_class=HTMLResponse)
 def opening_page(
     request: Request,
     opening_id: str,
@@ -1995,10 +1359,7 @@ def opening_page(
     conn.close()
 
     if not opening:
-        raise HTTPException(
-            404,
-            "Opening not found",
-        )
+        raise HTTPException(404, "Opening not found")
 
     return templates.TemplateResponse(
         "opening.html",
@@ -2010,52 +1371,45 @@ def opening_page(
     )
 
 
-# ============================================================
-# START RECOVERY
-# ============================================================
-
-@app.post(
-    "/openings/{opening_id}/recover"
-)
-def start_recovery(
-    opening_id: str,
-):
+@app.post("/openings/{opening_id}/recover")
+def start_recovery(opening_id: str):
     conn = connect()
 
     opening = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM openings
-        WHERE id = ?
-        """,
+        "SELECT * FROM openings WHERE id = ?",
         (opening_id,),
     )
 
-    conn.close()
-
     if not opening:
-        raise HTTPException(
-            404,
-            "Opening not found",
-        )
+        conn.close()
+        raise HTTPException(404, "Opening not found")
 
     if opening["status"] in (
         "CLAIMED",
         "BOOKED",
         "COMPLETED",
-        "NO_RECOVERY",
         "CANCELLED",
     ):
+        conn.close()
         raise HTTPException(
             400,
             "Opening is no longer available for recovery.",
         )
 
-    # Only one customer is contacted.
-    send_next_recovery_offer(
-        opening_id
-    )
+    if opening["status"] == "NO_RECOVERY":
+        db_execute(
+            conn,
+            "UPDATE openings SET status = 'OPEN' WHERE id = ?",
+            (opening_id,),
+        )
+        conn.commit()
+
+    conn.close()
+
+    send_next_recovery_offer(opening_id)
+
+    event("recovery.started", "opening", opening_id)
 
     return RedirectResponse(
         f"/openings/{opening_id}",
@@ -2063,17 +1417,8 @@ def start_recovery(
     )
 
 
-# ============================================================
-# MANUALLY ADVANCE RECOVERY
-# Useful for demo/testing
-# ============================================================
-
-@app.post(
-    "/openings/{opening_id}/next"
-)
-def next_recovery_customer(
-    opening_id: str,
-):
+@app.post("/openings/{opening_id}/next")
+def next_recovery_customer(opening_id: str):
     conn = connect()
 
     active_offer = db_fetchone(
@@ -2092,13 +1437,9 @@ def next_recovery_customer(
     conn.close()
 
     if active_offer:
-        expire_offer_and_continue(
-            active_offer["id"]
-        )
+        expire_offer_and_continue(active_offer["id"])
     else:
-        send_next_recovery_offer(
-            opening_id
-        )
+        send_next_recovery_offer(opening_id)
 
     return RedirectResponse(
         f"/openings/{opening_id}",
@@ -2107,13 +1448,10 @@ def next_recovery_customer(
 
 
 # ============================================================
-# OFFER PAGE
+# OFFERS
 # ============================================================
 
-@app.get(
-    "/offer/{offer_id}",
-    response_class=HTMLResponse,
-)
+@app.get("/offer/{offer_id}", response_class=HTMLResponse)
 def offer_page(
     request: Request,
     offer_id: str,
@@ -2151,35 +1489,19 @@ def offer_page(
 
     if not offer:
         conn.close()
+        raise HTTPException(404, "Offer not found")
 
-        raise HTTPException(
-            404,
-            "Offer not found",
-        )
-
-    # If the customer opens an expired offer,
-    # advance the queue.
-    if offer["status"] in (
-        "PENDING",
-        "SENT",
-    ):
-        expires_at = parse_datetime(
-            offer["expires_at"]
-        )
+    if offer["status"] in ("PENDING", "SENT"):
+        expires_at = parse_datetime(offer["expires_at"])
 
         if (
             expires_at
-            and datetime.now(timezone.utc)
-            >= expires_at
+            and datetime.now(timezone.utc) >= expires_at
         ):
             conn.close()
-
-            expire_offer_and_continue(
-                offer_id
-            )
+            expire_offer_and_continue(offer_id)
 
             conn = connect()
-
             offer = db_fetchone(
                 conn,
                 """
@@ -2209,37 +1531,14 @@ def offer_page(
                 (offer_id,),
             )
 
-            conn.close()
-
-            return templates.TemplateResponse(
-                "offer.html",
-                {
-                    "request": request,
-                    "offer": offer,
-                },
-            )
-
-    if not offer["opened_at"]:
+    if offer and not offer["opened_at"]:
         db_execute(
             conn,
-            """
-            UPDATE offers
-            SET opened_at = ?
-            WHERE id = ?
-            """,
-            (
-                now_iso(),
-                offer_id,
-            ),
+            "UPDATE offers SET opened_at = ? WHERE id = ?",
+            (now_iso(), offer_id),
         )
-
         conn.commit()
-
-        event(
-            "offer.opened",
-            "offer",
-            offer_id,
-        )
+        event("offer.opened", "offer", offer_id)
 
     conn.close()
 
@@ -2252,16 +1551,8 @@ def offer_page(
     )
 
 
-# ============================================================
-# CLAIM OFFER
-# ============================================================
-
-@app.post(
-    "/offer/{offer_id}/claim"
-)
-def claim_offer(
-    offer_id: str,
-):
+@app.post("/offer/{offer_id}/claim")
+def claim_offer(offer_id: str):
     conn = connect()
 
     offer = db_fetchone(
@@ -2284,11 +1575,7 @@ def claim_offer(
 
     if not offer:
         conn.close()
-
-        raise HTTPException(
-            404,
-            "Offer not found",
-        )
+        raise HTTPException(404, "Offer not found")
 
     if offer["status"] in (
         "CLAIMED",
@@ -2298,38 +1585,26 @@ def claim_offer(
         "FAILED",
     ):
         conn.close()
-
         raise HTTPException(
             400,
             "This offer is no longer available.",
         )
 
-    expires_at = parse_datetime(
-        offer["expires_at"]
-    )
+    expires_at = parse_datetime(offer["expires_at"])
 
     if (
         expires_at
-        and datetime.now(timezone.utc)
-        >= expires_at
+        and datetime.now(timezone.utc) >= expires_at
     ):
         conn.close()
-
-        expire_offer_and_continue(
-            offer_id
-        )
-
-        raise HTTPException(
-            400,
-            "This offer has expired.",
-        )
+        expire_offer_and_continue(offer_id)
+        raise HTTPException(400, "This offer has expired.")
 
     if offer["opening_status"] not in (
         "OPEN",
         "RECOVERY_ACTIVE",
     ):
         conn.close()
-
         raise HTTPException(
             400,
             "This opening is no longer available.",
@@ -2356,15 +1631,10 @@ def claim_offer(
 
     db_execute(
         conn,
-        """
-        UPDATE openings
-        SET status = 'CLAIMED'
-        WHERE id = ?
-        """,
+        "UPDATE openings SET status = 'CLAIMED' WHERE id = ?",
         (offer["opening_id"],),
     )
 
-    # Cancel all remaining queued offers.
     db_execute(
         conn,
         """
@@ -2372,10 +1642,7 @@ def claim_offer(
         SET status = 'CANCELLED'
         WHERE opening_id = ?
           AND id != ?
-          AND status IN (
-              'PENDING',
-              'SENT'
-          )
+          AND status IN ('PENDING', 'SENT')
         """,
         (
             offer["opening_id"],
@@ -2383,25 +1650,15 @@ def claim_offer(
         ),
     )
 
-    booking_id = (
-        f"booking_{uuid.uuid4().hex[:12]}"
-    )
+    booking_id = f"booking_{uuid.uuid4().hex[:12]}"
 
     shop = db_fetchone(
         conn,
-        """
-        SELECT booking_url
-        FROM shops
-        WHERE id = ?
-        """,
+        "SELECT booking_url FROM shops WHERE id = ?",
         (offer["shop_id"],),
     )
 
-    booking_url = (
-        shop["booking_url"]
-        if shop
-        else None
-    )
+    booking_url = shop["booking_url"] if shop else None
 
     db_execute(
         conn,
@@ -2416,9 +1673,7 @@ def claim_offer(
             amount,
             booked_at
         )
-        VALUES(
-            ?, ?, ?, ?, ?, ?, ?, ?
-        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             booking_id,
@@ -2434,11 +1689,7 @@ def claim_offer(
 
     db_execute(
         conn,
-        """
-        UPDATE openings
-        SET booking_id = ?
-        WHERE id = ?
-        """,
+        "UPDATE openings SET booking_id = ? WHERE id = ?",
         (
             booking_id,
             offer["opening_id"],
@@ -2448,17 +1699,8 @@ def claim_offer(
     conn.commit()
     conn.close()
 
-    event(
-        "offer.claimed",
-        "offer",
-        offer_id,
-    )
-
-    event(
-        "booking.created",
-        "booking",
-        booking_id,
-    )
+    event("offer.claimed", "offer", offer_id)
+    event("booking.created", "booking", booking_id)
 
     return RedirectResponse(
         f"/booking/{booking_id}",
@@ -2466,13 +1708,7 @@ def claim_offer(
     )
 
 
-# ============================================================
-# DECLINE OFFER
-# ============================================================
-
-@app.post(
-    "/offer/{offer_id}/decline"
-)
+@app.post("/offer/{offer_id}/decline")
 def decline_offer(
     offer_id: str,
     reason: str = Form("skip"),
@@ -2481,28 +1717,16 @@ def decline_offer(
 
     offer = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM offers
-        WHERE id = ?
-        """,
+        "SELECT * FROM offers WHERE id = ?",
         (offer_id,),
     )
 
     if not offer:
         conn.close()
+        raise HTTPException(404, "Offer not found")
 
-        raise HTTPException(
-            404,
-            "Offer not found",
-        )
-
-    if offer["status"] not in (
-        "PENDING",
-        "SENT",
-    ):
+    if offer["status"] not in ("PENDING", "SENT"):
         conn.close()
-
         raise HTTPException(
             400,
             "This offer has already been processed.",
@@ -2529,20 +1753,13 @@ def decline_offer(
         ),
     )
 
+    opening_id = offer["opening_id"]
     conn.commit()
     conn.close()
 
-    event(
-        "offer.declined",
-        "offer",
-        offer_id,
-        reason,
-    )
+    event("offer.declined", "offer", offer_id, reason)
 
-    # Immediately send the next customer.
-    send_next_recovery_offer(
-        offer["opening_id"]
-    )
+    send_next_recovery_offer(opening_id)
 
     return RedirectResponse(
         f"/offer/{offer_id}",
@@ -2550,34 +1767,17 @@ def decline_offer(
     )
 
 
-# ============================================================
-# EXPIRE OFFER
-# ============================================================
-
-@app.post(
-    "/offer/{offer_id}/expire"
-)
-def expire_offer(
-    offer_id: str,
-):
-    next_offer = expire_offer_and_continue(
-        offer_id
-    )
-
-    return RedirectResponse(
-        "/",
-        status_code=303,
-    )
+@app.post("/offer/{offer_id}/expire")
+def expire_offer(offer_id: str):
+    expire_offer_and_continue(offer_id)
+    return RedirectResponse("/", status_code=303)
 
 
 # ============================================================
-# BOOKING PAGE
+# BOOKINGS
 # ============================================================
 
-@app.get(
-    "/booking/{booking_id}",
-    response_class=HTMLResponse,
-)
+@app.get("/booking/{booking_id}", response_class=HTMLResponse)
 def booking_page(
     request: Request,
     booking_id: str,
@@ -2610,10 +1810,7 @@ def booking_page(
     conn.close()
 
     if not booking:
-        raise HTTPException(
-            404,
-            "Booking not found",
-        )
+        raise HTTPException(404, "Booking not found")
 
     return templates.TemplateResponse(
         "booking.html",
@@ -2624,43 +1821,25 @@ def booking_page(
     )
 
 
-# ============================================================
-# CONFIRM BOOKING
-# ============================================================
-
-@app.post(
-    "/bookings/{booking_id}/confirm"
-)
-def confirm_booking(
-    booking_id: str,
-):
+@app.post("/bookings/{booking_id}/confirm")
+def confirm_booking(booking_id: str):
     conn = connect()
 
     booking = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM bookings
-        WHERE id = ?
-        """,
+        "SELECT * FROM bookings WHERE id = ?",
         (booking_id,),
     )
 
     if not booking:
         conn.close()
-
-        raise HTTPException(
-            404,
-            "Booking not found",
-        )
+        raise HTTPException(404, "Booking not found")
 
     db_execute(
         conn,
         """
         UPDATE bookings
-        SET
-            status = 'CONFIRMED',
-            booked_at = ?
+        SET status = 'CONFIRMED', booked_at = ?
         WHERE id = ?
         """,
         (
@@ -2671,22 +1850,14 @@ def confirm_booking(
 
     db_execute(
         conn,
-        """
-        UPDATE openings
-        SET status = 'BOOKED'
-        WHERE id = ?
-        """,
+        "UPDATE openings SET status = 'BOOKED' WHERE id = ?",
         (booking["opening_id"],),
     )
 
     conn.commit()
     conn.close()
 
-    event(
-        "booking.confirmed",
-        "booking",
-        booking_id,
-    )
+    event("booking.confirmed", "booking", booking_id)
 
     return RedirectResponse(
         f"/booking/{booking_id}",
@@ -2694,43 +1865,25 @@ def confirm_booking(
     )
 
 
-# ============================================================
-# COMPLETE BOOKING
-# ============================================================
-
-@app.post(
-    "/bookings/{booking_id}/complete"
-)
-def complete_booking(
-    booking_id: str,
-):
+@app.post("/bookings/{booking_id}/complete")
+def complete_booking(booking_id: str):
     conn = connect()
 
     booking = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM bookings
-        WHERE id = ?
-        """,
+        "SELECT * FROM bookings WHERE id = ?",
         (booking_id,),
     )
 
     if not booking:
         conn.close()
-
-        raise HTTPException(
-            404,
-            "Booking not found",
-        )
+        raise HTTPException(404, "Booking not found")
 
     db_execute(
         conn,
         """
         UPDATE bookings
-        SET
-            status = 'COMPLETED',
-            completed_at = ?
+        SET status = 'COMPLETED', completed_at = ?
         WHERE id = ?
         """,
         (
@@ -2741,45 +1894,24 @@ def complete_booking(
 
     db_execute(
         conn,
-        """
-        UPDATE openings
-        SET status = 'COMPLETED'
-        WHERE id = ?
-        """,
+        "UPDATE openings SET status = 'COMPLETED' WHERE id = ?",
         (booking["opening_id"],),
     )
 
     customer = db_fetchone(
         conn,
-        """
-        SELECT *
-        FROM customers
-        WHERE id = ?
-        """,
+        "SELECT * FROM customers WHERE id = ?",
         (booking["customer_id"],),
     )
 
     if customer:
-        old_completed = (
-            customer["completed_count"] or 0
-        )
-
-        old_average = (
-            customer["average_spend"] or 0
-        )
-
-        new_completed_count = (
-            old_completed + 1
-        )
-
+        old_completed = customer["completed_count"] or 0
+        old_average = customer["average_spend"] or 0
+        new_completed_count = old_completed + 1
         new_average_spend = (
-            (
-                old_average
-                * old_completed
-            )
+            (old_average * old_completed)
             + booking["amount"]
         ) / new_completed_count
-
         timestamp = now_iso()
 
         db_execute(
@@ -2788,8 +1920,7 @@ def complete_booking(
             UPDATE customers
             SET
                 completed_count = ?,
-                appointment_count =
-                    appointment_count + 1,
+                appointment_count = appointment_count + 1,
                 average_spend = ?,
                 last_appointment_at = ?,
                 updated_at = ?
@@ -2807,48 +1938,25 @@ def complete_booking(
     conn.commit()
     conn.close()
 
-    event(
-        "booking.completed",
-        "booking",
-        booking_id,
-    )
+    event("booking.completed", "booking", booking_id)
+    event("appointment.completed", "booking", booking_id)
 
-    event(
-        "appointment.completed",
-        "booking",
-        booking_id,
-    )
-
-    return RedirectResponse(
-        "/",
-        status_code=303,
-    )
+    return RedirectResponse("/", status_code=303)
 
 
 # ============================================================
-# HEALTH CHECK
+# HEALTH
 # ============================================================
 
 @app.get("/health")
 def health():
-    database_type = (
-        "postgresql"
-        if USE_POSTGRES
-        else "sqlite"
-    )
+    database_type = "postgresql" if USE_POSTGRES else "sqlite"
 
     try:
         conn = connect()
-
-        db_fetchone(
-            conn,
-            "SELECT 1 AS ok",
-        )
-
+        db_fetchone(conn, "SELECT 1 AS ok")
         conn.close()
-
         database_status = "connected"
-
     except Exception as exc:
         database_status = f"error: {str(exc)}"
 
@@ -2857,6 +1965,8 @@ def health():
         "demo_mode": DEMO_MODE,
         "database": database_type,
         "database_status": database_status,
+        "sequential_messaging": True,
+        "version": "0.5.0",
     }
 
 
