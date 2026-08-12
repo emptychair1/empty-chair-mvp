@@ -1,0 +1,47 @@
+name: Switch Empty Chair to Resend SDK v2
+
+on:
+  push:
+    branches:
+      - fix/resend-sdk
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/resend-sdk
+
+      - name: Patch app and requirements
+        env:
+          SEND_EMAIL_B64: ZGVmIHNlbmRfZW1haWwodG9fZW1haWwsIHN1YmplY3QsIGh0bWwpOgogICAgdG9fZW1haWwgPSBub3JtYWxpemVfZW1haWwodG9fZW1haWwpCgogICAgaWYgbm90IHRvX2VtYWlsOgogICAgICAgIHJldHVybiBGYWxzZQoKICAgIGlmIERFTU9fTU9ERSBhbmQgbm90IFJFU0VORF9BUElfS0VZOgogICAgICAgIHByaW50KCkKICAgICAgICBwcmludCgiLS0tIERFTU8gRU1BSUwgLS0tIikKICAgICAgICBwcmludChmIlRvOiB7dG9fZW1haWx9IikKICAgICAgICBwcmludChmIlN1YmplY3Q6IHtzdWJqZWN0fSIpCiAgICAgICAgcHJpbnQoaHRtbCkKICAgICAgICBwcmludCgiLS0tLS0tLS0tLS0tLS0tLS0tIikKICAgICAgICBwcmludCgpCiAgICAgICAgcmV0dXJuIFRydWUKCiAgICBpZiBub3QgUkVTRU5EX0FQSV9LRVk6CiAgICAgICAgcHJpbnQoCiAgICAgICAgICAgICJFbWFpbCBza2lwcGVkOiBSRVNFTkRfQVBJX0tFWSAiCiAgICAgICAgICAgICJpcyBub3QgY29uZmlndXJlZC4iCiAgICAgICAgKQogICAgICAgIHJldHVybiBGYWxzZQoKICAgIHRyeToKICAgICAgICByZXNlbmQuYXBpX2tleSA9IFJFU0VORF9BUElfS0VZCgogICAgICAgIHJlc3BvbnNlID0gcmVzZW5kLkVtYWlscy5zZW5kKAogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICAiZnJvbSI6IEVNQUlMX0ZST00sCiAgICAgICAgICAgICAgICAidG8iOiBbdG9fZW1haWxdLAogICAgICAgICAgICAgICAgInN1YmplY3QiOiBzdWJqZWN0LAogICAgICAgICAgICAgICAgImh0bWwiOiBodG1sLAogICAgICAgICAgICB9CiAgICAgICAgKQoKICAgICAgICBwcmludCgKICAgICAgICAgICAgZiJFbWFpbCBzZW50IHN1Y2Nlc3NmdWxseSB0byB7dG9fZW1haWx9OiAiCiAgICAgICAgICAgIGYie3Jlc3BvbnNlfSIKICAgICAgICApCiAgICAgICAgcmV0dXJuIFRydWUKCiAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgICAgICBwcmludCgKICAgICAgICAgICAgIkVtYWlsIHNlbmQgZmFpbGVkOiIsCiAgICAgICAgICAgIHN0cihleGMpLAogICAgICAgICkKICAgICAgICByZXR1cm4gRmFsc2UKCg==
+        run: |
+          python -c 'import os, base64; from pathlib import Path; p=Path("app.py"); t=p.read_text(); t=t if "import resend\n" in t else t.replace("import secrets\n", "import secrets\nimport resend\n", 1); s=t.find("def send_email(to_email, subject, html):"); e=t.find("\ndef send_welcome_email", s); assert s!=-1 and e!=-1, "send_email not found"; r=base64.b64decode(os.environ["SEND_EMAIL_B64"]).decode(); t=t[:s]+r+t[e+1:]; compile(t, "app.py", "exec"); p.write_text(t); q=Path("requirements.txt"); x=q.read_text(); x=x if any(line.strip()=="resend" for line in x.splitlines()) else x.rstrip()+"\nresend\n"; q.write_text(x)'
+
+      - name: Validate patch
+        run: |
+          python -m py_compile app.py
+          grep -n '^resend$' requirements.txt
+          grep -n 'import resend' app.py
+          grep -n 'resend.Emails.send' app.py
+          if grep -n 'https://api.resend.com/emails' app.py; then exit 1; fi
+
+      - name: Remove one-time workflows
+        run: |
+          rm -f .github/workflows/patch-resend-sdk.yml
+          rm -f .github/workflows/patch-resend-sdk-v2.yml
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- app.py requirements.txt .github/workflows/patch-resend-sdk.yml .github/workflows/patch-resend-sdk-v2.yml
+          git diff --cached --check
+          git commit -m "fix: use official Resend Python SDK"
+          git push origin HEAD:fix/resend-sdk
