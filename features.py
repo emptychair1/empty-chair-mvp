@@ -70,7 +70,7 @@ def bookings_page(request: Request):
 
 
 @app.get("/recovery", response_class=HTMLResponse)
-def recovery_page(request: Request):
+def recovery_page(request: Request, demo_launched: int = 0):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
@@ -139,6 +139,8 @@ def recovery_page(request: Request):
             "user": user,
             "shop": shop,
             "campaigns": campaigns,
+            "demo_mode": core.DEMO_MODE,
+            "demo_launched": bool(demo_launched),
         },
     )
 
@@ -534,4 +536,219 @@ async def import_customers_safe(
             "return_url": "/customers",
             "return_label": "Back to Customers",
         },
+    )
+
+@app.post("/demo/launch-recovery")
+def demo_launch_recovery(request: Request):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+
+    if not core.DEMO_MODE:
+        raise HTTPException(404, "Demo campaign launcher is disabled.")
+
+    conn = core.connect()
+    shop_id = user["shop_id"]
+
+    artist = core.db_fetchone(
+        conn,
+        """
+        SELECT *
+        FROM artists
+        WHERE shop_id = ?
+          AND active = 1
+        ORDER BY name
+        LIMIT 1
+        """,
+        (shop_id,),
+    )
+
+    if not artist:
+        artist_id = f"artist_demo_{uuid.uuid4().hex[:10]}"
+        core.db_execute(
+            conn,
+            """
+            INSERT INTO artists(
+                id, shop_id, name, email, phone,
+                styles, services, active
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                artist_id,
+                shop_id,
+                "Demo Artist",
+                user["email"],
+                None,
+                "traditional, blackwork",
+                "tattoo",
+            ),
+        )
+        artist = {
+            "id": artist_id,
+            "name": "Demo Artist",
+        }
+
+    timestamp = core.now_iso()
+    demo_names = [
+        ("Demo Sarah", 9, 7, 240.0),
+        ("Demo Mike", 7, 6, 210.0),
+        ("Demo Jessica", 6, 5, 195.0),
+        ("Demo Taylor", 5, 4, 175.0),
+        ("Demo Avery", 4, 4, 160.0),
+    ]
+
+    for index, (name, appointments, completed, spend) in enumerate(
+        demo_names,
+        start=1,
+    ):
+        customer_id = f"demo_test_{shop_id}_{index}"
+        existing = core.db_fetchone(
+            conn,
+            "SELECT id FROM customers WHERE id = ? LIMIT 1",
+            (customer_id,),
+        )
+
+        values = (
+            name,
+            f"+15550001{index:03d}",
+            user["email"],
+            1,
+            artist["name"],
+            "traditional, blackwork",
+            "tattoo",
+            appointments,
+            completed,
+            0,
+            0,
+            spend,
+            None,
+            timestamp,
+            customer_id,
+            shop_id,
+        )
+
+        if existing:
+            core.db_execute(
+                conn,
+                """
+                UPDATE customers
+                SET
+                    name = ?,
+                    phone = ?,
+                    email = ?,
+                    communication_consent = ?,
+                    preferred_artists = ?,
+                    preferred_styles = ?,
+                    preferred_services = ?,
+                    appointment_count = ?,
+                    completed_count = ?,
+                    cancellation_count = ?,
+                    no_show_count = ?,
+                    average_spend = ?,
+                    last_offer_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                  AND shop_id = ?
+                """,
+                values,
+            )
+        else:
+            core.db_execute(
+                conn,
+                """
+                INSERT INTO customers(
+                    name,
+                    phone,
+                    email,
+                    communication_consent,
+                    preferred_artists,
+                    preferred_styles,
+                    preferred_services,
+                    appointment_count,
+                    completed_count,
+                    cancellation_count,
+                    no_show_count,
+                    average_spend,
+                    last_offer_at,
+                    updated_at,
+                    id,
+                    shop_id,
+                    created_at
+                )
+                VALUES(
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                )
+                """,
+                values + (timestamp,),
+            )
+
+    opening_id = f"opening_demo_{uuid.uuid4().hex[:12]}"
+    tomorrow = (
+        core.datetime.now(core.timezone.utc)
+        + core.timedelta(days=1)
+    ).date().isoformat()
+    opening_expires = (
+        core.datetime.now(core.timezone.utc)
+        + core.timedelta(hours=24)
+    ).isoformat()
+
+    core.db_execute(
+        conn,
+        """
+        INSERT INTO openings(
+            id,
+            shop_id,
+            artist_id,
+            date,
+            start_time,
+            end_time,
+            service,
+            style,
+            price,
+            status,
+            created_at,
+            expires_at,
+            booking_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            opening_id,
+            shop_id,
+            artist["id"],
+            tomorrow,
+            "14:00",
+            "16:00",
+            "tattoo",
+            "traditional",
+            250.0,
+            "OPEN",
+            timestamp,
+            opening_expires,
+            None,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    core.event(
+        "demo.recovery_launched",
+        "opening",
+        opening_id,
+        json.dumps(
+            {
+                "shop_id": shop_id,
+                "artist_id": artist["id"],
+                "test_customer_count": len(demo_names),
+            }
+        ),
+    )
+
+    core.start_recovery_campaign(opening_id)
+
+    return RedirectResponse(
+        "/recovery?demo_launched=1",
+        status_code=303,
     )
