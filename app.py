@@ -2607,7 +2607,7 @@ def dashboard(
         ),
     )
 
-    recovered_row = db_fetchone(
+       recovered_row = db_fetchone(
         conn,
         """
         SELECT
@@ -2618,7 +2618,23 @@ def dashboard(
         FROM bookings b
         JOIN openings o
             ON o.id = b.opening_id
-        WHERE b.status = 'COMPLETED'
+        WHERE b.status IN ('CONFIRMED', 'COMPLETED')
+          AND o.shop_id = ?
+        """,
+        (
+            user["shop_id"],
+        ),
+    )
+
+    completed_row = db_fetchone(
+        conn,
+        """
+        SELECT
+            COUNT(*) AS n
+        FROM bookings b
+        JOIN openings o
+            ON o.id = b.opening_id
+        WHERE b.status IN ('CONFIRMED', 'COMPLETED')
           AND o.shop_id = ?
         """,
         (
