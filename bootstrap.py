@@ -25,6 +25,9 @@ import claim_flow  # noqa: F401,E402
 # Register Pilot v1.1 readiness, Autopilot, health, and outcome reporting.
 import pilot  # noqa: F401,E402
 
+# Keep the Fill Chairs GET path database-only and avoid duplicate calendar checks.
+import pilot_performance  # noqa: F401,E402
+
 # Apply Pilot safety rules after Pilot routes are registered. This adds a hard
 # customer contact cooldown and preserves shop isolation in Pilot activity data.
 import pilot_safety  # noqa: F401,E402
