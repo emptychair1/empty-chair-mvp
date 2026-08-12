@@ -53,11 +53,93 @@ body {
     letter-spacing: -0.04em;
 }
 .card {
-    background: rgba(23,25,29,.96);
-    border: 1px solid var(--line);
-    border-radius: 20px;
-    padding: 28px;
-    box-shadow: 0 24px 70px rgba(0,0,0,.35);
+    width: min(420px, 100%);
+    padding: 34px 36px 36px;
+    border: 1px solid #8a6a32;
+    border-radius: 12px;
+
+    background:
+        linear-gradient(
+            145deg,
+            rgba(20, 20, 20, 0.97),
+            rgba(7, 7, 7, 0.97)
+        );
+
+    box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.75),
+        0 0 0 1px rgba(198, 40, 40, 0.15);
+
+    backdrop-filter: blur(8px);
+}
+
+.login-brand {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 26px;
+}
+
+.login-logo {
+    display: block;
+    width: 100%;
+    max-width: 300px;
+    height: auto;
+}
+
+label {
+    color: #d7bd82;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 7px;
+    padding: 13px 14px;
+
+    border: 1px solid #49391f;
+    border-radius: 6px;
+
+    background: #0d0d0d;
+    color: #f4ead6;
+
+    font: inherit;
+}
+
+input:focus {
+    outline: none;
+    border-color: #c62828;
+    box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.18);
+}
+
+button {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 8px;
+
+    border: 1px solid #ef3c32;
+    border-radius: 6px;
+
+    background: linear-gradient(
+        180deg,
+        #d32525,
+        #941010
+    );
+
+    color: #fff;
+
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+
+    cursor: pointer;
+}
+
+button:hover {
+    filter: brightness(1.1);
 }
 h2 {
     margin: 0 0 8px;
@@ -129,11 +211,12 @@ a { color: var(--text); }
 </head>
 <body>
 <div class="auth-shell">
-    <div class="brand">
-        <img src="{{ url_for('static', path='/empty-chair-logo.png') }}"
-             alt="Empty Chair">
-    </div>
     <div class="card">
+
+        <div class="brand">
+            <img src="{{ url_for('static', path='/empty-chair-logo.png') }}"
+                 alt="Empty Chair">
+        </div>
 
         <h2>Welcome back</h2>
         <p class="sub">Sign in to manage openings and recover empty chairs.</p>
