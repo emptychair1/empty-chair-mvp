@@ -1,56 +1,23 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Opening · Empty Chair</title>
-<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
-</head>
-<body class="inner-page">
-<div class="inner-wrap">
-  <div class="inner-top">
-    <a class="inner-brand" href="/"><img src="{{ url_for('static', path='/empty-chair-logo.png') }}" alt="Empty Chair"></a>
-    <a class="inner-back" href="/">← Dashboard</a>
-  </div>
-
-  <section class="hero-panel">
-    <div class="hero-kicker">Recovery Opportunity</div>
-    <h1 class="hero-heading">{{ opening["artist_name"] }}</h1>
-    <div class="hero-copy">{{ opening["date"] }} · {{ opening["start_time"] }} · {{ opening["style"] or "Tattoo" }} · {{ opening["service"] }}</div>
-    <div class="hero-price">${{ "%.0f"|format(opening["price"]) }}</div>
-    <div style="margin-top:12px;"><span class="status {{ opening['status'] }}">{{ opening["status"] }}</span></div>
-
-    <div class="hero-actions">
-      {% if opening["status"] in ["OPEN", "RECOVERY_ACTIVE"] %}
-      <form method="post" action="/openings/{{ opening['id'] }}/recover"><button class="button" type="submit">Start / Continue Recovery</button></form>
-      {% endif %}
-      {% if opening["status"] == "RECOVERY_ACTIVE" %}
-      <form method="post" action="/openings/{{ opening['id'] }}/next"><button class="button secondary" type="submit">Advance Queue</button></form>
-      {% endif %}
-      <a class="button secondary" href="/">Back</a>
-    </div>
-  </section>
-
-  <section class="panel" style="margin-top:18px;">
-    <div class="panel-head"><h2 class="panel-title">Recovery Queue</h2></div>
-    <div class="queue-list">
-      {% for offer in offers %}
-      <div class="queue-row">
-        <div class="queue-rank">{{ offer["rank"] }}</div>
-        <div>
-          <div class="queue-name">{{ offer["customer_name"] }}</div>
-          <div class="queue-sub">{{ offer["customer_phone"] }} · {{ offer["id"] }}</div>
-        </div>
-        <div class="queue-score">{{ "%.0f"|format(offer["score"]) }}</div>
-        <span class="status {{ offer['status'] }}">{{ offer["status"] }}</span>
-      </div>
-      {% else %}
-      <div style="color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:7px;">No recovery offers have been created yet.</div>
-      {% endfor %}
-    </div>
-  </section>
-
-  <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Opening · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"></head>
+<body><main class="content">
+<p><a href="/">← Dashboard</a></p>
+<div class="panel">
+<h1>{{ opening["artist_name"] }} · {{ opening["date"] }} {{ opening["start_time"] }}</h1>
+<p>{{ opening["service"] }}{% if opening["style"] %} · {{ opening["style"] }}{% endif %} · ${{ "%.0f"|format(opening["price"]) }}</p>
+<p>Status: <strong>{{ opening["status"] }}</strong></p>
+{% if opening["status"] == "OPEN" %}
+<form method="post" action="/openings/{{ opening['id'] }}/recover"><button class="button">Launch Recovery</button></form>
+{% elif opening["status"] == "RECOVERY_ACTIVE" %}
+<form method="post" action="/openings/{{ opening['id'] }}/advance"><button class="button secondary">Advance Queue</button></form>
+{% endif %}
 </div>
-</body>
-</html>
+<div class="panel" style="margin-top:18px">
+<h2>Recovery queue</h2>
+{% if offers %}
+<table><thead><tr><th>Rank</th><th>Customer</th><th>Phone</th><th>Score</th><th>Status</th></tr></thead><tbody>
+{% for offer in offers %}<tr><td>{{ offer["rank"] }}</td><td>{{ offer["customer_name"] }}</td><td>{{ offer["customer_phone"] }}</td><td>{{ "%.1f"|format(offer["score"]) }}</td><td>{{ offer["status"] }}</td></tr>{% endfor %}
+</tbody></table>
+{% else %}<p>No recovery offers yet.</p>{% endif %}
+</div></main></body></html>

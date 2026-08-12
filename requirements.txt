@@ -1,6 +1,7 @@
-fastapi
-uvicorn
-jinja2
-python-multipart
-twilio
-psycopg2-binary
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+jinja2>=3.1,<4
+python-multipart>=0.0.9,<1
+twilio>=9,<10
+psycopg2-binary>=2.9,<3
+itsdangerous>=2.2,<3

@@ -32,7 +32,7 @@
 
     <div class="owner-card">
       <div class="kicker">Owner</div>
-      <div class="owner-name">Alex Artist</div>
+      <div class="owner-name">{{ user["name"] if user else "Owner" }}</div>
     </div>
   </div>
 </aside>
@@ -40,10 +40,10 @@
 <main class="main">
   <header class="topbar">
     <div class="topbar-left">
-      <div class="menu-mark">☰</div>
+      
       <div>
         <div class="page-title">Dashboard</div>
-        <div class="page-subtitle">Welcome back, Alex.</div>
+        <div class="page-subtitle">Welcome back, {{ user["name"] if user else "there" }}.</div>
       </div>
     </div>
 
@@ -53,6 +53,7 @@
         <a class="button" href="#create-opening">＋ New Opening</a>
       </div>
       <a class="button secondary" href="/import/customers">↑ Import Customers</a>
+      <form method="post" action="/logout" style="margin:0;"><button class="button secondary" type="submit">Log out</button></form>
     </div>
   </header>
 
