@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  smoke-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run smoke tests
+        env:
+          EMPTY_CHAIR_DB: test_empty_chair.db
+          EMPTY_CHAIR_DEMO_MODE: "true"
+          EMPTY_CHAIR_SESSION_SECRET: test-secret
+        run: pytest -q
