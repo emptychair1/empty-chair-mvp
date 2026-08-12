@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Empty Chair · Pilot v1.0</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .pilot-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
+    .pilot-hero,.pilot-card{background:linear-gradient(145deg,rgba(20,20,20,.98),rgba(8,8,8,.98));border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 50px rgba(0,0,0,.24)}
+    .pilot-hero{grid-column:1/-1;padding:28px;border-radius:18px;display:flex;justify-content:space-between;gap:24px;align-items:center;overflow:hidden;position:relative}
+    .pilot-hero:after{content:"";position:absolute;right:-70px;top:-90px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(159,17,24,.42),rgba(159,17,24,0) 68%);pointer-events:none}
+    .pilot-eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:.72rem;color:#a9a9a9;font-weight:800}
+    .pilot-hero h1{margin:7px 0 8px;font-size:clamp(1.9rem,4vw,3.4rem);line-height:.95}
+    .pilot-hero p{margin:0;color:#b9b9b9;max-width:680px}
+    .readiness{min-width:160px;text-align:center;position:relative;z-index:1}
+    .readiness strong{display:block;font-size:3rem;line-height:1;color:#fff}
+    .readiness span{display:block;margin-top:8px;color:#aaa;font-size:.78rem;text-transform:uppercase;letter-spacing:.12em}
+    .pilot-ready{color:#7ee2a8!important}.pilot-not-ready{color:#ff7a7a!important}
+    .pilot-card{border-radius:16px;padding:20px}
+    .pilot-card h2{margin:0 0 15px;font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:#d7d7d7}
+    .metric{grid-column:span 3;min-height:128px}
+    .metric-value{font-size:2.15rem;font-weight:800;line-height:1.05;margin:10px 0 5px}
+    .metric-label{color:#9a9a9a;font-size:.85rem}
+    .checklist{grid-column:span 7}.delivery{grid-column:span 5}
+    .check-row{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+    .check-row:last-child{border-bottom:0}
+    .check-dot{width:12px;height:12px;border-radius:50%;margin-top:5px;flex:0 0 auto;background:#8a1b20;box-shadow:0 0 0 5px rgba(138,27,32,.12)}
+    .check-dot.ok{background:#4fd08a;box-shadow:0 0 0 5px rgba(79,208,138,.1)}
+    .check-copy strong{display:block;font-size:.94rem}.check-copy span{display:block;color:#8f8f8f;font-size:.8rem;margin-top:3px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:6px 9px;font-size:.72rem;color:#bbb;margin:0 6px 6px 0}
+    .badge.live{border-color:rgba(79,208,138,.35);color:#7ee2a8}.badge.demo{border-color:rgba(255,255,255,.09);color:#888}
+    .delivery-row{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+    .delivery-row:last-child{border-bottom:0}.delivery-row strong{font-size:.82rem}.delivery-row span{font-size:.76rem;color:#888;display:block;margin-top:3px}
+    .empty-state{color:#777;font-size:.86rem;line-height:1.5;padding:10px 0}
+    .pilot-note{grid-column:1/-1;padding:16px 18px;border-radius:14px;background:rgba(159,17,24,.08);border:1px solid rgba(159,17,24,.24);color:#cfcfcf;font-size:.86rem}
+    @media(max-width:1000px){.metric{grid-column:span 6}.checklist,.delivery{grid-column:1/-1}}
+    @media(max-width:700px){.pilot-hero{align-items:flex-start;flex-direction:column}.metric{grid-column:1/-1}.readiness{text-align:left}.pilot-grid{gap:12px}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page = 'pilot' %}
+  {% include '_sidebar.html' %}
+
+  <main class="main-content">
+    <div class="pilot-grid">
+      <section class="pilot-hero">
+        <div>
+          <div class="pilot-eyebrow">Pilot Control Center · {{ pilot.version }}</div>
+          <h1>Is this shop ready to run?</h1>
+          <p>One screen for configuration, notification delivery, conversion, and recovered revenue.</p>
+        </div>
+        <div class="readiness">
+          <strong class="{{ 'pilot-ready' if pilot.ready else 'pilot-not-ready' }}">{{ pilot.readiness_percent }}%</strong>
+          <span>{{ 'Pilot ready' if pilot.ready else 'Needs setup' }}</span>
+        </div>
+      </section>
+
+      <section class="pilot-card metric">
+        <div class="pilot-eyebrow">Recovered</div>
+        <div class="metric-value">${{ '%.0f'|format(pilot.metrics.recovered_revenue) }}</div>
+        <div class="metric-label">Recovered revenue</div>
+      </section>
+      <section class="pilot-card metric">
+        <div class="pilot-eyebrow">Fill Rate</div>
+        <div class="metric-value">{{ pilot.metrics.recovery_rate }}%</div>
+        <div class="metric-label">Openings recovered</div>
+      </section>
+      <section class="pilot-card metric">
+        <div class="pilot-eyebrow">Conversion</div>
+        <div class="metric-value">{{ pilot.metrics.offer_conversion_rate }}%</div>
+        <div class="metric-label">Offers claimed</div>
+      </section>
+      <section class="pilot-card metric">
+        <div class="pilot-eyebrow">Audience</div>
+        <div class="metric-value">{{ pilot.metrics.consented_customers }}</div>
+        <div class="metric-label">Consented customers</div>
+      </section>
+
+      <section class="pilot-card checklist">
+        <h2>Pilot Readiness</h2>
+        {% for check in pilot.checks %}
+          <div class="check-row">
+            <div class="check-dot {{ 'ok' if check.ok else '' }}"></div>
+            <div class="check-copy">
+              <strong>{{ check.label }}{% if not check.required %} <span style="display:inline;color:#666">· optional</span>{% endif %}</strong>
+              <span>{{ check.detail }}</span>
+            </div>
+          </div>
+        {% endfor %}
+      </section>
+
+      <section class="pilot-card delivery">
+        <h2>Delivery Health</h2>
+        <div style="margin-bottom:12px">
+          <span class="badge {{ 'live' if pilot.channels.email_live and pilot.channels.email_configured else 'demo' }}">Email · {{ 'LIVE' if pilot.channels.email_live and pilot.channels.email_configured else 'DEMO/OFF' }}</span>
+          <span class="badge {{ 'live' if pilot.channels.sms_live and pilot.channels.sms_configured else 'demo' }}">SMS · {{ 'LIVE' if pilot.channels.sms_live and pilot.channels.sms_configured else 'DEMO/OFF' }}</span>
+        </div>
+        <div class="badge">{{ pilot.metrics.successful_delivery_events }} successful events</div>
+        <div class="badge">{{ pilot.metrics.failed_delivery_events }} failed events</div>
+
+        {% if pilot.recent_deliveries %}
+          <div style="margin-top:10px">
+            {% for item in pilot.recent_deliveries[:6] %}
+              <div class="delivery-row">
+                <strong>{{ item.event_type }} · {{ 'delivered' if item.sms or item.email else 'failed' }}</strong>
+                <span>Email {{ '✓' if item.email else '—' }} · SMS {{ '✓' if item.sms else '—' }} · {{ item.created_at[:19].replace('T', ' ') }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state">No delivery events yet. Create an opening and launch recovery; the first notification attempt will appear here.</div>
+        {% endif %}
+      </section>
+
+      <div class="pilot-note">
+        <strong>Pilot target:</strong> get readiness to 100%, run real cancelled-slot recoveries, and measure recovered revenue instead of vanity activity. Health endpoint: <code>/healthz</code>. Authenticated status endpoint: <code>/api/pilot/status</code>.
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
