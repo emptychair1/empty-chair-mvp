@@ -10,13 +10,13 @@
 {% set active_page = 'dashboard' %}{% include '_sidebar.html' %}
 <main class="main">
 <header class="topbar"><div class="topbar-left"><div><div class="page-title">Dashboard</div><div class="page-subtitle">Welcome back, {{ user["name"] if user else "there" }}.</div></div></div>
-<div class="top-actions"><div class="top-actions-row"><a class="button" href="#create-opening">＋ New Opening</a></div><a class="button secondary" href="/import/customers">↑ Import Customers</a><form method="post" action="/logout" style="margin:0"><button class="button secondary" type="submit">Log out</button></form></div></header>
+<div class="top-actions"><div class="top-actions-row"><a class="button" href="#create-opening">＋ New Opening</a></div><a class="button secondary" href="/customers">Customers</a><form method="post" action="/logout" style="margin:0"><button class="button secondary" type="submit">Log out</button></form></div></header>
 <div class="content">
 <section class="metric-grid">
-<div class="metric-card"><div class="metric-icon chair">♜</div><div class="metric-label">Openings This Week</div><div class="metric-value">{{ weekly_openings }}</div><div class="metric-sub">Scheduled this week</div></div>
-<div class="metric-card"><div class="metric-icon">$</div><div class="metric-label">Recovered This Week</div><div class="metric-value">${{ "%.0f"|format(weekly_revenue) }}</div><div class="metric-sub">${{ "%.0f"|format(monthly_revenue) }} this month</div></div>
-<div class="metric-card"><div class="metric-icon">%</div><div class="metric-label">Recovery Rate</div><div class="metric-value">{{ "%.0f"|format(recovery_rate) }}%</div><div class="metric-sub">Booked or completed openings</div></div>
-<div class="metric-card"><div class="metric-icon">◷</div><div class="metric-label">Avg Time to Fill</div><div class="metric-value" style="font-size:26px">{{ average_fill }}</div><div class="metric-sub">{{ customer_count }} customers available</div></div>
+<div class="metric-card"><div class="metric-icon chair">♜</div><div class="metric-label">Openings</div><div class="metric-value">{{ total_openings }}</div><div class="metric-sub">Total created</div></div>
+<div class="metric-card"><div class="metric-icon">$</div><div class="metric-label">Recovered Revenue</div><div class="metric-value">${{ "%.0f"|format(recovered) }}</div><div class="metric-sub">Booked + completed</div></div>
+<div class="metric-card"><div class="metric-icon">✓</div><div class="metric-label">Recovered Bookings</div><div class="metric-value">{{ completed }}</div><div class="metric-sub">Booked + completed</div></div>
+<div class="metric-card"><div class="metric-icon">♙</div><div class="metric-label">Customers</div><div class="metric-value">{{ customer_count }}</div><div class="metric-sub">Imported customers</div></div>
 </section>
 <div class="dashboard-grid">
 <section class="panel" id="openings"><div class="panel-head"><h2 class="panel-title">Openings</h2><a class="button secondary compact" href="/recovery">View Recovery</a></div>
