@@ -1,6 +1,6 @@
 name: EmptyChair
 options:
-  bundleIdPrefix: com.emptychair
+  bundleIdPrefix: com.emptychairtattoo
   deploymentTarget:
     iOS: "17.0"
 settings:
@@ -15,7 +15,7 @@ targets:
       - EmptyChair
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.emptychair.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.emptychairtattoo.app
         INFOPLIST_FILE: EmptyChair/Info.plist
         CODE_SIGN_STYLE: Automatic
     info:
