@@ -1,0 +1,27 @@
+<aside class="sidebar">
+  <div class="brand-wrap">
+    <img class="brand-logo" src="{{ url_for('static', path='/empty-chair-logo.png') }}" alt="Empty Chair — Fill More Chairs">
+  </div>
+
+  <nav class="sidebar-nav">
+    <a class="nav-link {{ 'active' if active_page == 'dashboard' else '' }}" href="/"><span class="nav-icon">⌂</span><span>Dashboard</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'openings' else '' }}" href="/#openings"><span class="nav-icon">▣</span><span>Openings</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'recovery' else '' }}" href="/recovery"><span class="nav-icon">◎</span><span>Recovery</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="studio-card">
+      <div class="kicker">Studio</div>
+      <div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div>
+      <div class="online">● Studio Online</div>
+    </div>
+    <div class="owner-card">
+      <div class="kicker">Owner</div>
+      <div class="owner-name">{{ user["name"] if user else "Owner" }}</div>
+    </div>
+  </div>
+</aside>
