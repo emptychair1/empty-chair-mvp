@@ -13,9 +13,10 @@ legacy = importlib.util.module_from_spec(spec)
 sys.modules["empty_chair_legacy_app"] = legacy
 spec.loader.exec_module(legacy)
 
-# Expose the legacy module under the name `app` while features.py imports it.
+# Expose the legacy module under the name `app` while feature modules import it.
 sys.modules["app"] = legacy
 
 import features  # noqa: E402,F401
+import pwa  # noqa: E402,F401
 
 app = legacy.app
