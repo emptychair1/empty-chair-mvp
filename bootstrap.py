@@ -15,6 +15,9 @@ import notifications  # noqa: F401,E402
 # Register Google authentication and the optional Calendar double-booking safety layer.
 import google_integration  # noqa: F401,E402
 
+# Guard every recovery campaign with Google Calendar free/busy when connected.
+import calendar_safety  # noqa: F401,E402
+
 # Replace the public claim endpoint with the atomic implementation after
 # notification overrides are installed.
 import claim_flow  # noqa: F401,E402
