@@ -1,0 +1,112 @@
+.mobile-more{display:none}
+
+@media (max-width:610px){
+  .sidebar-nav>.nav-link:nth-child(4),
+  .sidebar-nav>.nav-link:nth-child(6),
+  .sidebar-nav>.nav-link:nth-child(7){display:none!important}
+
+  .mobile-more{
+    position:relative;
+    display:block;
+    min-width:0;
+    color:var(--muted);
+  }
+
+  .mobile-more summary{
+    position:relative;
+    min-height:64px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:3px;
+    padding:4px 2px;
+    border-radius:12px;
+    cursor:pointer;
+    list-style:none;
+    font-size:9px;
+    line-height:1;
+    user-select:none;
+  }
+
+  .mobile-more summary::-webkit-details-marker{display:none}
+  .mobile-more summary::marker{display:none}
+
+  .mobile-more.active summary,
+  .mobile-more[open] summary{
+    color:var(--cream);
+    background:linear-gradient(180deg,rgba(225,38,38,.16),rgba(225,38,38,.03));
+  }
+
+  .mobile-more.active summary::before,
+  .mobile-more[open] summary::before{
+    content:'';
+    position:absolute;
+    left:22%;
+    right:22%;
+    top:0;
+    height:2px;
+    border-radius:999px;
+    background:var(--red-bright);
+    box-shadow:0 0 12px rgba(225,38,38,.8);
+  }
+
+  .mobile-more summary .nav-icon{
+    font-size:21px!important;
+    letter-spacing:1px;
+  }
+
+  .mobile-more-sheet{
+    position:fixed;
+    left:10px;
+    right:10px;
+    bottom:calc(var(--mobile-tab-height) + env(safe-area-inset-bottom) + 10px);
+    display:grid;
+    gap:7px;
+    padding:10px;
+    border:1px solid rgba(208,170,112,.34);
+    border-radius:16px;
+    background:rgba(10,10,10,.98);
+    box-shadow:0 -10px 50px rgba(0,0,0,.5),0 0 26px rgba(225,38,38,.08);
+    backdrop-filter:blur(24px);
+    -webkit-backdrop-filter:blur(24px);
+    transform-origin:bottom right;
+    animation:mobileSheetIn .16s ease-out both;
+  }
+
+  .mobile-more-sheet a{
+    min-height:54px;
+    display:grid;
+    grid-template-columns:36px minmax(0,1fr);
+    align-items:center;
+    gap:10px;
+    padding:0 12px;
+    border:1px solid var(--line-soft);
+    border-radius:11px;
+    background:#101010;
+    color:var(--cream);
+    text-decoration:none;
+  }
+
+  .mobile-more-sheet a:active{
+    background:#171111;
+    border-color:rgba(225,38,38,.45);
+  }
+
+  .mobile-more-sheet a>span{
+    color:var(--gold-light);
+    text-align:center;
+    font-size:21px;
+  }
+
+  .mobile-more-sheet strong{
+    font-family:'Cinzel',Georgia,serif;
+    font-size:12px;
+    font-weight:600;
+  }
+
+  @keyframes mobileSheetIn{
+    from{opacity:0;transform:translateY(8px) scale(.98)}
+    to{opacity:1;transform:none}
+  }
+}
