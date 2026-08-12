@@ -16,9 +16,12 @@ import notifications  # noqa: F401,E402
 # notification overrides are installed.
 import claim_flow  # noqa: F401,E402
 
-# Register Pilot v1.0 readiness, health, and outcome reporting last so it sees
-# the final notification configuration and claim-flow overrides.
+# Register Pilot v1.1 readiness, Autopilot, health, and outcome reporting.
 import pilot  # noqa: F401,E402
+
+# Apply Pilot safety rules after Pilot routes are registered. This adds a hard
+# customer contact cooldown and preserves shop isolation in Pilot activity data.
+import pilot_safety  # noqa: F401,E402
 
 app = core.app
 
@@ -27,5 +30,6 @@ print(
     f"version={pilot.PILOT_VERSION}, "
     f"sms_live={notifications.SMS_LIVE}, "
     f"email_live={notifications.EMAIL_LIVE}, "
-    f"resend_configured={bool(core.RESEND_API_KEY)}"
+    f"resend_configured={bool(core.RESEND_API_KEY)}, "
+    f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
 )
