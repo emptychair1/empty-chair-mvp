@@ -2748,6 +2748,522 @@ def demo_setup_post(
 
 
 # ============================================================
+# ARTISTS
+# ============================================================
+
+@app.get(
+    "/artists",
+    response_class=HTMLResponse,
+)
+def artists_page(
+    request: Request,
+):
+    user, redirect = login_required_redirect(
+        request
+    )
+
+    if redirect:
+        return redirect
+
+    conn = connect()
+
+    shop = db_fetchone(
+        conn,
+        """
+        SELECT *
+        FROM shops
+        WHERE id = ?
+        LIMIT 1
+        """,
+        (
+            user["shop_id"],
+        ),
+    )
+
+    artists = db_fetchall(
+        conn,
+        """
+        SELECT *
+        FROM artists
+        WHERE shop_id = ?
+        ORDER BY active DESC, name
+        """,
+        (
+            user["shop_id"],
+        ),
+    )
+
+    conn.close()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="artists.html",
+        context={
+            "user": user,
+            "shop": shop,
+            "artists": artists,
+        },
+    )
+
+
+@app.post("/artists")
+def create_artist(
+    request: Request,
+    name: str = Form(...),
+    email: str = Form(""),
+    phone: str = Form(""),
+    styles: str = Form(""),
+    services: str = Form("tattoo"),
+):
+    user, redirect = login_required_redirect(
+        request
+    )
+
+    if redirect:
+        return redirect
+
+    name = name.strip()
+    email = email.strip() or None
+    phone = phone.strip() or None
+    styles = styles.strip()
+    services = services.strip() or "tattoo"
+
+    if not name:
+        raise HTTPException(
+            400,
+            "Artist name is required.",
+        )
+
+    conn = connect()
+
+    existing = db_fetchone(
+        conn,
+        """
+        SELECT id
+        FROM artists
+        WHERE shop_id = ?
+          AND LOWER(name) = LOWER(?)
+        LIMIT 1
+        """,
+        (
+            user["shop_id"],
+            name,
+        ),
+    )
+
+    if existing:
+        conn.close()
+        raise HTTPException(
+            400,
+            "An artist with that name already exists.",
+        )
+
+    artist_id = f"artist_{uuid.uuid4().hex[:12]}"
+
+    db_execute(
+        conn,
+        """
+        INSERT INTO artists(
+            id,
+            shop_id,
+            name,
+            email,
+            phone,
+            styles,
+            services,
+            active
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        """,
+        (
+            artist_id,
+            user["shop_id"],
+            name,
+            email,
+            phone,
+            styles,
+            services,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    event(
+        "artist.created",
+        "artist",
+        artist_id,
+    )
+
+    return RedirectResponse(
+        "/artists",
+        status_code=303,
+    )
+
+
+@app.post("/artists/{artist_id}/toggle")
+def toggle_artist(
+    artist_id: str,
+    request: Request,
+):
+    user, redirect = login_required_redirect(
+        request
+    )
+
+    if redirect:
+        return redirect
+
+    conn = connect()
+
+    artist = db_fetchone(
+        conn,
+        """
+        SELECT *
+        FROM artists
+        WHERE id = ?
+          AND shop_id = ?
+        LIMIT 1
+        """,
+        (
+            artist_id,
+            user["shop_id"],
+        ),
+    )
+
+    if not artist:
+        conn.close()
+        raise HTTPException(
+            404,
+            "Artist not found.",
+        )
+
+    new_active = 0 if artist["active"] else 1
+
+    db_execute(
+        conn,
+        """
+        UPDATE artists
+        SET active = ?
+        WHERE id = ?
+          AND shop_id = ?
+        """,
+        (
+            new_active,
+            artist_id,
+            user["shop_id"],
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+    event(
+        "artist.status_changed",
+        "artist",
+        artist_id,
+        {
+            "active": new_active,
+        },
+    )
+
+    return RedirectResponse(
+        "/artists",
+        status_code=303,
+    )
+
+
+# ============================================================
+# ARTIST IMPORT
+# ============================================================
+
+@app.get(
+    "/import/artists",
+    response_class=HTMLResponse,
+)
+def artist_import_page(
+    request: Request,
+):
+    user, redirect = login_required_redirect(
+        request
+    )
+
+    if redirect:
+        return redirect
+
+    return templates.TemplateResponse(
+        request=request,
+        name="import_artists.html",
+        context={
+            "database_type": (
+                "PostgreSQL"
+                if USE_POSTGRES
+                else "SQLite"
+            ),
+        },
+    )
+
+
+@app.post(
+    "/import/artists",
+    response_class=HTMLResponse,
+)
+async def import_artists(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    user, redirect = login_required_redirect(
+        request
+    )
+
+    if redirect:
+        return redirect
+
+    if not file.filename:
+        raise HTTPException(
+            400,
+            "No CSV file selected.",
+        )
+
+    if not file.filename.lower().endswith(
+        ".csv"
+    ):
+        raise HTTPException(
+            400,
+            "Please upload a CSV file.",
+        )
+
+    raw_data = await file.read()
+
+    try:
+        text = raw_data.decode(
+            "utf-8-sig"
+        )
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            400,
+            "CSV must be UTF-8 encoded.",
+        ) from exc
+
+    reader = csv.DictReader(
+        io.StringIO(text)
+    )
+
+    if not reader.fieldnames:
+        raise HTTPException(
+            400,
+            "CSV has no header row.",
+        )
+
+    headers = {
+        header.strip().lower()
+        for header in reader.fieldnames
+        if header
+    }
+
+    if "name" not in headers:
+        raise HTTPException(
+            400,
+            "Missing required column: name",
+        )
+
+    conn = connect()
+    shop_id = user["shop_id"]
+
+    imported = 0
+    updated = 0
+    skipped = 0
+    errors = []
+
+    for row_number, raw_row in enumerate(
+        reader,
+        start=2,
+    ):
+        try:
+            row = {
+                (key or "").strip().lower():
+                (value or "").strip()
+                for key, value in raw_row.items()
+            }
+
+            name = row.get("name", "")
+
+            if not name:
+                skipped += 1
+                errors.append(
+                    f"Row {row_number}: name is required."
+                )
+                continue
+
+            supplied_id = row.get("id", "")
+            email = row.get("email", "") or None
+            phone = row.get("phone", "") or None
+            styles = row.get("styles", "")
+            services = row.get("services", "tattoo") or "tattoo"
+
+            active_raw = row.get(
+                "active",
+                "1",
+            ).lower()
+
+            active = (
+                0
+                if active_raw in {
+                    "0",
+                    "false",
+                    "no",
+                    "n",
+                    "off",
+                    "inactive",
+                }
+                else 1
+            )
+
+            existing = None
+
+            if supplied_id:
+                existing = db_fetchone(
+                    conn,
+                    """
+                    SELECT *
+                    FROM artists
+                    WHERE id = ?
+                      AND shop_id = ?
+                    LIMIT 1
+                    """,
+                    (
+                        supplied_id,
+                        shop_id,
+                    ),
+                )
+
+            if not existing:
+                existing = db_fetchone(
+                    conn,
+                    """
+                    SELECT *
+                    FROM artists
+                    WHERE shop_id = ?
+                      AND LOWER(name) = LOWER(?)
+                    LIMIT 1
+                    """,
+                    (
+                        shop_id,
+                        name,
+                    ),
+                )
+
+            if existing:
+                db_execute(
+                    conn,
+                    """
+                    UPDATE artists
+                    SET
+                        name = ?,
+                        email = ?,
+                        phone = ?,
+                        styles = ?,
+                        services = ?,
+                        active = ?
+                    WHERE id = ?
+                      AND shop_id = ?
+                    """,
+                    (
+                        name,
+                        email,
+                        phone,
+                        styles,
+                        services,
+                        active,
+                        existing["id"],
+                        shop_id,
+                    ),
+                )
+                updated += 1
+            else:
+                artist_id = (
+                    supplied_id
+                    or f"artist_{uuid.uuid4().hex[:12]}"
+                )
+
+                id_conflict = db_fetchone(
+                    conn,
+                    """
+                    SELECT id
+                    FROM artists
+                    WHERE id = ?
+                    LIMIT 1
+                    """,
+                    (
+                        artist_id,
+                    ),
+                )
+
+                if id_conflict:
+                    artist_id = f"artist_{uuid.uuid4().hex[:12]}"
+
+                db_execute(
+                    conn,
+                    """
+                    INSERT INTO artists(
+                        id,
+                        shop_id,
+                        name,
+                        email,
+                        phone,
+                        styles,
+                        services,
+                        active
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        artist_id,
+                        shop_id,
+                        name,
+                        email,
+                        phone,
+                        styles,
+                        services,
+                        active,
+                    ),
+                )
+                imported += 1
+
+        except Exception as exc:
+            skipped += 1
+            errors.append(
+                f"Row {row_number}: {exc}"
+            )
+
+    conn.commit()
+    conn.close()
+
+    event(
+        "artists.imported",
+        "shop",
+        shop_id,
+        {
+            "imported": imported,
+            "updated": updated,
+            "skipped": skipped,
+        },
+    )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="import_result.html",
+        context={
+            "imported": imported,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors,
+            "return_url": "/artists",
+            "return_label": "Back to Artists",
+        },
+    )
+
+
+# ============================================================
 # CUSTOMER IMPORT
 # ============================================================
 

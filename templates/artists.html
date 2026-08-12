@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artists · Empty Chair</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+
+<aside class="sidebar">
+  <div class="brand-wrap">
+    <img class="brand-logo" src="{{ url_for('static', path='/empty-chair-logo.png') }}" alt="Empty Chair — Fill More Chairs">
+  </div>
+
+  <nav class="sidebar-nav">
+    <a class="nav-link" href="/"><span class="nav-icon">⌂</span><span>Dashboard</span></a>
+    <a class="nav-link" href="/#openings"><span class="nav-icon">▣</span><span>Openings</span></a>
+    <a class="nav-link" href="/#openings"><span class="nav-icon">◎</span><span>Recovery</span></a>
+    <a class="nav-link" href="/"><span class="nav-icon">✓</span><span>Bookings</span></a>
+    <a class="nav-link" href="/import/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
+    <a class="nav-link active" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
+    <a class="nav-link" href="/health"><span class="nav-icon">⚙</span><span>Settings</span></a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="studio-card">
+      <div class="kicker">Studio</div>
+      <div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div>
+      <div class="online">● Studio Online</div>
+    </div>
+
+    <div class="owner-card">
+      <div class="kicker">Owner</div>
+      <div class="owner-name">{{ user["name"] if user else "Owner" }}</div>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div>
+        <div class="page-title">Artists</div>
+        <div class="page-subtitle">Manage the artists available for openings and recovery.</div>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <a class="button secondary" href="/import/artists">↑ Import Artists</a>
+      <form method="post" action="/logout" style="margin:0;"><button class="button secondary" type="submit">Log out</button></form>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="dashboard-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Artist Roster</h2>
+          <span class="live-pill">{{ artists|length }} TOTAL</span>
+        </div>
+
+        <div class="opening-list">
+          {% for artist in artists %}
+          <div class="opening-row">
+            <div class="date-block">
+              <div class="date-day">{{ artist["name"][0]|upper }}</div>
+            </div>
+
+            <div>
+              <div class="opening-time">{{ artist["name"] }}</div>
+              <div class="opening-artist">{{ artist["styles"] or "No styles listed" }}</div>
+              <div class="opening-meta">
+                {{ artist["services"] or "tattoo" }}
+                {% if artist["email"] %} · {{ artist["email"] }}{% endif %}
+                {% if artist["phone"] %} · {{ artist["phone"] }}{% endif %}
+              </div>
+            </div>
+
+            <div class="opening-actions">
+              <span class="status {{ 'open' if artist['active'] else 'expired' }}">{{ 'ACTIVE' if artist['active'] else 'INACTIVE' }}</span>
+              <form method="post" action="/artists/{{ artist['id'] }}/toggle" style="margin:0;">
+                <button class="button secondary compact" type="submit">{{ 'Deactivate' if artist['active'] else 'Activate' }}</button>
+              </form>
+            </div>
+          </div>
+          {% else %}
+          <div class="opening-row">
+            <div class="date-block"><div class="date-day">—</div></div>
+            <div>
+              <div class="opening-time">No artists yet</div>
+              <div class="opening-meta">Add one manually or import a CSV.</div>
+            </div>
+            <div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2 class="panel-title">Add Artist</h2></div>
+
+        <form class="create-form" method="post" action="/artists">
+          <label>
+            Name
+            <input name="name" placeholder="e.g. Jordan Reed" required>
+          </label>
+
+          <div class="form-row">
+            <label>Email<input type="email" name="email" placeholder="artist@shop.com"></label>
+            <label>Phone<input name="phone" placeholder="+17065550123"></label>
+          </div>
+
+          <label>
+            Styles
+            <input name="styles" placeholder="Traditional, Blackwork, Fine Line">
+          </label>
+
+          <label>
+            Services
+            <input name="services" value="tattoo" required>
+          </label>
+
+          <button class="button" type="submit">Add Artist</button>
+        </form>
+      </section>
+    </div>
+
+    <div class="import-banner">
+      <div class="import-icon">⇧</div>
+      <div>
+        <div class="import-title">Import your full artist roster</div>
+        <div class="import-copy">CSV supports name, email, phone, styles, services, active, and optional id.</div>
+      </div>
+      <a class="button secondary" href="/import/artists">Import Artist CSV</a>
+    </div>
+
+    <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+  </div>
+</main>
+</div>
+</body>
+</html>
