@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customers · Empty Chair</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body><div class="app-shell">
+{% set active_page = 'customers' %}{% include '_sidebar.html' %}
+<main class="main">
+<header class="topbar"><div><div class="page-title">Customers</div><div class="page-subtitle">Your recovery audience and customer history.</div></div><div class="top-actions"><a class="button" href="/import/customers">↑ Import Customers</a></div></header>
+<div class="content">
+<section class="metric-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+<div class="metric-card"><div class="metric-icon">♙</div><div class="metric-label">Customers</div><div class="metric-value">{{ customers|length }}</div><div class="metric-sub">Total roster</div></div>
+<div class="metric-card"><div class="metric-icon">✓</div><div class="metric-label">SMS Eligible</div><div class="metric-value">{{ consented }}</div><div class="metric-sub">Communication consent</div></div>
+<div class="metric-card"><div class="metric-icon">$</div><div class="metric-label">Est. History</div><div class="metric-value">${{ "%.0f"|format(estimated_lifetime_spend) }}</div><div class="metric-sub">Completed spend estimate</div></div>
+</section>
+<section class="panel" style="margin-top:18px"><div class="panel-head"><h2 class="panel-title">Customer Roster</h2><a class="button secondary compact" href="/import/customers">Import CSV</a></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Customer</th><th>Preferences</th><th>Completed</th><th>Avg Spend</th><th>Consent</th><th>Last Offer</th></tr></thead><tbody>
+{% for customer in customers %}<tr><td><strong>{{ customer["name"] }}</strong><br><span style="color:var(--muted);font-size:11px">{{ customer["phone"] }}{% if customer["email"] %} · {{ customer["email"] }}{% endif %}</span></td><td>{{ customer["preferred_artists"] or "Any artist" }}<br><span style="color:var(--muted);font-size:11px">{{ customer["preferred_styles"] or "Any style" }}</span></td><td>{{ customer["completed_count"] }}</td><td>${{ "%.0f"|format(customer["average_spend"]) }}</td><td>{{ "YES" if customer["communication_consent"] else "NO" }}</td><td>{{ customer["last_offer_at"] or "—" }}</td></tr>
+{% else %}<tr><td colspan="6">No customers yet. Import a CSV to build your recovery audience.</td></tr>{% endfor %}
+</tbody></table></div></section>
+<div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+</div></main></div></body></html>
