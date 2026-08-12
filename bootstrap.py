@@ -22,15 +22,16 @@ import calendar_safety  # noqa: F401,E402
 # notification overrides are installed.
 import claim_flow  # noqa: F401,E402
 
-# Register Pilot v1.1 readiness, Autopilot, health, and outcome reporting.
+# Register Pilot v1.1 data structures and core Autopilot helpers.
 import pilot  # noqa: F401,E402
 
-# Keep the Fill Chairs GET path database-only and avoid duplicate calendar checks.
-import pilot_performance  # noqa: F401,E402
-
-# Apply Pilot safety rules after Pilot routes are registered. This adds a hard
-# customer contact cooldown and preserves shop isolation in Pilot activity data.
+# Apply Pilot safety rules before the canonical Fill Chairs routes are registered.
+# This preserves the hard customer-contact cooldown and shop isolation.
 import pilot_safety  # noqa: F401,E402
+
+# Register the canonical Fill Chairs GET/POST flow. Page loads are database-only,
+# while Calendar checks and offer delivery run after START FILLING redirects.
+import fill_chairs_flow  # noqa: F401,E402
 
 # Replace the legacy artist roster page with forward-looking utilization cards.
 import artist_metrics  # noqa: F401,E402
