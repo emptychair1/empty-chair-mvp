@@ -1,0 +1,32 @@
+name: Restrict Demo Recovery
+
+on:
+  push:
+    branches:
+      - feature/recovery-command-demo
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = 'feature/recovery-command-demo';
+            const path = 'features.py';
+            const file = await github.rest.repos.getContent({owner, repo, path, ref: branch});
+            let text = Buffer.from(file.data.content, 'base64').toString('utf8');
+            const oldBlock = `    core.start_recovery_campaign(opening_id)\n\n    return RedirectResponse(\n`;
+            const newBlock = `    conn = core.connect()\n    opening = core.db_fetchone(\n        conn,\n        "SELECT * FROM openings WHERE id = ? LIMIT 1",\n        (opening_id,),\n    )\n    artist_row = core.db_fetchone(\n        conn,\n        "SELECT * FROM artists WHERE id = ? LIMIT 1",\n        (artist["id"],),\n    )\n    demo_customers = core.db_fetchall(\n        conn,\n        """\n        SELECT *\n        FROM customers\n        WHERE shop_id = ?\n          AND id LIKE ?\n          AND communication_consent = 1\n        ORDER BY completed_count DESC\n        """,\n        (shop_id, f"demo_test_{shop_id}_%"),\n    )\n\n    candidates = [\n        (core.recovery_score(customer, opening, artist_row), customer)\n        for customer in demo_customers\n    ]\n    candidates.sort(\n        key=lambda item: (item[0], item[1]["completed_count"] or 0),\n        reverse=True,\n    )\n\n    for rank, (score, customer) in enumerate(candidates[:5], start=1):\n        offer_id = f"offer_{uuid.uuid4().hex[:12]}"\n        placeholder_expiration = (\n            core.datetime.now(core.timezone.utc)\n            + core.timedelta(minutes=30)\n        ).isoformat()\n        core.db_execute(\n            conn,\n            """\n            INSERT INTO offers(\n                id, opening_id, customer_id, score, rank,\n                channel, expires_at, status\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n            """,\n            (\n                offer_id, opening_id, customer["id"], score, rank,\n                "email", placeholder_expiration, "PENDING",\n            ),\n        )\n\n    core.db_execute(\n        conn,\n        "UPDATE openings SET status = 'RECOVERY_ACTIVE' WHERE id = ?",\n        (opening_id,),\n    )\n    conn.commit()\n    conn.close()\n\n    core.send_next_recovery_offer(opening_id)\n\n    return RedirectResponse(\n`;
+            if (!text.includes(oldBlock)) core.setFailed('launch block not found');
+            text = text.replace(oldBlock, newBlock);
+            if (text.includes('core.start_recovery_campaign(opening_id)')) core.setFailed('generic recovery launch still present');
+            if (!text.includes('id LIKE ?')) core.setFailed('demo-only filter missing');
+            await github.rest.repos.createOrUpdateFileContents({owner, repo, path, branch, message: 'fix: isolate demo recovery from real customers', content: Buffer.from(text).toString('base64'), sha: file.data.sha});
