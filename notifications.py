@@ -80,11 +80,14 @@ def send_email(to_email, subject, html):
     try:
         with urllib.request.urlopen(request, timeout=15) as response:
             return 200 <= response.status < 300
-    except (
-        urllib.error.HTTPError,
-        urllib.error.URLError,
-        TimeoutError,
-    ) as exc:
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = str(exc)
+        print(f"Email send failed: HTTP {exc.code}: {detail}")
+        return False
+    except (urllib.error.URLError, TimeoutError) as exc:
         print("Email send failed:", str(exc))
         return False
 
@@ -101,7 +104,7 @@ def _send_text(to_phone, body):
         print(body)
         print("----------------")
         print()
-        return True
+        return False
 
     if not all(
         [
@@ -204,7 +207,20 @@ def send_offer_multichannel(customer, opening, offer_id):
         ),
     )
 
-    return bool(sms_sent or email_sent)
+    if not sms_sent and not email_sent:
+        email = core.normalize_email(
+            customer["email"] if "email" in customer.keys() else None
+        )
+        if not email:
+            raise RuntimeError(
+                "No live delivery channel available for this customer: "
+                "SMS is disabled and customer email is blank."
+            )
+        raise RuntimeError(
+            "Live notification delivery failed for this customer."
+        )
+
+    return True
 
 
 def _claim_details(opening_id):
