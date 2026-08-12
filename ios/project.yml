@@ -1,0 +1,36 @@
+name: EmptyChair
+options:
+  bundleIdPrefix: com.emptychair
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  EmptyChair:
+    type: application
+    platform: iOS
+    sources:
+      - EmptyChair
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.emptychair.app
+        INFOPLIST_FILE: EmptyChair/Info.plist
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: EmptyChair/Info.plist
+      properties:
+        CFBundleDisplayName: Empty Chair
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIBackgroundModes:
+          - remote-notification
