@@ -746,7 +746,69 @@ def demo_launch_recovery(request: Request):
         ),
     )
 
-    core.start_recovery_campaign(opening_id)
+    conn = core.connect()
+    opening = core.db_fetchone(
+        conn,
+        "SELECT * FROM openings WHERE id = ? LIMIT 1",
+        (opening_id,),
+    )
+    artist_row = core.db_fetchone(
+        conn,
+        "SELECT * FROM artists WHERE id = ? LIMIT 1",
+        (artist["id"],),
+    )
+    demo_customers = core.db_fetchall(
+        conn,
+        """
+        SELECT *
+        FROM customers
+        WHERE shop_id = ?
+          AND id LIKE ?
+          AND communication_consent = 1
+        ORDER BY completed_count DESC
+        """,
+        (shop_id, f"demo_test_{shop_id}_%"),
+    )
+
+    candidates = [
+        (core.recovery_score(customer, opening, artist_row), customer)
+        for customer in demo_customers
+    ]
+    candidates.sort(
+        key=lambda item: (item[0], item[1]["completed_count"] or 0),
+        reverse=True,
+    )
+
+    for rank, (score, customer) in enumerate(candidates[:5], start=1):
+        offer_id = f"offer_{uuid.uuid4().hex[:12]}"
+        placeholder_expiration = (
+            core.datetime.now(core.timezone.utc)
+            + core.timedelta(minutes=30)
+        ).isoformat()
+        core.db_execute(
+            conn,
+            """
+            INSERT INTO offers(
+                id, opening_id, customer_id, score, rank,
+                channel, expires_at, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                offer_id, opening_id, customer["id"], score, rank,
+                "email", placeholder_expiration, "PENDING",
+            ),
+        )
+
+    core.db_execute(
+        conn,
+        "UPDATE openings SET status = 'RECOVERY_ACTIVE' WHERE id = ?",
+        (opening_id,),
+    )
+    conn.commit()
+    conn.close()
+
+    core.send_next_recovery_offer(opening_id)
 
     return RedirectResponse(
         "/recovery?demo_launched=1",
