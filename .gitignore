@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+local_empty_chair.db
+test_empty_chair.db
