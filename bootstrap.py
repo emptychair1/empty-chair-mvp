@@ -12,6 +12,9 @@ import features  # noqa: F401,E402
 # Install SMS/email notification overrides after core is fully imported.
 import notifications  # noqa: F401,E402
 
+# Register Google authentication and the optional Calendar double-booking safety layer.
+import google_integration  # noqa: F401,E402
+
 # Replace the public claim endpoint with the atomic implementation after
 # notification overrides are installed.
 import claim_flow  # noqa: F401,E402
@@ -40,5 +43,6 @@ print(
     f"sms_live={notifications.SMS_LIVE}, "
     f"email_live={notifications.EMAIL_LIVE}, "
     f"resend_configured={bool(core.RESEND_API_KEY)}, "
+    f"google_configured={bool(google_integration.GOOGLE_CLIENT_ID)}, "
     f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
 )
