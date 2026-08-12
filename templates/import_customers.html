@@ -1,6 +1,10 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Import Customers · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"></head>
+<html lang="en"><head><link
+    rel="icon"
+    type="image/png"
+    href="{{ url_for('static', path='/favicon.png') }}"
+><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Import Customers · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"></head>
 <body><main class="content" style="max-width:760px"><p><a href="/">← Dashboard</a></p><div class="panel">
 <h1>Import Customers</h1><p>Database: {{ database_type }}</p>
 <p>CSV requires <strong>name</strong> and <strong>phone</strong>. Optional columns include email, communication_consent, preferred_artists, preferred_styles, preferred_services, appointment_count, completed_count, cancellation_count, no_show_count, and average_spend.</p>
