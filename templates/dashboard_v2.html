@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Empty Chair · Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .owner-hero{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);gap:22px;padding:28px;border:1px solid rgba(159,17,24,.48);border-radius:18px;background:radial-gradient(circle at 15% 0,rgba(159,17,24,.24),transparent 320px),linear-gradient(145deg,#151515,#080808);margin-bottom:18px}.owner-kicker{color:var(--red-bright);text-transform:uppercase;letter-spacing:.16em;font-size:10px;font-weight:800}.owner-title{font-family:'UnifrakturCook',Georgia,serif;font-size:48px;line-height:.95;margin:10px 0 8px}.owner-copy{color:var(--cream-dim);max-width:680px;line-height:1.55}.owner-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}.util-spotlight{display:flex;flex-direction:column;justify-content:center;padding:20px;border:1px solid var(--line-soft);border-radius:14px;background:rgba(0,0,0,.25)}.util-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-light)}.util-value{font-family:'Cinzel',Georgia,serif;font-size:56px;font-weight:800;line-height:1;margin-top:9px}.util-track{height:10px;margin-top:14px;border-radius:999px;overflow:hidden;background:#171717}.util-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#7b0d12,#c71f28)}.util-sub{margin-top:9px;color:var(--muted);font-size:12px}.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}.summary-card{padding:18px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#141414,#0a0a0a)}.summary-label{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--gold-light)}.summary-value{font-family:'Cinzel',Georgia,serif;font-size:28px;margin-top:7px}.summary-note{color:var(--muted);font-size:11px;margin-top:5px}.artist-section{margin-bottom:18px}.artist-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.artist-card{padding:18px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#131313,#090909)}.artist-top{display:flex;justify-content:space-between;gap:12px}.artist-name{font-family:'Cinzel',Georgia,serif;font-weight:700}.artist-util{font-size:24px;font-weight:900}.artist-meta{color:var(--muted);font-size:11px;margin-top:4px}.artist-track{height:7px;margin-top:12px;border-radius:999px;overflow:hidden;background:#1a1a1a}.artist-fill{height:100%;background:linear-gradient(90deg,#7b0d12,#c71f28)}.artist-action{margin-top:14px;display:flex;justify-content:space-between;gap:10px;align-items:center}.artist-action span{font-size:11px;color:var(--cream-dim)}.ops-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:18px}.ops-card{padding:20px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#131313,#090909)}.ops-card h2{margin:0;font-size:16px}.live-box{margin-top:14px;padding:16px;border:1px solid rgba(159,17,24,.35);border-radius:10px;background:rgba(159,17,24,.08)}.live-box strong{font-family:'Cinzel',Georgia,serif;font-size:19px}.live-meta{color:var(--muted);font-size:11px;margin-top:5px}.opening-list-lite{display:grid;gap:9px;margin-top:14px}.opening-lite{display:grid;grid-template-columns:1fr auto;gap:12px;padding:11px 0;border-bottom:1px solid var(--line-soft)}.opening-lite:last-child{border-bottom:0}.opening-lite strong{font-size:12px}.opening-lite span{color:var(--muted);font-size:11px}.status-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);display:inline-block;margin-right:6px}.status-dot.good{background:var(--green)}.status-dot.hot{background:var(--red-bright)}@media(max-width:1050px){.owner-hero,.ops-grid{grid-template-columns:1fr}.artist-strip{grid-template-columns:1fr 1fr}}@media(max-width:760px){.summary-grid{grid-template-columns:1fr 1fr}.artist-strip{grid-template-columns:1fr}.owner-title{font-size:40px}}@media(max-width:520px){.summary-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><div class="app-shell">
+{% set active_page = 'dashboard' %}{% include '_sidebar.html' %}
+<main class="main">
+<header class="topbar"><div><div class="page-title">Dashboard</div><div class="page-subtitle">How full the shop is, who has room, and what Empty Chair is doing next.</div></div><div class="top-actions"><a class="button" href="/pilot">Fill Chairs</a><form method="post" action="/logout" style="margin:0"><button class="button secondary" type="submit">Log out</button></form></div></header>
+<div class="content">
+<section class="owner-hero">
+  <div>
+    <div class="owner-kicker">{{ utilization_window }} · Shop utilization</div>
+    <h1 class="owner-title">Keep the chairs filled.</h1>
+    <div class="owner-copy">Empty Chair watches unused appointment inventory, matches it to the customers most likely to want it, and keeps working until your calendar reaches the target you set.</div>
+    <div class="owner-actions"><a class="button" href="/pilot">Fill Open Chairs</a><a class="button secondary" href="/artists">View Artists</a></div>
+  </div>
+  <div class="util-spotlight">
+    <div class="util-label">Shop Utilization</div>
+    <div class="util-value">{{ shop_utilization }}%</div>
+    <div class="util-track"><div class="util-fill" style="width:{{ [shop_utilization,100]|min }}%"></div></div>
+    <div class="util-sub">{{ booked_slots }} booked of {{ total_slots }} tracked slots · {{ open_slots }} still open</div>
+  </div>
+</section>
+
+<section class="summary-grid">
+  <div class="summary-card"><div class="summary-label">Open Capacity</div><div class="summary-value">{{ open_slots }}</div><div class="summary-note">Slots available in the next 30 days</div></div>
+  <div class="summary-card"><div class="summary-label">Recovered Revenue</div><div class="summary-value">${{ '%.0f'|format(recovered_revenue) }}</div><div class="summary-note">Claimed, booked, or completed</div></div>
+  <div class="summary-card"><div class="summary-label">Customers</div><div class="summary-value">{{ customer_count }}</div><div class="summary-note">Available matching audience</div></div>
+  <div class="summary-card"><div class="summary-label">Active Fills</div><div class="summary-value">{{ active_campaigns }}</div><div class="summary-note">Recovery campaigns working now</div></div>
+</section>
+
+<section class="artist-section">
+  <div class="panel-head" style="margin-bottom:12px"><div><h2 class="panel-title">Who has room?</h2><div class="opening-meta">Lowest utilization first. This is where Empty Chair should work next.</div></div><a class="button secondary compact" href="/artists">Full roster</a></div>
+  <div class="artist-strip">
+    {% for artist in needs_fill[:6] %}
+    <article class="artist-card">
+      <div class="artist-top"><div><div class="artist-name">{{ artist.name }}</div><div class="artist-meta">{{ artist.styles or 'Any style' }}</div></div><div class="artist-util">{{ artist.utilization }}%</div></div>
+      <div class="artist-track"><div class="artist-fill" style="width:{{ [artist.utilization,100]|min }}%"></div></div>
+      <div class="artist-action"><span>{{ artist.available_slots }} open of {{ artist.total_slots }} slots</span><a class="button compact" href="/pilot">Fill</a></div>
+    </article>
+    {% else %}
+    <div class="ops-card" style="grid-column:1/-1">No tracked appointment inventory yet. Add availability in <a href="/pilot">Fill Chairs</a> to start measuring utilization.</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="ops-grid">
+  <div class="ops-card">
+    <div class="panel-head"><div><h2>Empty Chair at work</h2><div class="opening-meta">Live recovery detail when you need it.</div></div><a class="button secondary compact" href="/recovery">Details</a></div>
+    {% if live_recovery %}
+    <div class="live-box"><div class="owner-kicker"><span class="status-dot hot"></span>Live fill</div><strong>{{ live_recovery.artist_name }} · {{ live_recovery.date }}</strong><div class="live-meta">{{ live_recovery.start_time }} · {{ live_recovery.style or live_recovery.service }} · ${{ '%.0f'|format(live_recovery.price) }}</div></div>
+    {% else %}
+    <div class="live-box"><strong>No live recovery right now.</strong><div class="live-meta">That is fine. Start a Fill Chairs campaign whenever you want Empty Chair working unused time.</div></div>
+    {% endif %}
+  </div>
+
+  <div class="ops-card">
+    <div class="panel-head"><div><h2>Recent chair activity</h2><div class="opening-meta">Latest appointment inventory changes.</div></div></div>
+    <div class="opening-list-lite">
+      {% for opening in recent_openings[:6] %}
+      <div class="opening-lite"><div><strong><span class="status-dot {% if opening.status in ['CLAIMED','BOOKED','COMPLETED'] %}good{% elif opening.status == 'RECOVERY_ACTIVE' %}hot{% endif %}"></span>{{ opening.artist_name }} · {{ opening.date }}</strong><br><span>{{ opening.start_time }} · {{ opening.style or opening.service }} · ${{ '%.0f'|format(opening.price) }}</span></div><span>{{ opening.status.replace('_',' ') }}</span></div>
+      {% else %}
+      <div class="live-meta">No appointment inventory yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+</div>
+</main></div></body></html>
