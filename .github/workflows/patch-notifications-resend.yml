@@ -1,0 +1,75 @@
+name: Patch notifications Resend sender
+
+on:
+  push:
+    branches:
+      - fix/notifications-resend-sdk
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/notifications-resend-sdk
+
+      - name: Patch notifications.py
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('notifications.py')
+          t = p.read_text()
+          t = t.replace('import urllib.error\nimport urllib.request\n', '')
+          start = t.find('def send_email(to_email, subject, html):')
+          end = t.find('\ndef _send_text', start)
+          assert start != -1 and end != -1, 'send_email block not found'
+          replacement = '''def send_email(to_email, subject, html):
+    """Send email independently of EMPTY_CHAIR_DEMO_MODE."""
+    to_email = core.normalize_email(to_email)
+
+    if not to_email:
+        return False
+
+    if not EMAIL_LIVE:
+        print()
+        print("--- DEMO EMAIL ---")
+        print(f"To: {to_email}")
+        print(f"Subject: {subject}")
+        print(html)
+        print("------------------")
+        print()
+        return True
+
+    if not core.RESEND_API_KEY:
+        print("Email skipped: RESEND_API_KEY is not configured.")
+        return False
+
+    return core.send_email(to_email, subject, html)
+
+'''
+          t = t[:start] + replacement + t[end+1:]
+          compile(t, 'notifications.py', 'exec')
+          p.write_text(t)
+          PY
+
+      - name: Validate
+        run: |
+          python -m py_compile notifications.py
+          if grep -n 'api.resend.com/emails' notifications.py; then exit 1; fi
+          grep -n 'return core.send_email' notifications.py
+
+      - name: Remove workflow
+        run: rm .github/workflows/patch-notifications-resend.yml
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- notifications.py .github/workflows/patch-notifications-resend.yml
+          git diff --cached --check
+          git commit -m "fix: route notification emails through Resend SDK"
+          git push origin HEAD:fix/notifications-resend-sdk
