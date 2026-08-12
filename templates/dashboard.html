@@ -6,637 +6,1118 @@
 
 <title>Empty Chair · Dashboard</title>
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link
+    href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=UnifrakturCook:wght@700&display=swap"
+    rel="stylesheet"
+>
+
 <style>
-:root{
-    --black:#0d0d0d;
-    --black-2:#121212;
-    --black-3:#171717;
-    --charcoal:#2a2a2a;
-    --red:#c62828;
-    --red-bright:#e32626;
-    --cream:#f1e6d2;
-    --gold:#b08d57;
-    --gold-light:#d4b078;
-    --muted:#9f9587;
-    --green:#7ec850;
-    --border:rgba(176,141,87,.35);
+:root {
+    --black: #0d0d0d;
+    --black-soft: #121212;
+    --panel: #151515;
+    --panel-hover: #1a1a1a;
+
+    --red: #c62828;
+    --red-bright: #e32626;
+    --red-dark: #861010;
+
+    --cream: #f1e6d2;
+    --cream-soft: #d8ccb8;
+
+    --gold: #b08d57;
+    --gold-light: #d2af77;
+
+    --charcoal: #2a2a2a;
+    --muted: #8d857a;
+
+    --green: #7dce51;
+
+    --border: rgba(176, 141, 87, 0.35);
+
+    --sidebar-width: 280px;
 }
 
-*{
-    box-sizing:border-box;
+
+/* ============================================================
+   RESET
+   ============================================================ */
+
+* {
+    box-sizing: border-box;
 }
 
-html{
-    background:var(--black);
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--black);
 }
 
-body{
-    margin:0;
-    color:var(--cream);
+body {
+    color: var(--cream);
+    font-family: "Inter", sans-serif;
     background:
-        radial-gradient(circle at 75% 15%, rgba(198,40,40,.08), transparent 28rem),
-        linear-gradient(135deg,#090909,#111);
-    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    min-height:100vh;
+        radial-gradient(
+            circle at 80% 5%,
+            rgba(198, 40, 40, 0.08),
+            transparent 500px
+        ),
+        #0a0a0a;
 }
 
-a{
-    color:inherit;
+a {
+    color: inherit;
 }
 
 button,
 input,
-select{
-    font:inherit;
+select {
+    font: inherit;
 }
 
-.shell{
-    min-height:100vh;
-    display:grid;
-    grid-template-columns:270px minmax(0,1fr);
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+
+.app-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
 }
 
-/* =========================================================
+
+/* ============================================================
    SIDEBAR
-   ========================================================= */
+   ============================================================ */
 
-.sidebar{
-    border-right:1px solid var(--border);
+.sidebar {
+    width: var(--sidebar-width);
+
+    min-height: 100vh;
+
     background:
-        linear-gradient(rgba(8,8,8,.96),rgba(13,13,13,.98)),
-        repeating-linear-gradient(
-            45deg,
-            transparent,
-            transparent 5px,
-            rgba(255,255,255,.015) 5px,
-            rgba(255,255,255,.015) 6px
+        linear-gradient(
+            180deg,
+            rgba(8, 8, 8, 0.99),
+            rgba(12, 12, 12, 0.99)
         );
-    padding:24px 18px;
-    display:flex;
-    flex-direction:column;
-    position:sticky;
-    top:0;
-    height:100vh;
+
+    border-right: 1px solid var(--border);
+
+    display: flex;
+    flex-direction: column;
+
+    position: sticky;
+    top: 0;
+
+    height: 100vh;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold) #111;
 }
 
-.brand{
-    text-align:center;
-    padding:8px 10px 28px;
-    border-bottom:1px solid var(--border);
-    margin-bottom:22px;
+
+/* ============================================================
+   BRAND
+   ============================================================ */
+
+.brand {
+    padding: 28px 20px 24px;
+
+    border-bottom: 1px solid var(--border);
+
+    flex-shrink: 0;
 }
 
-.brand-mark{
-    width:112px;
-    height:112px;
-    margin:0 auto 10px;
-    border:1px solid var(--gold);
-    border-radius:56px 56px 8px 8px;
-    position:relative;
-    overflow:hidden;
+.logo-scene {
+    width: 150px;
+    height: 150px;
+
+    margin: 0 auto 20px;
+
+    position: relative;
+
+    border: 1px solid var(--gold);
+
+    border-radius: 75px 75px 8px 8px;
+
+    overflow: hidden;
+
     background:
-        radial-gradient(circle at 50% 22%,rgba(241,230,210,.17),transparent 22%),
-        linear-gradient(180deg,#151515,#080808);
+        radial-gradient(
+            ellipse at 50% 22%,
+            rgba(241, 230, 210, 0.13),
+            transparent 37%
+        ),
+        #080808;
 }
 
-.brand-lamp{
-    position:absolute;
-    top:12px;
-    left:50%;
-    transform:translateX(-50%);
-    width:34px;
-    height:20px;
-    border:3px solid var(--red-bright);
-    border-radius:20px 20px 3px 3px;
+
+/* Lamp */
+
+.logo-lamp-wire {
+    position: absolute;
+
+    width: 2px;
+    height: 24px;
+
+    background: var(--red);
+
+    top: 0;
+    left: 50%;
+
+    transform: translateX(-50%);
 }
 
-.brand-lamp:before{
-    content:"";
-    position:absolute;
-    width:2px;
-    height:18px;
-    background:var(--red);
-    left:50%;
-    bottom:17px;
+.logo-lamp {
+    position: absolute;
+
+    width: 48px;
+    height: 27px;
+
+    top: 23px;
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    border: 4px solid var(--red-bright);
+
+    border-radius: 28px 28px 4px 4px;
+
+    background: #111;
 }
 
-.brand-lamp:after{
-    content:"";
-    position:absolute;
-    width:42px;
-    height:52px;
-    clip-path:polygon(35% 0,65% 0,100% 100%,0 100%);
-    background:linear-gradient(rgba(241,230,210,.18),transparent);
-    left:50%;
-    top:18px;
-    transform:translateX(-50%);
-}
+.logo-light {
+    position: absolute;
 
-.brand-chair{
-    position:absolute;
-    width:50px;
-    height:28px;
-    left:31px;
-    top:61px;
-    border:4px solid var(--red);
-    transform:skewX(-12deg);
-}
+    width: 82px;
+    height: 83px;
 
-.brand-chair:before{
-    content:"";
-    position:absolute;
-    width:27px;
-    height:34px;
-    border:4px solid var(--red);
-    bottom:21px;
-    left:-1px;
-}
+    top: 48px;
+    left: 50%;
 
-.brand-chair:after{
-    content:"";
-    position:absolute;
-    width:34px;
-    height:4px;
-    background:var(--red);
-    left:13px;
-    bottom:-14px;
-    transform:rotate(28deg);
-}
+    transform: translateX(-50%);
 
-.wordmark{
-    font-family:"Old English Text MT","UnifrakturCook","UnifrakturMaguntia",Georgia,serif;
-    font-size:39px;
-    line-height:.85;
-    font-weight:800;
-    letter-spacing:-1px;
-}
+    clip-path: polygon(
+        37% 0,
+        63% 0,
+        100% 100%,
+        0 100%
+    );
 
-.wordmark span:first-child{
-    color:var(--cream);
-}
-
-.wordmark span:last-child{
-    color:var(--red-bright);
-}
-
-.brand-tagline{
-    margin-top:15px;
-    font-size:11px;
-    letter-spacing:.27em;
-    text-transform:uppercase;
-    color:var(--cream);
-}
-
-.brand-sub{
-    color:var(--gold-light);
-    margin-top:6px;
-    font-size:9px;
-    text-transform:uppercase;
-    letter-spacing:.18em;
-}
-
-.nav{
-    display:grid;
-    gap:7px;
-}
-
-.nav a{
-    display:flex;
-    align-items:center;
-    gap:13px;
-    padding:12px 14px;
-    color:#ddd1bd;
-    text-decoration:none;
-    border:1px solid transparent;
-    border-radius:8px;
-    transition:.15s ease;
-}
-
-.nav a:hover{
-    color:white;
-    border-color:var(--border);
-    background:#151515;
-}
-
-.nav a.active{
     background:
-        linear-gradient(135deg,#8f1111,var(--red));
-    color:white;
-    border-color:#df2a2a;
+        linear-gradient(
+            rgba(241, 230, 210, 0.18),
+            transparent
+        );
 }
 
-.nav-icon{
-    color:var(--gold-light);
-    font-size:18px;
-    width:22px;
-    text-align:center;
+
+/* Chair */
+
+.logo-chair-back {
+    position: absolute;
+
+    width: 42px;
+    height: 53px;
+
+    left: 44px;
+    top: 66px;
+
+    border: 4px solid var(--red-bright);
+
+    border-radius: 7px;
+
+    transform: rotate(-7deg);
+
+    background: #171717;
 }
 
-.nav a.active .nav-icon{
-    color:white;
+.logo-chair-seat {
+    position: absolute;
+
+    width: 53px;
+    height: 30px;
+
+    left: 60px;
+    top: 102px;
+
+    border: 4px solid var(--red-bright);
+
+    border-radius: 5px;
+
+    transform: rotate(3deg);
+
+    background: #171717;
 }
 
-.sidebar-bottom{
-    margin-top:auto;
-    display:grid;
-    gap:12px;
+.logo-chair-legrest {
+    position: absolute;
+
+    width: 49px;
+    height: 23px;
+
+    left: 93px;
+    top: 116px;
+
+    border: 4px solid var(--red-bright);
+
+    border-radius: 4px;
+
+    transform: rotate(20deg);
+
+    background: #171717;
 }
 
-.studio-card{
-    border:1px solid var(--border);
-    background:#111;
-    padding:14px;
-    border-radius:10px;
+.logo-chair-base {
+    position: absolute;
+
+    width: 46px;
+    height: 4px;
+
+    left: 63px;
+    top: 139px;
+
+    background: var(--red-bright);
 }
 
-.studio-label{
-    color:var(--gold-light);
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:.14em;
+
+/* Actual gothic wordmark */
+
+.wordmark {
+    text-align: center;
+
+    font-family: "UnifrakturCook", cursive;
+
+    line-height: 0.82;
+
+    font-size: 48px;
+
+    font-weight: 700;
+
+    letter-spacing: -1px;
 }
 
-.studio-name{
-    margin-top:5px;
-    font-family:Georgia,serif;
-    font-size:17px;
+.wordmark-empty {
+    color: var(--cream);
 }
 
-.status-online{
-    margin-top:9px;
-    color:var(--green);
-    font-size:12px;
+.wordmark-chair {
+    color: var(--red-bright);
 }
 
-/* =========================================================
-   MAIN
-   ========================================================= */
+.brand-tagline {
+    margin-top: 21px;
 
-.main{
-    min-width:0;
+    color: var(--cream);
+
+    font-family: "Cinzel", serif;
+
+    font-size: 11px;
+
+    font-weight: 600;
+
+    text-align: center;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.28em;
 }
 
-.topbar{
-    height:88px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:20px;
-    border-bottom:1px solid var(--border);
-    padding:0 28px;
-    background:rgba(9,9,9,.8);
+.brand-tagline::before,
+.brand-tagline::after {
+    color: var(--red-bright);
 }
 
-.page-title{
-    font-family:"Old English Text MT","UnifrakturCook",Georgia,serif;
-    font-size:32px;
-    color:var(--cream);
+.brand-tagline::before {
+    content: "→ ";
 }
 
-.page-subtitle{
-    color:var(--gold-light);
-    font-family:Georgia,serif;
-    margin-top:3px;
+.brand-tagline::after {
+    content: " ←";
 }
 
-.top-actions{
-    display:flex;
-    gap:10px;
-    align-items:center;
+.brand-subtitle {
+    margin-top: 9px;
+
+    color: var(--gold-light);
+
+    font-size: 9px;
+
+    text-align: center;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.19em;
+
+    line-height: 1.6;
 }
 
-.button{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:7px;
-    padding:11px 16px;
-    border-radius:7px;
-    border:1px solid var(--red-bright);
-    background:linear-gradient(180deg,#c91d1d,#981111);
-    color:white;
-    text-decoration:none;
-    cursor:pointer;
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+
+.sidebar-nav {
+    padding: 18px 14px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 5px;
 }
 
-.button:hover{
-    filter:brightness(1.08);
+.nav-link {
+    min-height: 48px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 13px;
+
+    padding: 0 14px;
+
+    border-radius: 7px;
+
+    border: 1px solid transparent;
+
+    color: var(--cream-soft);
+
+    text-decoration: none;
+
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease;
 }
 
-.button.secondary{
-    border-color:var(--border);
-    color:var(--gold-light);
-    background:#111;
+.nav-link:hover {
+    background: var(--panel-hover);
+
+    border-color: var(--border);
+
+    color: white;
 }
 
-.content{
-    padding:24px 28px 34px;
-    max-width:1500px;
-    margin:0 auto;
-}
+.nav-link.active {
+    color: white;
 
-.metric-grid{
-    display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
-    gap:14px;
-}
-
-.metric-card{
-    position:relative;
-    min-height:145px;
-    border:1px solid var(--border);
     background:
-        linear-gradient(145deg,rgba(25,25,25,.96),rgba(10,10,10,.96));
-    border-radius:11px;
-    padding:22px;
-    overflow:hidden;
+        linear-gradient(
+            135deg,
+            #8b1010,
+            var(--red)
+        );
+
+    border-color: var(--red-bright);
 }
 
-.metric-card:after{
-    content:"";
-    width:90px;
-    height:90px;
-    position:absolute;
-    right:-25px;
-    top:-25px;
-    border:1px solid rgba(198,40,40,.12);
-    border-radius:50%;
+.nav-icon {
+    width: 25px;
+
+    flex: 0 0 25px;
+
+    text-align: center;
+
+    color: var(--gold-light);
+
+    font-size: 20px;
 }
 
-.metric-label{
-    color:var(--gold-light);
-    font-size:14px;
+.nav-link.active .nav-icon {
+    color: white;
 }
 
-.metric-value{
-    font-family:Georgia,serif;
-    font-size:38px;
-    font-weight:700;
-    margin-top:6px;
-    color:var(--cream);
+
+/* ============================================================
+   SIDEBAR FOOTER
+   ============================================================ */
+
+.sidebar-footer {
+    margin-top: auto;
+
+    padding: 14px;
+
+    display: grid;
+
+    gap: 12px;
 }
 
-.metric-foot{
-    margin-top:8px;
-    color:var(--muted);
-    font-size:12px;
+.studio-card {
+    border: 1px solid var(--border);
+
+    background: #101010;
+
+    border-radius: 9px;
+
+    padding: 15px;
 }
 
-.metric-symbol{
-    color:var(--red-bright);
-    font-size:25px;
-    margin-bottom:10px;
+.studio-card-label {
+    color: var(--gold);
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.13em;
+
+    font-size: 10px;
 }
 
-/* =========================================================
-   PANELS
-   ========================================================= */
+.studio-card-name {
+    margin-top: 6px;
 
-.dashboard-grid{
-    display:grid;
-    grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr);
-    gap:16px;
-    margin-top:16px;
+    color: var(--cream);
+
+    font-family: "Cinzel", serif;
+
+    font-size: 15px;
 }
 
-.panel{
-    border:1px solid var(--border);
+.online {
+    margin-top: 9px;
+
+    color: var(--green);
+
+    font-size: 11px;
+}
+
+
+/* ============================================================
+   MAIN AREA
+   ============================================================ */
+
+.main {
+    min-width: 0;
+
+    overflow-x: hidden;
+}
+
+.topbar {
+    min-height: 88px;
+
+    padding: 18px 28px;
+
+    border-bottom: 1px solid var(--border);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 20px;
+
+    background: rgba(8, 8, 8, 0.92);
+}
+
+.page-title {
+    font-family: "UnifrakturCook", cursive;
+
+    font-size: 38px;
+
+    color: var(--cream);
+}
+
+.page-subtitle {
+    margin-top: 3px;
+
+    color: var(--gold-light);
+
+    font-family: "Cinzel", serif;
+
+    font-size: 12px;
+}
+
+.top-actions {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    flex-wrap: wrap;
+}
+
+.content {
+    width: 100%;
+
+    max-width: 1500px;
+
+    margin: 0 auto;
+
+    padding: 24px 28px 34px;
+}
+
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.button {
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 8px;
+
+    min-height: 42px;
+
+    padding: 0 16px;
+
+    border-radius: 6px;
+
+    border: 1px solid var(--red-bright);
+
     background:
-        linear-gradient(145deg,rgba(22,22,22,.95),rgba(8,8,8,.97));
-    border-radius:11px;
-    padding:22px;
+        linear-gradient(
+            180deg,
+            #d02525,
+            #941010
+        );
+
+    color: white;
+
+    text-decoration: none;
+
+    cursor: pointer;
+
+    font-weight: 600;
 }
 
-.panel-title{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    margin-bottom:18px;
+.button:hover {
+    filter: brightness(1.1);
 }
 
-.panel-title h2{
-    margin:0;
-    color:var(--cream);
-    font-family:"Old English Text MT","UnifrakturCook",Georgia,serif;
-    font-size:25px;
-    font-weight:600;
+.button.secondary {
+    color: var(--gold-light);
+
+    border-color: var(--border);
+
+    background: #101010;
 }
 
-.panel-title a{
-    color:var(--red-bright);
-    text-decoration:none;
-    font-size:13px;
+
+/* ============================================================
+   DEMO
+   ============================================================ */
+
+.demo {
+    margin-bottom: 20px;
+
+    padding: 16px;
+
+    border: 1px solid #75541f;
+
+    border-radius: 8px;
+
+    background: #1a140a;
+
+    color: #ecd09c;
 }
 
-.opening-list{
-    display:grid;
-    gap:10px;
+.demo form {
+    margin-top: 10px;
 }
 
-.opening-row{
-    display:grid;
-    grid-template-columns:1fr auto;
-    align-items:center;
-    gap:14px;
-    border:1px solid rgba(176,141,87,.2);
-    border-radius:8px;
-    background:#101010;
-    padding:15px;
+
+/* ============================================================
+   METRICS
+   ============================================================ */
+
+.metric-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 14px;
 }
 
-.opening-date{
-    color:var(--cream);
-    font-weight:700;
+.metric-card {
+    min-width: 0;
+
+    padding: 21px;
+
+    border: 1px solid var(--border);
+
+    border-radius: 10px;
+
+    background:
+        linear-gradient(
+            145deg,
+            #181818,
+            #0e0e0e
+        );
 }
 
-.opening-meta{
-    color:var(--muted);
-    font-size:13px;
-    margin-top:5px;
+.metric-icon {
+    margin-bottom: 12px;
+
+    color: var(--red-bright);
+
+    font-size: 27px;
 }
 
-.status{
-    display:inline-flex;
-    border:1px solid var(--border);
-    color:var(--gold-light);
-    font-size:10px;
-    letter-spacing:.1em;
-    padding:4px 7px;
-    border-radius:4px;
-    margin-left:6px;
+.metric-label {
+    color: var(--gold-light);
+
+    font-size: 13px;
 }
 
-.status.RECOVERY_ACTIVE{
-    color:#ffce77;
-    border-color:#7f5e25;
+.metric-value {
+    margin-top: 4px;
+
+    color: var(--cream);
+
+    font-family: "Cinzel", serif;
+
+    font-size: 34px;
+
+    font-weight: 700;
+
+    overflow-wrap: anywhere;
+}
+
+.metric-foot {
+    margin-top: 8px;
+
+    color: var(--muted);
+
+    font-size: 11px;
+}
+
+
+/* ============================================================
+   DASHBOARD GRID
+   ============================================================ */
+
+.dashboard-grid {
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1.25fr)
+        minmax(320px, 0.75fr);
+
+    gap: 16px;
+
+    margin-top: 16px;
+}
+
+.panel {
+    min-width: 0;
+
+    padding: 22px;
+
+    border: 1px solid var(--border);
+
+    border-radius: 10px;
+
+    background:
+        linear-gradient(
+            145deg,
+            #171717,
+            #0b0b0b
+        );
+}
+
+.panel-header {
+    margin-bottom: 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 12px;
+}
+
+.panel-title {
+    margin: 0;
+
+    color: var(--cream);
+
+    font-family: "UnifrakturCook", cursive;
+
+    font-size: 28px;
+}
+
+
+/* ============================================================
+   OPENINGS
+   ============================================================ */
+
+.opening-list {
+    display: grid;
+
+    gap: 9px;
+}
+
+.opening {
+    min-width: 0;
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1fr)
+        auto;
+
+    align-items: center;
+
+    gap: 14px;
+
+    padding: 14px;
+
+    border: 1px solid rgba(176, 141, 87, 0.2);
+
+    border-radius: 7px;
+
+    background: #101010;
+}
+
+.opening-main {
+    min-width: 0;
+}
+
+.opening-date {
+    color: var(--cream);
+
+    font-weight: 700;
+
+    overflow-wrap: anywhere;
+}
+
+.opening-meta {
+    margin-top: 5px;
+
+    color: var(--muted);
+
+    font-size: 12px;
+
+    line-height: 1.5;
+
+    overflow-wrap: anywhere;
+}
+
+.status {
+    display: inline-flex;
+
+    align-items: center;
+
+    margin-left: 6px;
+
+    padding: 3px 6px;
+
+    border: 1px solid var(--border);
+
+    border-radius: 3px;
+
+    color: var(--gold-light);
+
+    font-size: 9px;
+
+    letter-spacing: 0.08em;
+}
+
+.status.RECOVERY_ACTIVE {
+    color: #ffd078;
+
+    border-color: #7b5c27;
 }
 
 .status.CLAIMED,
 .status.BOOKED,
-.status.COMPLETED{
-    color:#9bdf72;
-    border-color:#48792e;
+.status.COMPLETED {
+    color: var(--green);
+
+    border-color: #47732f;
 }
 
-.status.NO_RECOVERY{
-    color:#ff6f6f;
-    border-color:#863333;
+.status.NO_RECOVERY {
+    color: #ff7474;
+
+    border-color: #7c3030;
 }
 
-.create-form{
-    display:grid;
-    gap:13px;
+
+/* ============================================================
+   FORM
+   ============================================================ */
+
+.create-form {
+    display: grid;
+
+    gap: 13px;
 }
 
-.form-row{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
+.form-row {
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1fr)
+        minmax(0, 1fr);
+
+    gap: 12px;
 }
 
-label{
-    color:var(--gold-light);
-    font-size:12px;
-    display:grid;
-    gap:6px;
+label {
+    display: grid;
+
+    gap: 6px;
+
+    color: var(--gold-light);
+
+    font-size: 11px;
 }
 
 input,
-select{
-    width:100%;
-    padding:11px 12px;
-    border-radius:6px;
-    border:1px solid rgba(176,141,87,.42);
-    background:#0b0b0b;
-    color:var(--cream);
-    outline:none;
+select {
+    min-width: 0;
+
+    width: 100%;
+
+    height: 43px;
+
+    padding: 0 12px;
+
+    color: var(--cream);
+
+    border: 1px solid rgba(176, 141, 87, 0.4);
+
+    border-radius: 6px;
+
+    outline: none;
+
+    background: #090909;
 }
 
 input:focus,
-select:focus{
-    border-color:var(--red);
-    box-shadow:0 0 0 2px rgba(198,40,40,.13);
+select:focus {
+    border-color: var(--red);
+
+    box-shadow:
+        0 0 0 2px
+        rgba(198, 40, 40, 0.14);
 }
 
-.empty-state{
-    padding:30px;
-    text-align:center;
-    color:var(--muted);
-    border:1px dashed var(--border);
-    border-radius:8px;
+
+/* ============================================================
+   IMPORT
+   ============================================================ */
+
+.import-box {
+    margin-top: 16px;
+
+    padding: 18px;
+
+    border: 1px solid var(--border);
+
+    border-radius: 10px;
+
+    background: #0e0e0e;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 16px;
 }
 
-.import-box{
-    margin-top:16px;
-    border:1px solid var(--border);
-    border-radius:11px;
-    padding:17px 20px;
-    background:#0d0d0d;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:18px;
+.import-title {
+    color: var(--cream);
+
+    font-family: "Cinzel", serif;
+
+    font-weight: 600;
 }
 
-.import-box strong{
-    color:var(--cream);
+.import-text {
+    margin-top: 5px;
+
+    color: var(--muted);
+
+    font-size: 12px;
 }
 
-.import-box p{
-    margin:4px 0 0;
-    color:var(--muted);
-    font-size:13px;
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
+.app-footer {
+    margin-top: 24px;
+
+    padding-top: 20px;
+
+    border-top: 1px solid var(--border);
+
+    color: var(--gold);
+
+    text-align: center;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.22em;
+
+    font-size: 9px;
 }
 
-.footer-mark{
-    margin-top:24px;
-    border-top:1px solid var(--border);
-    color:var(--gold);
-    padding-top:19px;
-    text-align:center;
-    letter-spacing:.22em;
-    text-transform:uppercase;
-    font-size:10px;
+.app-footer strong {
+    color: var(--red-bright);
 }
 
-.footer-mark span{
-    color:var(--red-bright);
-}
 
-/* =========================================================
-   DEMO
-   ========================================================= */
-
-.demo{
-    border:1px solid #734f1f;
-    background:#191209;
-    color:#e9cc97;
-    padding:15px;
-    border-radius:8px;
-    margin-bottom:18px;
-}
-
-.demo form{
-    margin-top:10px;
-}
-
-/* =========================================================
+/* ============================================================
    RESPONSIVE
-   ========================================================= */
+   ============================================================ */
 
-@media(max-width:1100px){
-    .metric-grid{
-        grid-template-columns:repeat(2,1fr);
+@media (max-width: 1100px) {
+    .metric-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
     }
 
-    .dashboard-grid{
-        grid-template-columns:1fr;
+    .dashboard-grid {
+        grid-template-columns: 1fr;
     }
 }
 
-@media(max-width:760px){
-    .shell{
-        display:block;
+
+@media (max-width: 820px) {
+    .app-shell {
+        display: block;
     }
 
-    .sidebar{
-        position:static;
-        height:auto;
+    .sidebar {
+        position: relative;
+
+        width: 100%;
+
+        height: auto;
+
+        min-height: 0;
+
+        overflow: visible;
+
+        border-right: 0;
+
+        border-bottom: 1px solid var(--border);
     }
 
-    .brand-mark{
-        display:none;
+    .brand {
+        padding-bottom: 20px;
     }
 
-    .nav{
-        grid-template-columns:repeat(2,1fr);
+    .logo-scene {
+        width: 110px;
+        height: 110px;
     }
 
-    .topbar{
-        height:auto;
-        padding:18px;
-        align-items:flex-start;
+    .logo-chair-back {
+        transform:
+            translate(-12px, -18px)
+            scale(0.75)
+            rotate(-7deg);
     }
 
-    .content{
-        padding:18px;
+    .logo-chair-seat {
+        transform:
+            translate(-15px, -25px)
+            scale(0.75)
+            rotate(3deg);
     }
 
-    .metric-grid{
-        grid-template-columns:1fr;
+    .logo-chair-legrest {
+        transform:
+            translate(-23px, -29px)
+            scale(0.75)
+            rotate(20deg);
     }
 
-    .form-row{
-        grid-template-columns:1fr;
+    .logo-chair-base {
+        transform:
+            translate(-18px, -31px)
+            scale(0.75);
     }
 
-    .import-box{
-        display:block;
+    .wordmark {
+        font-size: 42px;
     }
 
-    .import-box .button{
-        margin-top:12px;
+    .sidebar-nav {
+        display: grid;
+
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .sidebar-footer {
+        margin-top: 0;
+    }
+
+    .topbar {
+        min-height: 0;
+
+        align-items: flex-start;
+
+        padding: 18px;
+    }
+
+    .content {
+        padding: 18px;
+    }
+}
+
+
+@media (max-width: 580px) {
+    .metric-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .topbar {
+        display: block;
+    }
+
+    .top-actions {
+        margin-top: 15px;
+    }
+
+    .opening {
+        grid-template-columns: 1fr;
+    }
+
+    .opening .button {
+        width: 100%;
+    }
+
+    .import-box {
+        display: block;
+    }
+
+    .import-box .button {
+        width: 100%;
+
+        margin-top: 14px;
+    }
+
+    .sidebar-nav {
+        grid-template-columns: 1fr;
     }
 }
 </style>
@@ -644,73 +1125,123 @@ select:focus{
 
 <body>
 
-<div class="shell">
+<div class="app-shell">
+
+
+<!-- ========================================================
+     SIDEBAR
+     ======================================================== -->
 
 <aside class="sidebar">
 
+
 <div class="brand">
 
-<div class="brand-mark">
-<div class="brand-lamp"></div>
-<div class="brand-chair"></div>
+<div class="logo-scene">
+
+<div class="logo-lamp-wire"></div>
+<div class="logo-lamp"></div>
+<div class="logo-light"></div>
+
+<div class="logo-chair-back"></div>
+<div class="logo-chair-seat"></div>
+<div class="logo-chair-legrest"></div>
+<div class="logo-chair-base"></div>
+
 </div>
 
+
 <div class="wordmark">
-<span>Empty</span><br>
-<span>Chair</span>
+
+<div class="wordmark-empty">
+Empty
 </div>
+
+<div class="wordmark-chair">
+Chair
+</div>
+
+</div>
+
 
 <div class="brand-tagline">
 Fill More Chairs
 </div>
 
-<div class="brand-sub">
-Smart Recovery for Tattoo Studios
+
+<div class="brand-subtitle">
+Smart Recovery<br>
+for Tattoo Studios
 </div>
 
 </div>
 
-<nav class="nav">
 
-<a class="active" href="/">
+<nav class="sidebar-nav">
+
+<a
+class="nav-link active"
+href="/"
+>
 <span class="nav-icon">⌂</span>
-Dashboard
+<span>Dashboard</span>
 </a>
 
-<a href="#openings">
+
+<a
+class="nav-link"
+href="#openings"
+>
 <span class="nav-icon">▣</span>
-Openings
+<span>Openings</span>
 </a>
 
-<a href="#openings">
+
+<a
+class="nav-link"
+href="#openings"
+>
 <span class="nav-icon">◎</span>
-Recovery
+<span>Recovery</span>
 </a>
 
-<a href="/">
+
+<a
+class="nav-link"
+href="/"
+>
 <span class="nav-icon">✓</span>
-Bookings
+<span>Bookings</span>
 </a>
 
-<a href="/import/customers">
+
+<a
+class="nav-link"
+href="/import/customers"
+>
 <span class="nav-icon">♟</span>
-Customers
+<span>Customers</span>
 </a>
 
 </nav>
 
-<div class="sidebar-bottom">
+
+<div class="sidebar-footer">
 
 <div class="studio-card">
-<div class="studio-label">Studio</div>
 
-<div class="studio-name">
+<div class="studio-card-label">
+Studio
+</div>
+
+<div class="studio-card-name">
 {{ shop["name"] if shop else "No studio configured" }}
 </div>
 
-<div class="status-online">
-● Studio Online
+<div class="online">
+● ONLINE
 </div>
+
 </div>
 
 </div>
@@ -718,25 +1249,45 @@ Customers
 </aside>
 
 
+<!-- ========================================================
+     MAIN
+     ======================================================== -->
+
 <main class="main">
+
 
 <header class="topbar">
 
 <div>
-<div class="page-title">Dashboard</div>
+
+<div class="page-title">
+Dashboard
+</div>
+
 <div class="page-subtitle">
 Fill the chairs that would otherwise sit empty.
 </div>
+
 </div>
 
+
 <div class="top-actions">
-<a class="button secondary" href="/import/customers">
+
+<a
+class="button secondary"
+href="/import/customers"
+>
 Import Customers
 </a>
 
-<a class="button" href="#create-opening">
+
+<a
+class="button"
+href="#create-opening"
+>
 ＋ New Opening
 </a>
+
 </div>
 
 </header>
@@ -744,17 +1295,29 @@ Import Customers
 
 <div class="content">
 
+
 {% if not shop %}
 
 <div class="demo">
 
-<strong>Start the pilot:</strong>
+<strong>
+Start the pilot:
+</strong>
+
 load the demo studio first.
 
-<form method="post" action="/demo/setup">
-<button class="button" type="submit">
+<form
+method="post"
+action="/demo/setup"
+>
+
+<button
+class="button"
+type="submit"
+>
 Load Demo Studio
 </button>
+
 </form>
 
 </div>
@@ -762,73 +1325,155 @@ Load Demo Studio
 {% endif %}
 
 
+<!-- ========================================================
+     METRICS
+     ======================================================== -->
+
 <section class="metric-grid">
 
-<div class="metric-card">
-<div class="metric-symbol">▰</div>
-<div class="metric-label">Openings</div>
-<div class="metric-value">{{ total_openings }}</div>
-<div class="metric-foot">Recovery opportunities created</div>
-</div>
 
 <div class="metric-card">
-<div class="metric-symbol">$</div>
-<div class="metric-label">Recovered Revenue</div>
-<div class="metric-value">${{ "%.0f"|format(recovered) }}</div>
-<div class="metric-foot">Revenue returned to the studio</div>
+
+<div class="metric-icon">
+▰
 </div>
 
-<div class="metric-card">
-<div class="metric-symbol">✓</div>
-<div class="metric-label">Completed Recoveries</div>
-<div class="metric-value">{{ completed }}</div>
-<div class="metric-foot">Appointments recovered</div>
+<div class="metric-label">
+Openings
 </div>
 
+<div class="metric-value">
+{{ total_openings }}
+</div>
+
+<div class="metric-foot">
+Recovery opportunities created
+</div>
+
+</div>
+
+
 <div class="metric-card">
-<div class="metric-symbol">♟</div>
-<div class="metric-label">Customers</div>
-<div class="metric-value">{{ customer_count }}</div>
-<div class="metric-foot">Customer records available</div>
+
+<div class="metric-icon">
+$
+</div>
+
+<div class="metric-label">
+Recovered Revenue
+</div>
+
+<div class="metric-value">
+${{ "%.0f"|format(recovered) }}
+</div>
+
+<div class="metric-foot">
+Revenue returned to the studio
+</div>
+
+</div>
+
+
+<div class="metric-card">
+
+<div class="metric-icon">
+✓
+</div>
+
+<div class="metric-label">
+Completed Recoveries
+</div>
+
+<div class="metric-value">
+{{ completed }}
+</div>
+
+<div class="metric-foot">
+Appointments recovered
+</div>
+
+</div>
+
+
+<div class="metric-card">
+
+<div class="metric-icon">
+♟
+</div>
+
+<div class="metric-label">
+Customers
+</div>
+
+<div class="metric-value">
+{{ customer_count }}
+</div>
+
+<div class="metric-foot">
+Customer records available
+</div>
+
 </div>
 
 </section>
 
 
+<!-- ========================================================
+     MAIN DASHBOARD
+     ======================================================== -->
+
 <div class="dashboard-grid">
 
-<section class="panel" id="openings">
 
-<div class="panel-title">
-<h2>Openings</h2>
-<span class="status">LIVE</span>
+<section
+class="panel"
+id="openings"
+>
+
+<div class="panel-header">
+
+<h2 class="panel-title">
+Openings
+</h2>
+
 </div>
+
 
 <div class="opening-list">
 
 {% for opening in openings %}
 
-<div class="opening-row">
+<div class="opening">
 
-<div>
+<div class="opening-main">
 
 <div class="opening-date">
-{{ opening["date"] }} · {{ opening["start_time"] }}
+{{ opening["date"] }}
+·
+{{ opening["start_time"] }}
 </div>
 
+
 <div class="opening-meta">
+
 {{ opening["artist_name"] }}
+
 ·
+
 {{ opening["style"] or "Tattoo" }}
+
 ·
+
 ${{ "%.0f"|format(opening["price"]) }}
 
 <span class="status {{ opening['status'] }}">
 {{ opening["status"] }}
 </span>
+
 </div>
 
 </div>
+
 
 <a
 class="button secondary"
@@ -841,8 +1486,20 @@ View
 
 {% else %}
 
-<div class="empty-state">
-No openings yet. Create one and Empty Chair can begin recovery.
+<div class="opening">
+
+<div class="opening-main">
+
+<div class="opening-date">
+No openings yet.
+</div>
+
+<div class="opening-meta">
+Create an opening to begin recovery.
+</div>
+
+</div>
+
 </div>
 
 {% endfor %}
@@ -857,9 +1514,14 @@ class="panel"
 id="create-opening"
 >
 
-<div class="panel-title">
-<h2>New Opening</h2>
+<div class="panel-header">
+
+<h2 class="panel-title">
+New Opening
+</h2>
+
 </div>
+
 
 <form
 class="create-form"
@@ -867,7 +1529,9 @@ method="post"
 action="/openings"
 >
 
+
 <label>
+
 Artist
 
 <select
@@ -876,62 +1540,85 @@ required
 >
 
 {% for artist in artists %}
+
 <option value="{{ artist['id'] }}">
 {{ artist["name"] }}
 </option>
+
 {% endfor %}
 
 </select>
+
 </label>
 
 
 <div class="form-row">
 
+
 <label>
+
 Date
+
 <input
 type="date"
 name="date"
 required
 >
+
 </label>
 
+
 <label>
+
 Time
+
 <input
 type="time"
 name="start_time"
 required
 >
+
 </label>
+
 
 </div>
 
 
 <div class="form-row">
 
+
 <label>
+
 Service
+
 <input
 name="service"
 value="tattoo"
 required
 >
+
 </label>
 
+
 <label>
+
 Style
+
 <input
 name="style"
 placeholder="traditional"
 >
+
 </label>
+
 
 </div>
 
 
 <label>
+
 Price
+
 <input
 type="number"
 name="price"
@@ -939,6 +1626,7 @@ step="1"
 min="0"
 required
 >
+
 </label>
 
 
@@ -949,21 +1637,33 @@ type="submit"
 Create Opening
 </button>
 
+
 </form>
 
 </section>
 
+
 </div>
 
+
+<!-- ========================================================
+     IMPORT
+     ======================================================== -->
 
 <div class="import-box">
 
 <div>
-<strong>Bring in your real customer history</strong>
-<p>
-Upload your shop customer CSV and let the recovery engine rank real opportunities.
-</p>
+
+<div class="import-title">
+Bring in your real customer history
 </div>
+
+<div class="import-text">
+Upload your customer CSV and let Empty Chair rank real recovery opportunities.
+</div>
+
+</div>
+
 
 <a
 class="button secondary"
@@ -975,17 +1675,29 @@ Import CSV
 </div>
 
 
-<div class="footer-mark">
-<span>☠</span>
+<!-- ========================================================
+     FOOTER
+     ======================================================== -->
+
+<div class="app-footer">
+
+<strong>☠</strong>
+
 &nbsp;
-Empty Chairs Don't Pay the Bills
+
+EMPTY CHAIRS DON'T PAY THE BILLS
+
 &nbsp;
-<span>☠</span>
+
+<strong>☠</strong>
+
 </div>
+
 
 </div>
 
 </main>
+
 
 </div>
 
