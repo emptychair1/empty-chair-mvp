@@ -2618,7 +2618,7 @@ def dashboard(
     FROM bookings b
     JOIN openings o
         ON o.id = b.opening_id
-    WHERE b.status IN ('CONFIRMED)
+    WHERE b.status IN ('CONFIRMED', 'COMPLETED')
         AND o.shop_id = ?
     """,
     (
