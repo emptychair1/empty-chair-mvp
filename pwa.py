@@ -20,10 +20,23 @@ def pwa_manifest():
             'orientation': 'any',
             'icons': [
                 {
-                    'src': '/static/favicon.png',
+                    'src': '/static/icons/ec-icon-192.png',
+                    'sizes': '192x192',
                     'type': 'image/png',
-                    'purpose': 'any maskable',
-                }
+                    'purpose': 'any',
+                },
+                {
+                    'src': '/static/icons/ec-icon-512.svg',
+                    'sizes': 'any',
+                    'type': 'image/svg+xml',
+                    'purpose': 'any',
+                },
+                {
+                    'src': '/static/icons/ec-icon-512-maskable.svg',
+                    'sizes': 'any',
+                    'type': 'image/svg+xml',
+                    'purpose': 'maskable',
+                },
             ],
         },
         media_type='application/manifest+json',

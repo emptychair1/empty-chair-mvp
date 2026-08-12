@@ -11,8 +11,7 @@
   }
 
   function ensureMeta(name, content) {
-    var selector = name.indexOf('apple-') === 0 ? 'meta[name="' + name + '"]' : 'meta[name="' + name + '"]';
-    var meta = document.querySelector(selector);
+    var meta = document.querySelector('meta[name="' + name + '"]');
     if (!meta) {
       meta = document.createElement('meta');
       meta.name = name;
@@ -22,7 +21,7 @@
   }
 
   ensureLink('manifest', '/manifest.webmanifest');
-  ensureLink('apple-touch-icon', '/static/favicon.png');
+  ensureLink('apple-touch-icon', '/static/icons/ec-icon-192.png', { sizes: '192x192' });
   ensureMeta('theme-color', '#070707');
   ensureMeta('apple-mobile-web-app-capable', 'yes');
   ensureMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'empty-chair-static-v1';
+const CACHE_NAME = 'empty-chair-static-v2';
 const STATIC_ASSETS = [
   '/static/style.css',
   '/static/flashy.css',
@@ -8,7 +8,10 @@ const STATIC_ASSETS = [
   '/static/pwa.js',
   '/static/pwa.css',
   '/static/favicon.png',
-  '/static/empty-chair-logo.png'
+  '/static/empty-chair-logo.png',
+  '/static/icons/ec-icon-192.png',
+  '/static/icons/ec-icon-512.svg',
+  '/static/icons/ec-icon-512-maskable.svg'
 ];
 
 self.addEventListener('install', (event) => {
