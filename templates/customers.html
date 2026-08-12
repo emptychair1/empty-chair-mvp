@@ -6,21 +6,25 @@
 <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
 <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
 {% include '_table_style.html' %}
+<style>
+.audience-hero{display:grid;grid-template-columns:minmax(0,1.4fr) auto;gap:24px;align-items:center;padding:24px;border:1px solid rgba(159,17,24,.35);border-radius:18px;background:radial-gradient(circle at 85% 10%,rgba(159,17,24,.22),transparent 260px),linear-gradient(145deg,#151515,#090909);margin-bottom:18px}.audience-hero h2{margin:5px 0 8px;font-size:28px}.audience-hero p{margin:0;color:var(--cream-dim);max-width:700px;line-height:1.5}.audience-score{text-align:center;min-width:140px}.audience-score strong{display:block;font-size:42px;color:var(--cream)}.audience-score span{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.12em}.consent-yes{color:var(--green);font-weight:800}.consent-no{color:var(--muted)}@media(max-width:700px){.audience-hero{grid-template-columns:1fr}.audience-score{text-align:left}}
+</style>
 </head>
 <body><div class="app-shell">
 {% set active_page = 'customers' %}{% include '_sidebar.html' %}
 <main class="main">
-<header class="topbar"><div><div class="page-title">Customers</div><div class="page-subtitle">Your recovery audience and customer history.</div></div><div class="top-actions"><a class="button" href="/import/customers">↑ Import Customers</a></div></header>
+<header class="topbar"><div><div class="page-title">Customers</div><div class="page-subtitle">The audience Empty Chair can match to open appointment time.</div></div><div class="top-actions"><a class="button" href="/import/customers">↑ Import Customers</a></div></header>
 <div class="content">
+<section class="audience-hero"><div><div class="hero-kicker">Your booking audience</div><h2>More customer history means smarter fills.</h2><p>Empty Chair uses artist preference, style preference, spend history and communication eligibility to prioritize the right people when appointment time opens.</p></div><div class="audience-score"><strong>{{ consented }}</strong><span>Ready to contact</span></div></section>
 <section class="metric-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-<div class="metric-card"><div class="metric-icon">♙</div><div class="metric-label">Customers</div><div class="metric-value">{{ customers|length }}</div><div class="metric-sub">Total roster</div></div>
-<div class="metric-card"><div class="metric-icon">✓</div><div class="metric-label">SMS Eligible</div><div class="metric-value">{{ consented }}</div><div class="metric-sub">Communication consent</div></div>
-<div class="metric-card"><div class="metric-icon">$</div><div class="metric-label">Est. History</div><div class="metric-value">${{ "%.0f"|format(estimated_lifetime_spend) }}</div><div class="metric-sub">Completed spend estimate</div></div>
+<div class="metric-card"><div class="metric-icon">♙</div><div class="metric-label">Customers</div><div class="metric-value">{{ customers|length }}</div><div class="metric-sub">Known audience</div></div>
+<div class="metric-card"><div class="metric-icon">✓</div><div class="metric-label">Contactable</div><div class="metric-value">{{ consented }}</div><div class="metric-sub">Eligible for offers</div></div>
+<div class="metric-card"><div class="metric-icon">$</div><div class="metric-label">Customer History</div><div class="metric-value">${{ "%.0f"|format(estimated_lifetime_spend) }}</div><div class="metric-sub">Completed spend estimate</div></div>
 </section>
-<section class="panel" style="margin-top:18px"><div class="panel-head"><h2 class="panel-title">Customer Roster</h2><a class="button secondary compact" href="/import/customers">Import CSV</a></div>
-<div style="overflow-x:auto"><table><thead><tr><th>Customer</th><th>Preferences</th><th>Completed</th><th>Avg Spend</th><th>Consent</th><th>Last Offer</th></tr></thead><tbody>
-{% for customer in customers %}<tr><td><strong>{{ customer["name"] }}</strong><br><span style="color:var(--muted);font-size:11px">{{ customer["phone"] }}{% if customer["email"] %} · {{ customer["email"] }}{% endif %}</span></td><td>{{ customer["preferred_artists"] or "Any artist" }}<br><span style="color:var(--muted);font-size:11px">{{ customer["preferred_styles"] or "Any style" }}</span></td><td>{{ customer["completed_count"] }}</td><td>${{ "%.0f"|format(customer["average_spend"]) }}</td><td>{{ "YES" if customer["communication_consent"] else "NO" }}</td><td>{{ customer["last_offer_at"] or "—" }}</td></tr>
-{% else %}<tr><td colspan="6">No customers yet. Import a CSV to build your recovery audience.</td></tr>{% endfor %}
+<section class="panel" style="margin-top:18px"><div class="panel-head"><div><h2 class="panel-title">Customer Roster</h2><div class="opening-meta">Preference and booking signals used by Empty Chair.</div></div><a class="button secondary compact" href="/import/customers">Import CSV</a></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Customer</th><th>Best Fit</th><th>Visits</th><th>Avg Spend</th><th>Contact</th><th>Last Offer</th></tr></thead><tbody>
+{% for customer in customers %}<tr><td><strong>{{ customer["name"] }}</strong><br><span style="color:var(--muted);font-size:11px">{{ customer["phone"] }}{% if customer["email"] %} · {{ customer["email"] }}{% endif %}</span></td><td>{{ customer["preferred_artists"] or "Any artist" }}<br><span style="color:var(--muted);font-size:11px">{{ customer["preferred_styles"] or "Any style" }}</span></td><td>{{ customer["completed_count"] }}</td><td>${{ "%.0f"|format(customer["average_spend"]) }}</td><td><span class="{{ 'consent-yes' if customer['communication_consent'] else 'consent-no' }}">{{ "READY" if customer["communication_consent"] else "NO CONSENT" }}</span></td><td>{{ customer["last_offer_at"] or "Never" }}</td></tr>
+{% else %}<tr><td colspan="6">No customers yet. Import your customer list so Empty Chair has people to match to open time.</td></tr>{% endfor %}
 </tbody></table></div></section>
 <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
 </div></main></div></body></html>
