@@ -26,6 +26,9 @@ import pilot_safety  # noqa: F401,E402
 # Replace the legacy artist roster page with forward-looking utilization cards.
 import artist_metrics  # noqa: F401,E402
 
+# Replace the legacy dashboard with the utilization-first owner view.
+import dashboard_metrics  # noqa: F401,E402
+
 app = core.app
 
 print(
