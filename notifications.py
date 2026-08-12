@@ -16,6 +16,7 @@ from twilio.rest import Client
 
 
 _PATCHED = False
+_ORIGINAL_SEND_EMAIL = core.send_email
 _ORIGINAL_SEND_RECOVERY_EMAIL = core.send_recovery_email
 
 SMS_LIVE = os.getenv("EMPTY_CHAIR_SMS_LIVE", "false").lower() == "true"
@@ -56,7 +57,7 @@ def send_email(to_email, subject, html):
         print("Email skipped: RESEND_API_KEY is not configured.")
         return False
 
-    return core.send_email(to_email, subject, html)
+    return _ORIGINAL_SEND_EMAIL(to_email, subject, html)
 
 def _send_text(to_phone, body):
     """Send SMS only when EMPTY_CHAIR_SMS_LIVE=true."""
