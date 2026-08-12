@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recovery · Empty Chair</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body><div class="app-shell">
+{% set active_page = 'recovery' %}{% include '_sidebar.html' %}
+<main class="main">
+<header class="topbar"><div><div class="page-title">Recovery</div><div class="page-subtitle">Live campaign queues and outcomes.</div></div><div class="top-actions"><a class="button" href="/#create-opening">＋ New Opening</a></div></header>
+<div class="content">
+<div class="opening-list">
+{% for campaign in campaigns %}{% set opening = campaign.opening %}
+<section class="panel" style="margin-bottom:16px"><div class="panel-head"><div><h2 class="panel-title">{{ opening["artist_name"] }} · {{ opening["date"] }}</h2><div class="opening-meta">{{ opening["start_time"] }} · {{ opening["style"] or opening["service"] }} · ${{ "%.0f"|format(opening["price"]) }}</div></div><span class="status {{ opening['status'] }}">{{ opening["status"] }}</span></div>
+{% if campaign.active %}<p><strong>Currently contacting:</strong> {{ campaign.active["customer_name"] }} · Rank {{ campaign.active["rank"] }} · Score {{ "%.0f"|format(campaign.active["score"]) }}</p>{% elif campaign.claimed %}<p><strong>Claimed by:</strong> {{ campaign.claimed["customer_name"] }}</p>{% else %}<p style="color:var(--cream-dim)">No customer is currently holding this offer.</p>{% endif %}
+<div style="overflow-x:auto"><table><thead><tr><th>Rank</th><th>Customer</th><th>Score</th><th>Status</th></tr></thead><tbody>{% for offer in campaign.offers %}<tr><td>{{ offer["rank"] }}</td><td>{{ offer["customer_name"] }}</td><td>{{ "%.0f"|format(offer["score"]) }}</td><td>{{ offer["status"] }}</td></tr>{% else %}<tr><td colspan="4">No queue created.</td></tr>{% endfor %}</tbody></table></div>
+<div style="margin-top:14px"><a class="button secondary compact" href="/openings/{{ opening['id'] }}">Open campaign</a></div></section>
+{% else %}<section class="panel"><h2 class="panel-title">No recovery history yet</h2><p>Create an opening and launch recovery to see campaigns here.</p></section>{% endfor %}
+</div><div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+</div></main></div></body></html>
