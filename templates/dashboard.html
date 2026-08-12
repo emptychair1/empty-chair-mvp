@@ -1,76 +1,993 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Empty Chair</title>
+
+<title>Empty Chair · Dashboard</title>
+
 <style>
-body{font-family:Inter,system-ui,-apple-system,sans-serif;max-width:1100px;margin:0 auto;padding:32px;background:#f7f7f5;color:#161616}
-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:30px}
-h1{font-size:30px;margin:0} h2{font-size:18px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}
-.card,.panel{background:white;border:1px solid #ddd;border-radius:14px;padding:20px}
-.metric{font-size:34px;font-weight:700;margin-top:8px}
-.label{color:#666;font-size:13px;text-transform:uppercase;letter-spacing:.08em}
-form{display:grid;gap:12px}
-input,select{padding:11px;border:1px solid #bbb;border-radius:9px;font-size:15px}
-button,.button{background:#111;color:white;border:0;border-radius:9px;padding:11px 15px;text-decoration:none;cursor:pointer;display:inline-block}
-.opening{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #eee;padding:15px 0}
-.small{color:#666;font-size:13px}
-.demo{background:#fff4d6;border:1px solid #ead28b;padding:12px;border-radius:10px;margin-bottom:20px}
-@media(max-width:700px){.grid{grid-template-columns:1fr}.opening{display:block}.opening .button{margin-top:10px}}
+:root{
+    --black:#0d0d0d;
+    --black-2:#121212;
+    --black-3:#171717;
+    --charcoal:#2a2a2a;
+    --red:#c62828;
+    --red-bright:#e32626;
+    --cream:#f1e6d2;
+    --gold:#b08d57;
+    --gold-light:#d4b078;
+    --muted:#9f9587;
+    --green:#7ec850;
+    --border:rgba(176,141,87,.35);
+}
+
+*{
+    box-sizing:border-box;
+}
+
+html{
+    background:var(--black);
+}
+
+body{
+    margin:0;
+    color:var(--cream);
+    background:
+        radial-gradient(circle at 75% 15%, rgba(198,40,40,.08), transparent 28rem),
+        linear-gradient(135deg,#090909,#111);
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh;
+}
+
+a{
+    color:inherit;
+}
+
+button,
+input,
+select{
+    font:inherit;
+}
+
+.shell{
+    min-height:100vh;
+    display:grid;
+    grid-template-columns:270px minmax(0,1fr);
+}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
+.sidebar{
+    border-right:1px solid var(--border);
+    background:
+        linear-gradient(rgba(8,8,8,.96),rgba(13,13,13,.98)),
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 5px,
+            rgba(255,255,255,.015) 5px,
+            rgba(255,255,255,.015) 6px
+        );
+    padding:24px 18px;
+    display:flex;
+    flex-direction:column;
+    position:sticky;
+    top:0;
+    height:100vh;
+}
+
+.brand{
+    text-align:center;
+    padding:8px 10px 28px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:22px;
+}
+
+.brand-mark{
+    width:112px;
+    height:112px;
+    margin:0 auto 10px;
+    border:1px solid var(--gold);
+    border-radius:56px 56px 8px 8px;
+    position:relative;
+    overflow:hidden;
+    background:
+        radial-gradient(circle at 50% 22%,rgba(241,230,210,.17),transparent 22%),
+        linear-gradient(180deg,#151515,#080808);
+}
+
+.brand-lamp{
+    position:absolute;
+    top:12px;
+    left:50%;
+    transform:translateX(-50%);
+    width:34px;
+    height:20px;
+    border:3px solid var(--red-bright);
+    border-radius:20px 20px 3px 3px;
+}
+
+.brand-lamp:before{
+    content:"";
+    position:absolute;
+    width:2px;
+    height:18px;
+    background:var(--red);
+    left:50%;
+    bottom:17px;
+}
+
+.brand-lamp:after{
+    content:"";
+    position:absolute;
+    width:42px;
+    height:52px;
+    clip-path:polygon(35% 0,65% 0,100% 100%,0 100%);
+    background:linear-gradient(rgba(241,230,210,.18),transparent);
+    left:50%;
+    top:18px;
+    transform:translateX(-50%);
+}
+
+.brand-chair{
+    position:absolute;
+    width:50px;
+    height:28px;
+    left:31px;
+    top:61px;
+    border:4px solid var(--red);
+    transform:skewX(-12deg);
+}
+
+.brand-chair:before{
+    content:"";
+    position:absolute;
+    width:27px;
+    height:34px;
+    border:4px solid var(--red);
+    bottom:21px;
+    left:-1px;
+}
+
+.brand-chair:after{
+    content:"";
+    position:absolute;
+    width:34px;
+    height:4px;
+    background:var(--red);
+    left:13px;
+    bottom:-14px;
+    transform:rotate(28deg);
+}
+
+.wordmark{
+    font-family:"Old English Text MT","UnifrakturCook","UnifrakturMaguntia",Georgia,serif;
+    font-size:39px;
+    line-height:.85;
+    font-weight:800;
+    letter-spacing:-1px;
+}
+
+.wordmark span:first-child{
+    color:var(--cream);
+}
+
+.wordmark span:last-child{
+    color:var(--red-bright);
+}
+
+.brand-tagline{
+    margin-top:15px;
+    font-size:11px;
+    letter-spacing:.27em;
+    text-transform:uppercase;
+    color:var(--cream);
+}
+
+.brand-sub{
+    color:var(--gold-light);
+    margin-top:6px;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.18em;
+}
+
+.nav{
+    display:grid;
+    gap:7px;
+}
+
+.nav a{
+    display:flex;
+    align-items:center;
+    gap:13px;
+    padding:12px 14px;
+    color:#ddd1bd;
+    text-decoration:none;
+    border:1px solid transparent;
+    border-radius:8px;
+    transition:.15s ease;
+}
+
+.nav a:hover{
+    color:white;
+    border-color:var(--border);
+    background:#151515;
+}
+
+.nav a.active{
+    background:
+        linear-gradient(135deg,#8f1111,var(--red));
+    color:white;
+    border-color:#df2a2a;
+}
+
+.nav-icon{
+    color:var(--gold-light);
+    font-size:18px;
+    width:22px;
+    text-align:center;
+}
+
+.nav a.active .nav-icon{
+    color:white;
+}
+
+.sidebar-bottom{
+    margin-top:auto;
+    display:grid;
+    gap:12px;
+}
+
+.studio-card{
+    border:1px solid var(--border);
+    background:#111;
+    padding:14px;
+    border-radius:10px;
+}
+
+.studio-label{
+    color:var(--gold-light);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.14em;
+}
+
+.studio-name{
+    margin-top:5px;
+    font-family:Georgia,serif;
+    font-size:17px;
+}
+
+.status-online{
+    margin-top:9px;
+    color:var(--green);
+    font-size:12px;
+}
+
+/* =========================================================
+   MAIN
+   ========================================================= */
+
+.main{
+    min-width:0;
+}
+
+.topbar{
+    height:88px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:20px;
+    border-bottom:1px solid var(--border);
+    padding:0 28px;
+    background:rgba(9,9,9,.8);
+}
+
+.page-title{
+    font-family:"Old English Text MT","UnifrakturCook",Georgia,serif;
+    font-size:32px;
+    color:var(--cream);
+}
+
+.page-subtitle{
+    color:var(--gold-light);
+    font-family:Georgia,serif;
+    margin-top:3px;
+}
+
+.top-actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+}
+
+.button{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    padding:11px 16px;
+    border-radius:7px;
+    border:1px solid var(--red-bright);
+    background:linear-gradient(180deg,#c91d1d,#981111);
+    color:white;
+    text-decoration:none;
+    cursor:pointer;
+}
+
+.button:hover{
+    filter:brightness(1.08);
+}
+
+.button.secondary{
+    border-color:var(--border);
+    color:var(--gold-light);
+    background:#111;
+}
+
+.content{
+    padding:24px 28px 34px;
+    max-width:1500px;
+    margin:0 auto;
+}
+
+.metric-grid{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:14px;
+}
+
+.metric-card{
+    position:relative;
+    min-height:145px;
+    border:1px solid var(--border);
+    background:
+        linear-gradient(145deg,rgba(25,25,25,.96),rgba(10,10,10,.96));
+    border-radius:11px;
+    padding:22px;
+    overflow:hidden;
+}
+
+.metric-card:after{
+    content:"";
+    width:90px;
+    height:90px;
+    position:absolute;
+    right:-25px;
+    top:-25px;
+    border:1px solid rgba(198,40,40,.12);
+    border-radius:50%;
+}
+
+.metric-label{
+    color:var(--gold-light);
+    font-size:14px;
+}
+
+.metric-value{
+    font-family:Georgia,serif;
+    font-size:38px;
+    font-weight:700;
+    margin-top:6px;
+    color:var(--cream);
+}
+
+.metric-foot{
+    margin-top:8px;
+    color:var(--muted);
+    font-size:12px;
+}
+
+.metric-symbol{
+    color:var(--red-bright);
+    font-size:25px;
+    margin-bottom:10px;
+}
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+
+.dashboard-grid{
+    display:grid;
+    grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr);
+    gap:16px;
+    margin-top:16px;
+}
+
+.panel{
+    border:1px solid var(--border);
+    background:
+        linear-gradient(145deg,rgba(22,22,22,.95),rgba(8,8,8,.97));
+    border-radius:11px;
+    padding:22px;
+}
+
+.panel-title{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:18px;
+}
+
+.panel-title h2{
+    margin:0;
+    color:var(--cream);
+    font-family:"Old English Text MT","UnifrakturCook",Georgia,serif;
+    font-size:25px;
+    font-weight:600;
+}
+
+.panel-title a{
+    color:var(--red-bright);
+    text-decoration:none;
+    font-size:13px;
+}
+
+.opening-list{
+    display:grid;
+    gap:10px;
+}
+
+.opening-row{
+    display:grid;
+    grid-template-columns:1fr auto;
+    align-items:center;
+    gap:14px;
+    border:1px solid rgba(176,141,87,.2);
+    border-radius:8px;
+    background:#101010;
+    padding:15px;
+}
+
+.opening-date{
+    color:var(--cream);
+    font-weight:700;
+}
+
+.opening-meta{
+    color:var(--muted);
+    font-size:13px;
+    margin-top:5px;
+}
+
+.status{
+    display:inline-flex;
+    border:1px solid var(--border);
+    color:var(--gold-light);
+    font-size:10px;
+    letter-spacing:.1em;
+    padding:4px 7px;
+    border-radius:4px;
+    margin-left:6px;
+}
+
+.status.RECOVERY_ACTIVE{
+    color:#ffce77;
+    border-color:#7f5e25;
+}
+
+.status.CLAIMED,
+.status.BOOKED,
+.status.COMPLETED{
+    color:#9bdf72;
+    border-color:#48792e;
+}
+
+.status.NO_RECOVERY{
+    color:#ff6f6f;
+    border-color:#863333;
+}
+
+.create-form{
+    display:grid;
+    gap:13px;
+}
+
+.form-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+}
+
+label{
+    color:var(--gold-light);
+    font-size:12px;
+    display:grid;
+    gap:6px;
+}
+
+input,
+select{
+    width:100%;
+    padding:11px 12px;
+    border-radius:6px;
+    border:1px solid rgba(176,141,87,.42);
+    background:#0b0b0b;
+    color:var(--cream);
+    outline:none;
+}
+
+input:focus,
+select:focus{
+    border-color:var(--red);
+    box-shadow:0 0 0 2px rgba(198,40,40,.13);
+}
+
+.empty-state{
+    padding:30px;
+    text-align:center;
+    color:var(--muted);
+    border:1px dashed var(--border);
+    border-radius:8px;
+}
+
+.import-box{
+    margin-top:16px;
+    border:1px solid var(--border);
+    border-radius:11px;
+    padding:17px 20px;
+    background:#0d0d0d;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:18px;
+}
+
+.import-box strong{
+    color:var(--cream);
+}
+
+.import-box p{
+    margin:4px 0 0;
+    color:var(--muted);
+    font-size:13px;
+}
+
+.footer-mark{
+    margin-top:24px;
+    border-top:1px solid var(--border);
+    color:var(--gold);
+    padding-top:19px;
+    text-align:center;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    font-size:10px;
+}
+
+.footer-mark span{
+    color:var(--red-bright);
+}
+
+/* =========================================================
+   DEMO
+   ========================================================= */
+
+.demo{
+    border:1px solid #734f1f;
+    background:#191209;
+    color:#e9cc97;
+    padding:15px;
+    border-radius:8px;
+    margin-bottom:18px;
+}
+
+.demo form{
+    margin-top:10px;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media(max-width:1100px){
+    .metric-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .dashboard-grid{
+        grid-template-columns:1fr;
+    }
+}
+
+@media(max-width:760px){
+    .shell{
+        display:block;
+    }
+
+    .sidebar{
+        position:static;
+        height:auto;
+    }
+
+    .brand-mark{
+        display:none;
+    }
+
+    .nav{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .topbar{
+        height:auto;
+        padding:18px;
+        align-items:flex-start;
+    }
+
+    .content{
+        padding:18px;
+    }
+
+    .metric-grid{
+        grid-template-columns:1fr;
+    }
+
+    .form-row{
+        grid-template-columns:1fr;
+    }
+
+    .import-box{
+        display:block;
+    }
+
+    .import-box .button{
+        margin-top:12px;
+    }
+}
 </style>
 </head>
+
 <body>
-<header>
-<h1>EMPTY CHAIR</h1>
-<span>{{ shop["name"] if shop else "No studio configured" }}</span>
+
+<div class="shell">
+
+<aside class="sidebar">
+
+<div class="brand">
+
+<div class="brand-mark">
+<div class="brand-lamp"></div>
+<div class="brand-chair"></div>
+</div>
+
+<div class="wordmark">
+<span>Empty</span><br>
+<span>Chair</span>
+</div>
+
+<div class="brand-tagline">
+Fill More Chairs
+</div>
+
+<div class="brand-sub">
+Smart Recovery for Tattoo Studios
+</div>
+
+</div>
+
+<nav class="nav">
+
+<a class="active" href="/">
+<span class="nav-icon">⌂</span>
+Dashboard
+</a>
+
+<a href="#openings">
+<span class="nav-icon">▣</span>
+Openings
+</a>
+
+<a href="#openings">
+<span class="nav-icon">◎</span>
+Recovery
+</a>
+
+<a href="/">
+<span class="nav-icon">✓</span>
+Bookings
+</a>
+
+<a href="/import/customers">
+<span class="nav-icon">♟</span>
+Customers
+</a>
+
+</nav>
+
+<div class="sidebar-bottom">
+
+<div class="studio-card">
+<div class="studio-label">Studio</div>
+
+<div class="studio-name">
+{{ shop["name"] if shop else "No studio configured" }}
+</div>
+
+<div class="status-online">
+● Studio Online
+</div>
+</div>
+
+</div>
+
+</aside>
+
+
+<main class="main">
+
+<header class="topbar">
+
+<div>
+<div class="page-title">Dashboard</div>
+<div class="page-subtitle">
+Fill the chairs that would otherwise sit empty.
+</div>
+</div>
+
+<div class="top-actions">
+<a class="button secondary" href="/import/customers">
+Import Customers
+</a>
+
+<a class="button" href="#create-opening">
+＋ New Opening
+</a>
+</div>
+
 </header>
 
+
+<div class="content">
+
 {% if not shop %}
+
 <div class="demo">
-<strong>Start the pilot:</strong> load demo data first.
-<form method="post" action="/demo/setup" style="margin-top:10px">
-<button type="submit">Load Demo Studio</button>
+
+<strong>Start the pilot:</strong>
+load the demo studio first.
+
+<form method="post" action="/demo/setup">
+<button class="button" type="submit">
+Load Demo Studio
+</button>
 </form>
+
 </div>
+
 {% endif %}
 
-<div class="grid">
-<div class="card"><div class="label">Revenue recovered</div><div class="metric">${{ "%.0f"|format(recovered) }}</div></div>
-<div class="card"><div class="label">Completed recoveries</div><div class="metric">{{ completed }}</div></div>
-<div class="card"><div class="label">Openings</div><div class="metric">{{ total_openings }}</div></div>
+
+<section class="metric-grid">
+
+<div class="metric-card">
+<div class="metric-symbol">▰</div>
+<div class="metric-label">Openings</div>
+<div class="metric-value">{{ total_openings }}</div>
+<div class="metric-foot">Recovery opportunities created</div>
 </div>
 
-<div class="panel">
-<h2>Create opening</h2>
-<form method="post" action="/openings">
-<label>Artist
-<select name="artist_id" required>
-{% for artist in artists %}<option value="{{ artist['id'] }}">{{ artist['name'] }}</option>{% endfor %}
-</select></label>
-<label>Date <input type="date" name="date" required></label>
-<label>Time <input type="time" name="start_time" required></label>
-<label>Service <input name="service" value="tattoo" required></label>
-<label>Style <input name="style" placeholder="traditional"></label>
-<label>Price <input type="number" name="price" step="1" min="0" required></label>
-<button type="submit">Create opening</button>
-</form>
+<div class="metric-card">
+<div class="metric-symbol">$</div>
+<div class="metric-label">Recovered Revenue</div>
+<div class="metric-value">${{ "%.0f"|format(recovered) }}</div>
+<div class="metric-foot">Revenue returned to the studio</div>
 </div>
 
-<div class="panel" style="margin-top:20px">
+<div class="metric-card">
+<div class="metric-symbol">✓</div>
+<div class="metric-label">Completed Recoveries</div>
+<div class="metric-value">{{ completed }}</div>
+<div class="metric-foot">Appointments recovered</div>
+</div>
+
+<div class="metric-card">
+<div class="metric-symbol">♟</div>
+<div class="metric-label">Customers</div>
+<div class="metric-value">{{ customer_count }}</div>
+<div class="metric-foot">Customer records available</div>
+</div>
+
+</section>
+
+
+<div class="dashboard-grid">
+
+<section class="panel" id="openings">
+
+<div class="panel-title">
 <h2>Openings</h2>
+<span class="status">LIVE</span>
+</div>
+
+<div class="opening-list">
+
 {% for opening in openings %}
-<div class="opening">
+
+<div class="opening-row">
+
 <div>
-<strong>{{ opening["date"] }} · {{ opening["start_time"] }}</strong><br>
-<span class="small">{{ opening["artist_name"] }} · {{ opening["style"] or "Tattoo" }} · ${{ "%.0f"|format(opening["price"]) }} · {{ opening["status"] }}</span>
+
+<div class="opening-date">
+{{ opening["date"] }} · {{ opening["start_time"] }}
 </div>
-<a class="button" href="/openings/{{ opening['id'] }}">View</a>
+
+<div class="opening-meta">
+{{ opening["artist_name"] }}
+·
+{{ opening["style"] or "Tattoo" }}
+·
+${{ "%.0f"|format(opening["price"]) }}
+
+<span class="status {{ opening['status'] }}">
+{{ opening["status"] }}
+</span>
 </div>
+
+</div>
+
+<a
+class="button secondary"
+href="/openings/{{ opening['id'] }}"
+>
+View
+</a>
+
+</div>
+
 {% else %}
-<p class="small">No openings yet.</p>
-{% endfor %}
+
+<div class="empty-state">
+No openings yet. Create one and Empty Chair can begin recovery.
 </div>
+
+{% endfor %}
+
+</div>
+
+</section>
+
+
+<section
+class="panel"
+id="create-opening"
+>
+
+<div class="panel-title">
+<h2>New Opening</h2>
+</div>
+
+<form
+class="create-form"
+method="post"
+action="/openings"
+>
+
+<label>
+Artist
+
+<select
+name="artist_id"
+required
+>
+
+{% for artist in artists %}
+<option value="{{ artist['id'] }}">
+{{ artist["name"] }}
+</option>
+{% endfor %}
+
+</select>
+</label>
+
+
+<div class="form-row">
+
+<label>
+Date
+<input
+type="date"
+name="date"
+required
+>
+</label>
+
+<label>
+Time
+<input
+type="time"
+name="start_time"
+required
+>
+</label>
+
+</div>
+
+
+<div class="form-row">
+
+<label>
+Service
+<input
+name="service"
+value="tattoo"
+required
+>
+</label>
+
+<label>
+Style
+<input
+name="style"
+placeholder="traditional"
+>
+</label>
+
+</div>
+
+
+<label>
+Price
+<input
+type="number"
+name="price"
+step="1"
+min="0"
+required
+>
+</label>
+
+
+<button
+class="button"
+type="submit"
+>
+Create Opening
+</button>
+
+</form>
+
+</section>
+
+</div>
+
+
+<div class="import-box">
+
+<div>
+<strong>Bring in your real customer history</strong>
+<p>
+Upload your shop customer CSV and let the recovery engine rank real opportunities.
+</p>
+</div>
+
+<a
+class="button secondary"
+href="/import/customers"
+>
+Import CSV
+</a>
+
+</div>
+
+
+<div class="footer-mark">
+<span>☠</span>
+&nbsp;
+Empty Chairs Don't Pay the Bills
+&nbsp;
+<span>☠</span>
+</div>
+
+</div>
+
+</main>
+
+</div>
+
 </body>
 </html>
