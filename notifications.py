@@ -9,8 +9,6 @@ This allows live email delivery while Twilio remains in demo mode.
 
 import json
 import os
-import urllib.error
-import urllib.request
 from html import escape
 
 import app as core
@@ -58,39 +56,7 @@ def send_email(to_email, subject, html):
         print("Email skipped: RESEND_API_KEY is not configured.")
         return False
 
-    payload = json.dumps(
-        {
-            "from": core.EMAIL_FROM,
-            "to": [to_email],
-            "subject": subject,
-            "html": html,
-        }
-    ).encode("utf-8")
-
-    request = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {core.RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        },
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            return 200 <= response.status < 300
-    except urllib.error.HTTPError as exc:
-        try:
-            detail = exc.read().decode("utf-8", errors="replace")
-        except Exception:
-            detail = str(exc)
-        print(f"Email send failed: HTTP {exc.code}: {detail}")
-        return False
-    except (urllib.error.URLError, TimeoutError) as exc:
-        print("Email send failed:", str(exc))
-        return False
-
+    return core.send_email(to_email, subject, html)
 
 def _send_text(to_phone, body):
     """Send SMS only when EMPTY_CHAIR_SMS_LIVE=true."""
