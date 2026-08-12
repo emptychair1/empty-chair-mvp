@@ -4,6 +4,9 @@
 <link rel="stylesheet" href="{{ url_for('static', path='/pwa.css') }}">
 <script src="{{ url_for('static', path='/flashy.js') }}" defer></script>
 <script src="{{ url_for('static', path='/pwa.js') }}" defer></script>
+<style>
+.setup-mascot-link{display:block;margin:10px 8px 4px;border:1px solid rgba(159,17,24,.28);border-radius:14px;overflow:hidden;background:#080808;box-shadow:0 12px 30px rgba(0,0,0,.28);transition:transform .18s ease,border-color .18s ease}.setup-mascot-link:hover{transform:translateY(-2px);border-color:rgba(225,38,38,.62)}.setup-mascot-link img{display:block;width:100%;height:auto;max-height:250px;object-fit:cover;object-position:center}.setup-mascot-mobile{display:none}.setup-mascot-mobile img{width:58px;height:72px;object-fit:cover;object-position:center;border-radius:8px;flex:0 0 auto}@media(max-width:1050px){.setup-mascot-link img{max-height:190px}}@media(max-width:760px){.setup-mascot-link{display:none}.setup-mascot-mobile{display:flex!important;align-items:center;gap:10px}.setup-mascot-mobile strong{display:block}.setup-mascot-mobile small{display:block;color:var(--muted);margin-top:2px}}
+</style>
 
 <aside class="sidebar">
   <div class="brand-wrap">
@@ -16,16 +19,20 @@
     <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
     <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
     <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
+
+    <a class="setup-mascot-link" href="/setup" aria-label="Open Setup Guide">
+      <img src="{{ url_for('static', path='/empty-chair-reaper-setup.webp') }}" alt="Empty Chair grim reaper mascot pointing to the Setup Guide">
+    </a>
+
     <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'setup' else '' }}" href="/setup"><span class="nav-icon">→</span><span>Setup Guide</span></a>
 
     <details class="mobile-more {{ 'active' if active_page in ['customers','bookings','settings','setup'] else '' }}">
       <summary><span class="nav-icon">•••</span><span>More</span></summary>
       <div class="mobile-more-sheet">
         <a href="/customers"><span>♙</span><strong>Customers</strong></a>
         <a href="/bookings"><span>✓</span><strong>Bookings</strong></a>
+        <a class="setup-mascot-mobile" href="/setup"><img src="{{ url_for('static', path='/empty-chair-reaper-setup.webp') }}" alt="Empty Chair grim reaper mascot"><span><strong>Setup Guide</strong><small>New here? Start here.</small></span></a>
         <a href="/settings"><span>⚙</span><strong>Settings</strong></a>
-        <a href="/setup"><span>→</span><strong>Setup Guide</strong></a>
       </div>
     </details>
   </nav>
