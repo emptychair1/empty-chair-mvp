@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings · Empty Chair</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body><div class="app-shell">
+{% set active_page = 'settings' %}{% include '_sidebar.html' %}
+<main class="main">
+<header class="topbar"><div><div class="page-title">Settings</div><div class="page-subtitle">Studio identity, booking link, and delivery status.</div></div></header>
+<div class="content">
+{% if saved %}<div class="panel" style="margin-bottom:18px;border-color:#426c2d"><strong style="color:var(--green)">Settings saved.</strong></div>{% endif %}
+<div class="dashboard-grid">
+<section class="panel"><div class="panel-head"><h2 class="panel-title">Studio</h2></div>
+<form class="create-form" method="post" action="/settings">
+<label>Studio name<input name="name" value="{{ shop['name'] or '' }}" required></label>
+<div class="form-row"><label>Email<input type="email" name="email" value="{{ shop['email'] or '' }}"></label><label>Phone<input name="phone" value="{{ shop['phone'] or '' }}"></label></div>
+<label>Booking URL<input type="url" name="booking_url" value="{{ shop['booking_url'] or '' }}" placeholder="https://..."></label>
+<label>Timezone<input name="timezone_name" value="{{ shop['timezone'] or 'America/New_York' }}"></label>
+<button class="button" type="submit">Save Settings</button>
+</form></section>
+<section class="panel"><div class="panel-head"><h2 class="panel-title">System Status</h2></div>
+<div class="opening-list">
+<div class="opening-row" style="grid-template-columns:1fr auto"><div><div class="opening-time">SMS / Twilio</div><div class="opening-meta">Customer recovery offers</div></div><span class="status {{ 'COMPLETED' if sms_ready else 'NO_RECOVERY' }}">{{ 'READY' if sms_ready else ('DEMO' if demo_mode else 'NOT CONFIGURED') }}</span></div>
+<div class="opening-row" style="grid-template-columns:1fr auto"><div><div class="opening-time">Email / Resend</div><div class="opening-meta">Welcome, reset, and recovery emails</div></div><span class="status {{ 'COMPLETED' if email_ready else 'NO_RECOVERY' }}">{{ 'READY' if email_ready else ('DEMO' if demo_mode else 'NOT CONFIGURED') }}</span></div>
+<div class="opening-row" style="grid-template-columns:1fr auto"><div><div class="opening-time">Database</div><div class="opening-meta">Production data store</div></div><span class="status COMPLETED">{{ database_type }}</span></div>
+</div><p style="color:var(--muted);font-size:12px;margin-top:16px">Credentials stay in Render environment variables and are not exposed here.</p></section>
+</div><div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+</div></main></div></body></html>
