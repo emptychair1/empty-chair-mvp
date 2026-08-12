@@ -32,10 +32,41 @@
   .match-score{text-align:right;font-family:'Cinzel',Georgia,serif;font-size:30px;font-weight:700}.match-score.high{color:var(--green)}.match-score.mid{color:var(--gold-light)}.match-score.low{color:var(--danger)}
   .match-bar{grid-column:2 / 4;height:9px;border:1px solid var(--line-soft);border-radius:999px;background:#070707;overflow:hidden}.match-bar > span{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--red-dark),var(--red-bright),var(--gold-light),var(--green));box-shadow:0 0 18px rgba(225,38,38,.22);transition:width 1s cubic-bezier(.2,.75,.2,1)}
   .match-detail{grid-column:2 / 4;display:none;padding-top:2px}.match-card.open .match-detail{display:block}.match-detail-inner{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.signal-box{padding:10px;border:1px solid var(--line-soft);border-radius:8px;background:#0a0a0a}.signal-box b{display:block;color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.08em}.signal-box span{display:block;margin-top:5px;color:var(--cream-dim);font-size:11px;line-height:1.4}.confidence{margin-top:10px;color:var(--cream-dim);font-size:11px}.match-toggle{grid-column:2 / 4;justify-self:start;border:0;background:none;color:var(--gold-light);padding:0;cursor:pointer;font-size:11px}
-  .autopilot{margin-top:18px;padding:22px;border:1px solid rgba(225,38,38,.45);border-radius:12px;background:radial-gradient(circle at 50% 0%,rgba(225,38,38,.12),transparent 45%),#0a0a0a;text-align:center}.autopilot h3{margin:0;font-family:'UnifrakturCook',Georgia,serif;font-size:34px}.autopilot p{margin:8px auto 16px;max-width:580px;color:var(--cream-dim);font-size:12px;line-height:1.6}.autopilot-sequence{display:none;gap:8px;max-width:520px;margin:16px auto 0}.autopilot-sequence.show{display:grid}.auto-step{padding:10px 12px;border:1px solid var(--line-soft);border-radius:8px;background:#0c0c0c;color:var(--muted);font-family:'Cinzel',Georgia,serif;font-size:11px;opacity:.35;transform:translateY(4px);transition:.3s ease}.auto-step.active{opacity:1;transform:none;color:var(--cream);border-color:rgba(225,38,38,.45);box-shadow:0 0 20px rgba(225,38,38,.08)}
+  .autopilot{margin-top:18px;padding:22px;border:1px solid rgba(225,38,38,.45);border-radius:12px;background:radial-gradient(circle at 50% 0%,rgba(225,38,38,.12),transparent 45%),#0a0a0a;text-align:center}.autopilot h3{margin:0;font-family:'UnifrakturCook',Georgia,serif;font-size:34px}.autopilot p{margin:8px auto 16px;max-width:580px;color:var(--cream-dim);font-size:12px;line-height:1.6}
   .empty-intel{margin-top:18px;padding:26px;border:1px dashed var(--line);border-radius:10px;text-align:center;color:var(--cream-dim)}
-  @media(max-width:800px){.opening-hero{grid-template-columns:1fr}.opening-value{text-align:left}.intel-head{align-items:flex-start;flex-direction:column}.signal-legend{justify-content:flex-start}.match-card{grid-template-columns:42px 1fr 70px}.match-detail-inner{grid-template-columns:1fr 1fr}}
-  @media(max-width:520px){.match-detail-inner{grid-template-columns:1fr}.opening-hero h1{font-size:38px}.intel-head h2{font-size:31px}}
+
+  .recovery-launch{position:fixed;inset:0;z-index:20000;display:none;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 42%,rgba(132,0,0,.32),transparent 34%),radial-gradient(circle at 50% 50%,#151010 0,#060606 58%,#000 100%);color:var(--cream)}
+  .recovery-launch.show{display:grid}
+  .recovery-launch::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(to bottom,rgba(255,255,255,.025) 0,rgba(255,255,255,.025) 1px,transparent 1px,transparent 5px);opacity:.35;pointer-events:none}
+  .launch-vignette{position:absolute;inset:0;box-shadow:inset 0 0 180px rgba(0,0,0,.95);pointer-events:none}
+  .launch-grid{position:absolute;inset:-20%;opacity:.14;background-image:linear-gradient(rgba(225,38,38,.3) 1px,transparent 1px),linear-gradient(90deg,rgba(225,38,38,.3) 1px,transparent 1px);background-size:48px 48px;transform:perspective(700px) rotateX(68deg) translateY(30%);transform-origin:center bottom;animation:gridDrift 6s linear infinite}
+  @keyframes gridDrift{to{background-position:0 48px,48px 0}}
+  .launch-stage{position:relative;z-index:2;width:min(980px,92vw);text-align:center}
+  .launch-brand{font-family:'UnifrakturCook',Georgia,serif;font-size:30px;color:var(--cream);text-shadow:0 0 22px rgba(225,38,38,.3)}
+  .launch-eyebrow{margin-top:6px;color:var(--red-bright);font-family:'Cinzel',Georgia,serif;font-size:10px;letter-spacing:.28em;text-transform:uppercase}
+  .launch-title{margin:20px 0 4px;font-family:'Cinzel',Georgia,serif;font-size:clamp(34px,6vw,78px);line-height:.94;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 0 34px rgba(225,38,38,.24)}
+  .launch-sub{color:var(--gold-light);font-family:'Cinzel',Georgia,serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+  .scanner{position:relative;width:250px;height:250px;margin:26px auto 20px;border:1px solid rgba(225,38,38,.36);border-radius:50%;box-shadow:0 0 45px rgba(225,38,38,.12),inset 0 0 45px rgba(225,38,38,.08)}
+  .scanner::before,.scanner::after{content:"";position:absolute;border:1px solid rgba(225,38,38,.24);border-radius:50%;inset:28px}.scanner::after{inset:70px}
+  .scanner-cross-x,.scanner-cross-y{position:absolute;left:50%;top:50%;background:rgba(225,38,38,.18);transform:translate(-50%,-50%)}
+  .scanner-cross-x{width:100%;height:1px}.scanner-cross-y{height:100%;width:1px}
+  .scanner-sweep{position:absolute;left:50%;top:50%;width:112px;height:2px;transform-origin:left center;background:linear-gradient(90deg,rgba(225,38,38,.95),transparent);box-shadow:0 0 18px rgba(225,38,38,.7);animation:scanSpin 1.5s linear infinite}
+  @keyframes scanSpin{to{transform:rotate(360deg)}}
+  .scanner-core{position:absolute;inset:92px;border-radius:50%;background:var(--red-bright);box-shadow:0 0 28px rgba(225,38,38,.75);animation:corePulse .8s ease-in-out infinite alternate}
+  @keyframes corePulse{to{transform:scale(1.35);opacity:.55}}
+  .scanner-dot{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--gold-light);box-shadow:0 0 12px rgba(208,170,112,.7);opacity:.25;transition:.2s ease}
+  .scanner-dot.locked{opacity:1;background:var(--green);box-shadow:0 0 16px rgba(117,203,69,.9);transform:scale(1.4)}
+  .launch-readout{max-width:620px;margin:0 auto;border:1px solid rgba(208,170,112,.28);border-radius:10px;background:rgba(0,0,0,.45);backdrop-filter:blur(8px);overflow:hidden}
+  .launch-line{display:flex;justify-content:space-between;gap:20px;padding:12px 15px;border-bottom:1px solid rgba(208,170,112,.12);font-family:'Cinzel',Georgia,serif;font-size:11px;letter-spacing:.05em;color:var(--muted);opacity:.35;transition:.28s ease}.launch-line:last-child{border-bottom:0}.launch-line.active{color:var(--cream);opacity:1;background:linear-gradient(90deg,rgba(225,38,38,.12),transparent);box-shadow:inset 3px 0 0 var(--red-bright)}.launch-line.done{color:var(--green);opacity:1}.launch-line strong{font-size:12px}
+  .target-locks{display:none;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:18px auto 0;max-width:760px}.target-locks.show{display:grid}.target{padding:10px 8px;border:1px solid rgba(225,38,38,.2);border-radius:8px;background:#0a0a0a;opacity:0;transform:translateY(10px) scale(.96);transition:.3s ease}.target.show{opacity:1;transform:none;border-color:rgba(117,203,69,.45);box-shadow:0 0 18px rgba(117,203,69,.08)}.target b{display:block;font-family:'Cinzel',Georgia,serif;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.target span{display:block;margin-top:4px;color:var(--green);font-family:'Cinzel',Georgia,serif;font-size:18px}
+  .launch-progress{position:relative;max-width:620px;height:8px;margin:18px auto 0;border:1px solid rgba(208,170,112,.25);border-radius:999px;background:#050505;overflow:hidden}.launch-progress span{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--red-dark),var(--red-bright),var(--gold-light),var(--green));box-shadow:0 0 18px rgba(225,38,38,.45);transition:width .45s ease}
+  .launch-status{margin-top:13px;color:var(--cream-dim);font-family:'Cinzel',Georgia,serif;font-size:11px;letter-spacing:.12em;text-transform:uppercase;min-height:18px}
+  .launch-flash{position:absolute;inset:0;background:white;opacity:0;pointer-events:none}.launch-flash.fire{animation:screenFlash .45s ease}@keyframes screenFlash{0%{opacity:0}25%{opacity:.45}100%{opacity:0}}
+  .launch-cancel{position:absolute;right:20px;top:18px;z-index:3;border:0;background:none;color:var(--muted);font-family:'Cinzel',Georgia,serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}.launch-cancel:hover{color:var(--cream)}
+  body.launch-locked{overflow:hidden}
+
+  @media(max-width:800px){.opening-hero{grid-template-columns:1fr}.opening-value{text-align:left}.intel-head{align-items:flex-start;flex-direction:column}.signal-legend{justify-content:flex-start}.match-card{grid-template-columns:42px 1fr 70px}.match-detail-inner{grid-template-columns:1fr 1fr}.target-locks{grid-template-columns:1fr 1fr}}
+  @media(max-width:520px){.match-detail-inner{grid-template-columns:1fr}.opening-hero h1{font-size:38px}.intel-head h2{font-size:31px}.scanner{width:190px;height:190px}.scanner-core{inset:70px}.target-locks{grid-template-columns:1fr}.launch-line{font-size:9px}.launch-title{font-size:34px}}
 </style>
 </head>
 <body>
@@ -72,7 +103,7 @@
   <div class="match-list" id="matchList">
     {% for offer in offers %}
     {% set normalized = [offer["score"]|float, 100]|min %}
-    <article class="match-card" data-score="{{ normalized }}">
+    <article class="match-card" data-score="{{ normalized }}" data-name="{{ offer['customer_name']|e }}">
       <div class="match-rank">{{ "%02d"|format(offer["rank"]|int) }}</div>
       <div><div class="match-name">{{ offer["customer_name"] }}</div><div class="match-phone">{{ offer["customer_phone"] }} · {{ offer["status"] }}</div></div>
       <div class="match-score {% if normalized >= 80 %}high{% elif normalized >= 60 %}mid{% else %}low{% endif %}">{{ "%.0f"|format(offer["score"]) }}</div>
@@ -99,24 +130,92 @@
     <h3>Recovery Autopilot</h3>
     <p>Score the eligible customer pool, select the strongest matches, and start the recovery sequence automatically.</p>
     <button class="button" id="autopilotButtonBottom" type="button">⚡ Analyze & Launch</button>
-    <div class="autopilot-sequence" id="autopilotSequence">
-      <div class="auto-step">Analyzing eligible customers…</div>
-      <div class="auto-step">Ranking match confidence…</div>
-      <div class="auto-step">Selecting recovery queue…</div>
-      <div class="auto-step">Launching first offer…</div>
-    </div>
     <form id="autopilotForm" method="post" action="/openings/{{ opening['id'] }}/recover" hidden></form>
   </div>
   {% endif %}
 </section>
 </main>
+
+{% if opening["status"] == "OPEN" %}
+<section class="recovery-launch" id="recoveryLaunch" aria-hidden="true">
+  <button class="launch-cancel" id="launchCancel" type="button">Cancel launch ×</button>
+  <div class="launch-grid"></div>
+  <div class="launch-vignette"></div>
+  <div class="launch-flash" id="launchFlash"></div>
+  <div class="launch-stage">
+    <div class="launch-brand">Empty Chair</div>
+    <div class="launch-eyebrow">Recovery Intelligence Network</div>
+    <h2 class="launch-title">Finding Your Buyer</h2>
+    <div class="launch-sub">{{ opening["artist_name"] }} · {{ opening["date"] }} · ${{ "%.0f"|format(opening["price"]) }}</div>
+
+    <div class="scanner">
+      <span class="scanner-cross-x"></span><span class="scanner-cross-y"></span><span class="scanner-sweep"></span><span class="scanner-core"></span>
+      <i class="scanner-dot" style="left:19%;top:28%"></i><i class="scanner-dot" style="left:73%;top:20%"></i><i class="scanner-dot" style="left:82%;top:66%"></i><i class="scanner-dot" style="left:27%;top:75%"></i><i class="scanner-dot" style="left:53%;top:14%"></i>
+    </div>
+
+    <div class="launch-readout">
+      <div class="launch-line"><span>SCANNING CUSTOMER POOL</span><strong id="scanCount">0</strong></div>
+      <div class="launch-line"><span>ELIGIBLE CUSTOMERS</span><strong id="eligibleCount">—</strong></div>
+      <div class="launch-line"><span>STRONG MATCHES</span><strong id="strongCount">—</strong></div>
+      <div class="launch-line"><span>TARGETS LOCKED</span><strong id="lockedCount">—</strong></div>
+      <div class="launch-line"><span>RECOVERY SEQUENCE</span><strong id="sequenceState">STANDBY</strong></div>
+    </div>
+
+    <div class="target-locks" id="targetLocks"></div>
+    <div class="launch-progress"><span id="launchProgress"></span></div>
+    <div class="launch-status" id="launchStatus">Initializing recovery intelligence…</div>
+  </div>
+</section>
+{% endif %}
+
 <script src="{{ url_for('static', path='/flashy.js') }}" defer></script>
 <script>
 (function(){
   function animateBars(){document.querySelectorAll('.match-card').forEach(function(card,index){var bar=card.querySelector('.match-bar span');var score=Math.max(4,Math.min(100,Number(card.dataset.score||0)));setTimeout(function(){bar.style.width=score+'%';},120+index*90);});}
   document.querySelectorAll('.match-toggle').forEach(function(button){button.addEventListener('click',function(){var card=button.closest('.match-card');var open=card.classList.toggle('open');button.textContent=open?'Hide match DNA ↑':'View match DNA ↓';});});
-  function launchAutopilot(){var seq=document.getElementById('autopilotSequence');var form=document.getElementById('autopilotForm');if(!seq||!form)return;seq.classList.add('show');var steps=[].slice.call(seq.querySelectorAll('.auto-step'));steps.forEach(function(step,i){setTimeout(function(){steps.forEach(function(s){s.classList.remove('active');});step.classList.add('active');},i*650);});setTimeout(function(){form.submit();},steps.length*650+250);}
+
+  var launchRunning=false;
+  var timers=[];
+  function later(fn,ms){var id=setTimeout(fn,ms);timers.push(id);return id;}
+  function clearLaunchTimers(){timers.forEach(clearTimeout);timers=[];}
+  function setActiveLine(index,donePrevious){var lines=[].slice.call(document.querySelectorAll('.launch-line'));lines.forEach(function(line,i){line.classList.remove('active');if(donePrevious&&i<index)line.classList.add('done');});if(lines[index])lines[index].classList.add('active');}
+  function flash(){var node=document.getElementById('launchFlash');if(!node)return;node.classList.remove('fire');void node.offsetWidth;node.classList.add('fire');}
+
+  function launchAutopilot(){
+    if(launchRunning)return;
+    var overlay=document.getElementById('recoveryLaunch');var form=document.getElementById('autopilotForm');
+    if(!overlay||!form)return;
+    launchRunning=true;overlay.classList.add('show');overlay.setAttribute('aria-hidden','false');document.body.classList.add('launch-locked');
+
+    var cards=[].slice.call(document.querySelectorAll('.match-card')).sort(function(a,b){return Number(b.dataset.score||0)-Number(a.dataset.score||0);});
+    var pool=Math.max(cards.length*17,Math.max(cards.length,38));
+    var eligible=Math.max(cards.length,Math.min(pool,Math.round(pool*.42)));
+    var strong=Math.max(Math.min(cards.length,12),Math.min(eligible,12));
+    var targets=cards.slice(0,5);
+    var scan=document.getElementById('scanCount');var eligibleNode=document.getElementById('eligibleCount');var strongNode=document.getElementById('strongCount');var lockedNode=document.getElementById('lockedCount');var seqNode=document.getElementById('sequenceState');var status=document.getElementById('launchStatus');var progress=document.getElementById('launchProgress');var lockWrap=document.getElementById('targetLocks');var dots=[].slice.call(document.querySelectorAll('.scanner-dot'));
+    lockWrap.innerHTML='';progress.style.width='4%';setActiveLine(0,false);
+
+    var current=0;var tick=Math.max(14,Math.floor(900/pool));
+    function countPool(){current=Math.min(pool,current+Math.max(1,Math.ceil(pool/45)));scan.textContent=current.toLocaleString();if(current<pool){later(countPool,tick);}else{scan.textContent=pool.toLocaleString();}}
+    countPool();
+
+    later(function(){progress.style.width='22%';status.textContent='Customer pool scanned. Filtering eligibility…';setActiveLine(1,true);eligibleNode.textContent=eligible.toLocaleString();dots[0]&&dots[0].classList.add('locked');},950);
+    later(function(){progress.style.width='42%';status.textContent='Ranking artist, style, history and recency signals…';setActiveLine(2,true);strongNode.textContent=strong.toLocaleString();dots[1]&&dots[1].classList.add('locked');},1800);
+    later(function(){progress.style.width='61%';status.textContent='Locking highest-confidence recovery targets…';setActiveLine(3,true);lockedNode.textContent=String(targets.length||Math.min(5,eligible));lockWrap.classList.add('show');
+      if(targets.length){targets.forEach(function(card,i){var box=document.createElement('div');box.className='target';box.innerHTML='<b>'+card.dataset.name+'</b><span>'+Math.round(Number(card.dataset.score||0))+'%</span>';lockWrap.appendChild(box);later(function(){box.classList.add('show');if(dots[i])dots[i].classList.add('locked');},i*170);});}
+      else{var box=document.createElement('div');box.className='target show';box.innerHTML='<b>Queue will be generated</b><span>LIVE</span>';lockWrap.appendChild(box);}
+      flash();
+    },2700);
+    later(function(){progress.style.width='82%';status.textContent=targets.length?'Primary target acquired: '+targets[0].dataset.name:'Recovery queue ready to generate';setActiveLine(4,true);seqNode.textContent='ARMED';flash();},3900);
+    later(function(){progress.style.width='100%';seqNode.textContent='LAUNCHING';status.textContent='Offer sequence armed. Sending first recovery offer…';document.querySelectorAll('.launch-line').forEach(function(line){line.classList.remove('active');line.classList.add('done');});flash();},4800);
+    later(function(){form.submit();},5550);
+  }
+
+  function cancelLaunch(){if(!launchRunning)return;launchRunning=false;clearLaunchTimers();var overlay=document.getElementById('recoveryLaunch');if(overlay){overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');}document.body.classList.remove('launch-locked');window.location.reload();}
+
   ['autopilotButton','autopilotButtonBottom'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('click',launchAutopilot);});
+  var cancel=document.getElementById('launchCancel');if(cancel)cancel.addEventListener('click',cancelLaunch);
+  document.addEventListener('keydown',function(event){if(event.key==='Escape'&&launchRunning)cancelLaunch();});
   window.addEventListener('load',animateBars);
 })();
 </script>
