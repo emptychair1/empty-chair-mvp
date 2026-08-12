@@ -809,6 +809,7 @@ def send_email(to_email, subject, html):
                 f"Bearer {RESEND_API_KEY}"
             ),
             "Content-Type": "application/json",
+            "User-Agent": "empty-chair/1.0",
         },
     )
 
