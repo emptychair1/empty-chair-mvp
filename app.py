@@ -2628,21 +2628,18 @@ def dashboard(
 )
 
     completed_row = db_fetchone(
-        conn,
-        """
-        SELECT
-            COUNT(*) AS n
-        FROM openings
-        WHERE shop_id = ?
-          AND status IN (
-              'BOOKED',
-              'COMPLETED'
-          )
-        """,
-        (
-            user["shop_id"],
-        ),
-    )
+    conn,
+    """
+    SELECT
+        COUNT(*) AS n
+    FROM openings
+    WHERE shop_id = ?
+      AND status IN ('BOOKED', 'COMPLETED')
+    """,
+    (
+        user["shop_id"],
+    ),
+)
 
     completed_row = db_fetchone(
         conn,
