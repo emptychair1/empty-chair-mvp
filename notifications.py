@@ -1,11 +1,16 @@
 """Customer notification layer for Empty Chair.
 
-This module augments the existing core notification functions without changing
-legacy routes. Recovery offers are delivered by SMS and email when an email is
-available. Successful claims send customer confirmations through both channels.
+SMS and email can be controlled independently with environment variables:
+- EMPTY_CHAIR_SMS_LIVE=true|false
+- EMPTY_CHAIR_EMAIL_LIVE=true|false
+
+This allows live email delivery while Twilio remains in demo mode.
 """
 
 import json
+import os
+import urllib.error
+import urllib.request
 from html import escape
 
 import app as core
@@ -13,8 +18,10 @@ from twilio.rest import Client
 
 
 _PATCHED = False
-_ORIGINAL_SEND_SMS = core.send_sms
 _ORIGINAL_SEND_RECOVERY_EMAIL = core.send_recovery_email
+
+SMS_LIVE = os.getenv("EMPTY_CHAIR_SMS_LIVE", "false").lower() == "true"
+EMAIL_LIVE = os.getenv("EMPTY_CHAIR_EMAIL_LIVE", "false").lower() == "true"
 
 
 def _first_name(name):
@@ -30,11 +37,64 @@ def _booking_url(booking_id):
     return f"{core.PUBLIC_BASE_URL.rstrip('/')}/booking/{booking_id}"
 
 
+def send_email(to_email, subject, html):
+    """Send email independently of EMPTY_CHAIR_DEMO_MODE."""
+    to_email = core.normalize_email(to_email)
+
+    if not to_email:
+        return False
+
+    if not EMAIL_LIVE:
+        print()
+        print("--- DEMO EMAIL ---")
+        print(f"To: {to_email}")
+        print(f"Subject: {subject}")
+        print(html)
+        print("------------------")
+        print()
+        return True
+
+    if not core.RESEND_API_KEY:
+        print("Email skipped: RESEND_API_KEY is not configured.")
+        return False
+
+    payload = json.dumps(
+        {
+            "from": core.EMAIL_FROM,
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+        }
+    ).encode("utf-8")
+
+    request = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {core.RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return 200 <= response.status < 300
+    except (
+        urllib.error.HTTPError,
+        urllib.error.URLError,
+        TimeoutError,
+    ) as exc:
+        print("Email send failed:", str(exc))
+        return False
+
+
 def _send_text(to_phone, body):
+    """Send SMS only when EMPTY_CHAIR_SMS_LIVE=true."""
     if not to_phone:
         return False
 
-    if core.DEMO_MODE:
+    if not SMS_LIVE:
         print()
         print("--- DEMO SMS ---")
         print(f"To: {to_phone}")
@@ -70,7 +130,9 @@ def _send_text(to_phone, body):
 
 
 def send_offer_email(customer, opening, offer_id):
-    email = core.normalize_email(customer["email"] if "email" in customer.keys() else None)
+    email = core.normalize_email(
+        customer["email"] if "email" in customer.keys() else None
+    )
     if not email:
         return False
 
@@ -81,7 +143,7 @@ def send_offer_email(customer, opening, offer_id):
     price = float(opening["price"] or 0)
     claim_url = _claim_url(offer_id)
 
-    return core.send_email(
+    return send_email(
         email,
         "A tattoo opening just became available",
         f"""
@@ -109,8 +171,18 @@ def send_offer_email(customer, opening, offer_id):
 
 
 def send_offer_multichannel(customer, opening, offer_id):
-    """Preserve the existing SMS send and add customer email when available."""
-    sms_sent = _ORIGINAL_SEND_SMS(customer, opening, offer_id)
+    first_name = _first_name(customer["name"])
+    style = opening["style"] or "tattoo"
+    claim_url = _claim_url(offer_id)
+
+    sms_body = (
+        f"Hey {first_name} — a {style} opening is available "
+        f"on {opening['date']} at {opening['start_time']} "
+        f"for ${float(opening['price']):.0f}. "
+        f"Claim it: {claim_url}"
+    )
+
+    sms_sent = _send_text(customer["phone"], sms_body)
 
     email_sent = False
     try:
@@ -126,6 +198,8 @@ def send_offer_multichannel(customer, opening, offer_id):
             {
                 "sms": bool(sms_sent),
                 "email": bool(email_sent),
+                "sms_live": SMS_LIVE,
+                "email_live": EMAIL_LIVE,
             }
         ),
     )
@@ -183,7 +257,7 @@ def send_customer_claim_confirmation(opening_id):
     email_sent = False
     customer_email = core.normalize_email(row["customer_email"])
     if customer_email:
-        email_sent = core.send_email(
+        email_sent = send_email(
             customer_email,
             f"You claimed the opening at {row['shop_name']}",
             f"""
@@ -215,6 +289,8 @@ def send_customer_claim_confirmation(opening_id):
             {
                 "sms": bool(sms_sent),
                 "email": bool(email_sent),
+                "sms_live": SMS_LIVE,
+                "email_live": EMAIL_LIVE,
             }
         ),
     )
@@ -223,10 +299,48 @@ def send_customer_claim_confirmation(opening_id):
 
 
 def send_recovery_email_with_customer_confirmation(opening_id):
-    """Keep the shop recovery email and add customer confirmation delivery."""
     shop_email_sent = False
     try:
-        shop_email_sent = _ORIGINAL_SEND_RECOVERY_EMAIL(opening_id)
+        row = _claim_details(opening_id)
+        if row:
+            conn = core.connect()
+            try:
+                user = core.db_fetchone(
+                    conn,
+                    """
+                    SELECT u.name, u.email
+                    FROM users u
+                    JOIN shops s ON s.id = u.shop_id
+                    JOIN openings o ON o.shop_id = s.id
+                    WHERE o.id = ? AND u.is_active = 1
+                    ORDER BY u.created_at
+                    LIMIT 1
+                    """,
+                    (opening_id,),
+                )
+            finally:
+                conn.close()
+
+            if user:
+                shop_email_sent = send_email(
+                    user["email"],
+                    "Empty Chair recovered an opening",
+                    f"""
+                    <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;line-height:1.55;">
+                        <h2>Chair recovered</h2>
+                        <p>
+                            <strong>{escape(str(row['customer_name']))}</strong>
+                            claimed the {escape(str(row['date']))} opening at
+                            {escape(str(row['start_time']))} with
+                            {escape(str(row['artist_name']))}.
+                        </p>
+                        <p>
+                            Estimated recovered revenue:
+                            <strong>${float(row['price'] or 0):.0f}</strong>
+                        </p>
+                    </div>
+                    """,
+                )
     finally:
         try:
             send_customer_claim_confirmation(opening_id)
@@ -241,6 +355,9 @@ def install():
     if _PATCHED:
         return
 
+    # Replace core senders so signup/password/recovery emails also respect
+    # EMPTY_CHAIR_EMAIL_LIVE independently of the global demo flag.
+    core.send_email = send_email
     core.send_sms = send_offer_multichannel
     core.send_recovery_email = send_recovery_email_with_customer_confirmation
     _PATCHED = True
