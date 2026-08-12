@@ -1,27 +1,124 @@
 <!doctype html>
-<html lang="en"><head><link
-    rel="icon"
-    type="image/png"
-    href="{{ url_for('static', path='/favicon.png') }}"
-><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Opening · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"></head>
-<body><main class="content">
-<p><a href="/">← Dashboard</a></p>
-<div class="panel">
-<h1>{{ opening["artist_name"] }} · {{ opening["date"] }} {{ opening["start_time"] }}</h1>
-<p>{{ opening["service"] }}{% if opening["style"] %} · {{ opening["style"] }}{% endif %} · ${{ "%.0f"|format(opening["price"]) }}</p>
-<p>Status: <strong>{{ opening["status"] }}</strong></p>
-{% if opening["status"] == "OPEN" %}
-<form method="post" action="/openings/{{ opening['id'] }}/recover"><button class="button">Launch Recovery</button></form>
-{% elif opening["status"] == "RECOVERY_ACTIVE" %}
-<form method="post" action="/openings/{{ opening['id'] }}/advance"><button class="button secondary">Advance Queue</button></form>
-{% endif %}
-</div>
-<div class="panel" style="margin-top:18px">
-<h2>Recovery queue</h2>
-{% if offers %}
-<table><thead><tr><th>Rank</th><th>Customer</th><th>Phone</th><th>Score</th><th>Status</th></tr></thead><tbody>
-{% for offer in offers %}<tr><td>{{ offer["rank"] }}</td><td>{{ offer["customer_name"] }}</td><td>{{ offer["customer_phone"] }}</td><td>{{ "%.1f"|format(offer["score"]) }}</td><td>{{ offer["status"] }}</td></tr>{% endfor %}
-</tbody></table>
-{% else %}<p>No recovery offers yet.</p>{% endif %}
-</div></main></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Opening · Empty Chair</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='/flashy.css') }}">
+<style>
+  .match-shell{max-width:1180px;margin:0 auto;padding:34px 24px 60px}
+  .match-back{display:inline-flex;margin-bottom:18px;color:var(--gold-light);text-decoration:none;font-family:'Cinzel',Georgia,serif;font-size:12px;letter-spacing:.04em}
+  .opening-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;padding:28px;border:1px solid rgba(225,38,38,.5);border-radius:14px;background:radial-gradient(circle at 10% 10%,rgba(225,38,38,.18),transparent 36%),linear-gradient(145deg,#151010,#090909);box-shadow:0 22px 60px rgba(0,0,0,.35),0 0 30px rgba(225,38,38,.08)}
+  .opening-kicker,.intel-kicker{color:var(--gold-light);text-transform:uppercase;letter-spacing:.16em;font-size:10px}
+  .opening-hero h1,.intel-head h2{margin:7px 0 6px;font-family:'UnifrakturCook',Georgia,serif;font-weight:700}
+  .opening-hero h1{font-size:46px;line-height:1}
+  .opening-meta{color:var(--cream-dim);font-size:13px;line-height:1.6}
+  .opening-value{text-align:right;align-self:center}
+  .opening-value strong{display:block;font-family:'Cinzel',Georgia,serif;font-size:34px;color:var(--danger)}
+  .opening-value span{display:block;margin-top:4px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em}
+  .opening-controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .intel-panel{margin-top:18px;padding:24px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#121212,#090909)}
+  .intel-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-end}
+  .intel-head h2{font-size:36px;line-height:1}
+  .intel-copy{max-width:650px;color:var(--cream-dim);font-size:12px;line-height:1.6}
+  .signal-legend{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.signal-chip{padding:7px 9px;border:1px solid var(--line-soft);border-radius:999px;background:#0b0b0b;color:var(--gold-light);font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+  .match-list{display:grid;gap:12px;margin-top:20px}
+  .match-card{position:relative;overflow:hidden;display:grid;grid-template-columns:52px minmax(0,1fr) 90px;gap:16px;align-items:center;padding:18px;border:1px solid var(--line-soft);border-radius:10px;background:linear-gradient(135deg,#121212,#0b0b0b);transition:.2s ease}
+  .match-card:hover{transform:translateY(-2px);border-color:rgba(225,38,38,.45);box-shadow:0 16px 40px rgba(0,0,0,.34),0 0 22px rgba(225,38,38,.06)}
+  .match-rank{font-family:'Cinzel',Georgia,serif;font-size:25px;color:var(--muted)}
+  .match-name{font-family:'Cinzel',Georgia,serif;font-size:18px}.match-phone{margin-top:4px;color:var(--muted);font-size:11px}
+  .match-score{text-align:right;font-family:'Cinzel',Georgia,serif;font-size:30px;font-weight:700}.match-score.high{color:var(--green)}.match-score.mid{color:var(--gold-light)}.match-score.low{color:var(--danger)}
+  .match-bar{grid-column:2 / 4;height:9px;border:1px solid var(--line-soft);border-radius:999px;background:#070707;overflow:hidden}.match-bar > span{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--red-dark),var(--red-bright),var(--gold-light),var(--green));box-shadow:0 0 18px rgba(225,38,38,.22);transition:width 1s cubic-bezier(.2,.75,.2,1)}
+  .match-detail{grid-column:2 / 4;display:none;padding-top:2px}.match-card.open .match-detail{display:block}.match-detail-inner{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.signal-box{padding:10px;border:1px solid var(--line-soft);border-radius:8px;background:#0a0a0a}.signal-box b{display:block;color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.08em}.signal-box span{display:block;margin-top:5px;color:var(--cream-dim);font-size:11px;line-height:1.4}.confidence{margin-top:10px;color:var(--cream-dim);font-size:11px}.match-toggle{grid-column:2 / 4;justify-self:start;border:0;background:none;color:var(--gold-light);padding:0;cursor:pointer;font-size:11px}
+  .autopilot{margin-top:18px;padding:22px;border:1px solid rgba(225,38,38,.45);border-radius:12px;background:radial-gradient(circle at 50% 0%,rgba(225,38,38,.12),transparent 45%),#0a0a0a;text-align:center}.autopilot h3{margin:0;font-family:'UnifrakturCook',Georgia,serif;font-size:34px}.autopilot p{margin:8px auto 16px;max-width:580px;color:var(--cream-dim);font-size:12px;line-height:1.6}.autopilot-sequence{display:none;gap:8px;max-width:520px;margin:16px auto 0}.autopilot-sequence.show{display:grid}.auto-step{padding:10px 12px;border:1px solid var(--line-soft);border-radius:8px;background:#0c0c0c;color:var(--muted);font-family:'Cinzel',Georgia,serif;font-size:11px;opacity:.35;transform:translateY(4px);transition:.3s ease}.auto-step.active{opacity:1;transform:none;color:var(--cream);border-color:rgba(225,38,38,.45);box-shadow:0 0 20px rgba(225,38,38,.08)}
+  .empty-intel{margin-top:18px;padding:26px;border:1px dashed var(--line);border-radius:10px;text-align:center;color:var(--cream-dim)}
+  @media(max-width:800px){.opening-hero{grid-template-columns:1fr}.opening-value{text-align:left}.intel-head{align-items:flex-start;flex-direction:column}.signal-legend{justify-content:flex-start}.match-card{grid-template-columns:42px 1fr 70px}.match-detail-inner{grid-template-columns:1fr 1fr}}
+  @media(max-width:520px){.match-detail-inner{grid-template-columns:1fr}.opening-hero h1{font-size:38px}.intel-head h2{font-size:31px}}
+</style>
+</head>
+<body>
+<main class="match-shell">
+<a class="match-back" href="/">← Command Center</a>
+<section class="opening-hero flash-tilt">
+  <div>
+    <div class="opening-kicker">Opening Intelligence</div>
+    <h1>{{ opening["artist_name"] }} · {{ opening["date"] }}</h1>
+    <div class="opening-meta">{{ opening["start_time"] }} · {{ opening["service"] }}{% if opening["style"] %} · {{ opening["style"] }}{% endif %} · Status {{ opening["status"].replace('_',' ') }}</div>
+    <div class="opening-controls">
+      {% if opening["status"] == "OPEN" %}
+      <button class="button" id="autopilotButton" type="button">⚡ Launch Autopilot</button>
+      {% elif opening["status"] == "RECOVERY_ACTIVE" %}
+      <form method="post" action="/openings/{{ opening['id'] }}/advance"><button class="button secondary" type="submit">Advance Queue</button></form>
+      {% endif %}
+      <a class="button secondary" href="/recovery">Recovery Command Center</a>
+    </div>
+  </div>
+  <div class="opening-value"><strong>${{ "%.0f"|format(opening["price"]) }}</strong><span>Chair value</span></div>
+</section>
+
+<section class="intel-panel">
+  <div class="intel-head">
+    <div>
+      <div class="intel-kicker">Customer Match Intelligence</div>
+      <h2>Who Should Get This Chair?</h2>
+      <div class="intel-copy">Candidates are ranked by Empty Chair’s recovery score. The engine considers signals such as artist affinity, style fit, customer history, and recent offer activity.</div>
+    </div>
+    <div class="signal-legend"><span class="signal-chip">Artist affinity</span><span class="signal-chip">Style fit</span><span class="signal-chip">History</span><span class="signal-chip">Recency</span></div>
+  </div>
+
+  {% if offers %}
+  <div class="match-list" id="matchList">
+    {% for offer in offers %}
+    {% set normalized = [offer["score"]|float, 100]|min %}
+    <article class="match-card" data-score="{{ normalized }}">
+      <div class="match-rank">{{ "%02d"|format(offer["rank"]|int) }}</div>
+      <div><div class="match-name">{{ offer["customer_name"] }}</div><div class="match-phone">{{ offer["customer_phone"] }} · {{ offer["status"] }}</div></div>
+      <div class="match-score {% if normalized >= 80 %}high{% elif normalized >= 60 %}mid{% else %}low{% endif %}">{{ "%.0f"|format(offer["score"]) }}</div>
+      <div class="match-bar"><span></span></div>
+      <button class="match-toggle" type="button">View match DNA ↓</button>
+      <div class="match-detail">
+        <div class="match-detail-inner">
+          <div class="signal-box"><b>Artist signal</b><span>Affinity with the selected artist contributes to ranking when present.</span></div>
+          <div class="signal-box"><b>Style signal</b><span>Style preference alignment can strengthen the match for this opening.</span></div>
+          <div class="signal-box"><b>History signal</b><span>Past completed activity and reliability influence the engine’s confidence.</span></div>
+          <div class="signal-box"><b>Recency signal</b><span>Recent offer activity helps prevent over-contacting the same customer.</span></div>
+        </div>
+        <div class="confidence">{% if normalized >= 80 %}High-confidence recovery candidate.{% elif normalized >= 60 %}Strong candidate with moderate confidence.{% else %}Lower-confidence candidate; useful later in the queue.{% endif %}</div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-intel">No recovery queue exists yet. Launch Autopilot to score eligible customers and build the ranked match list.</div>
+  {% endif %}
+
+  {% if opening["status"] == "OPEN" %}
+  <div class="autopilot">
+    <h3>Recovery Autopilot</h3>
+    <p>Score the eligible customer pool, select the strongest matches, and start the recovery sequence automatically.</p>
+    <button class="button" id="autopilotButtonBottom" type="button">⚡ Analyze & Launch</button>
+    <div class="autopilot-sequence" id="autopilotSequence">
+      <div class="auto-step">Analyzing eligible customers…</div>
+      <div class="auto-step">Ranking match confidence…</div>
+      <div class="auto-step">Selecting recovery queue…</div>
+      <div class="auto-step">Launching first offer…</div>
+    </div>
+    <form id="autopilotForm" method="post" action="/openings/{{ opening['id'] }}/recover" hidden></form>
+  </div>
+  {% endif %}
+</section>
+</main>
+<script src="{{ url_for('static', path='/flashy.js') }}" defer></script>
+<script>
+(function(){
+  function animateBars(){document.querySelectorAll('.match-card').forEach(function(card,index){var bar=card.querySelector('.match-bar span');var score=Math.max(4,Math.min(100,Number(card.dataset.score||0)));setTimeout(function(){bar.style.width=score+'%';},120+index*90);});}
+  document.querySelectorAll('.match-toggle').forEach(function(button){button.addEventListener('click',function(){var card=button.closest('.match-card');var open=card.classList.toggle('open');button.textContent=open?'Hide match DNA ↑':'View match DNA ↓';});});
+  function launchAutopilot(){var seq=document.getElementById('autopilotSequence');var form=document.getElementById('autopilotForm');if(!seq||!form)return;seq.classList.add('show');var steps=[].slice.call(seq.querySelectorAll('.auto-step'));steps.forEach(function(step,i){setTimeout(function(){steps.forEach(function(s){s.classList.remove('active');});step.classList.add('active');},i*650);});setTimeout(function(){form.submit();},steps.length*650+250);}
+  ['autopilotButton','autopilotButtonBottom'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('click',launchAutopilot);});
+  window.addEventListener('load',animateBars);
+})();
+</script>
+</body>
+</html>
