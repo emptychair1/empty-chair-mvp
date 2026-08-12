@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Import Complete · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"></head>
+<body><main class="content" style="max-width:760px"><div class="panel">
+<h1>Import complete</h1><p>Imported: <strong>{{ imported }}</strong></p><p>Updated: <strong>{{ updated }}</strong></p><p>Skipped: <strong>{{ skipped }}</strong></p>
+{% if errors %}<h2>Notes</h2><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+<p><a class="button" href="{{ return_url|default('/') }}">{{ return_label|default('Back to Dashboard') }}</a></p></div></main></body></html>

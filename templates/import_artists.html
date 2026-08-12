@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Import Artists · Empty Chair</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+<main class="content" style="max-width:760px">
+  <p><a href="/artists">← Artists</a></p>
+  <div class="panel">
+    <h1>Import Artists</h1>
+    <p>Database: {{ database_type }}</p>
+    <p>CSV requires <strong>name</strong>. Optional columns: <strong>id, email, phone, styles, services, active</strong>.</p>
+    <p>Use commas inside quoted CSV cells for multiple styles, for example <code>"Traditional, Blackwork"</code>.</p>
+
+    <form method="post" action="/import/artists" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".csv,text/csv" required style="margin-bottom:14px">
+      <button class="button" type="submit">Import Artists</button>
+    </form>
+  </div>
+</main>
+</body>
+</html>
