@@ -2607,24 +2607,24 @@ def dashboard(
         ),
     )
 
-       recovered_row = db_fetchone(
-        conn,
-        """
-        SELECT
-            COALESCE(
-                SUM(b.amount),
-                0
-            ) AS total
-        FROM bookings b
-        JOIN openings o
-            ON o.id = b.opening_id
-        WHERE b.status IN ('CONFIRMED', 'COMPLETED')
-          AND o.shop_id = ?
-        """,
-        (
-            user["shop_id"],
-        ),
-    )
+    recovered_row = db_fetchone(
+    conn,
+    """
+    SELECT
+        COALESCE(
+            SUM(b.amount),
+            0
+        ) AS total
+    FROM bookings b
+    JOIN openings o
+        ON o.id = b.opening_id
+    WHERE b.status IN ('CONFIRMED', 'COMPLETED')
+        AND o.shop_id = ?
+    """,
+    (
+        user["shop_id"],
+    ),
+)
 
     completed_row = db_fetchone(
         conn,
