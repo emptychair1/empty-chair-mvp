@@ -1,0 +1,56 @@
+name: Apply Resend User-Agent patch
+
+on:
+  push:
+    branches:
+      - fix/resend-user-agent
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/resend-user-agent
+
+      - name: Patch Resend request
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("app.py")
+          text = path.read_text()
+
+          old = '''            "Content-Type": "application/json",
+          },
+          '''
+          new = '''            "Content-Type": "application/json",
+              "User-Agent": "empty-chair/1.0",
+          },
+          '''
+
+          if '"User-Agent": "empty-chair/1.0"' not in text:
+              if old not in text:
+                  raise SystemExit("Resend header block not found")
+              text = text.replace(old, new, 1)
+              path.write_text(text)
+
+          compile(text, "app.py", "exec")
+          PY
+
+      - name: Remove one-time workflow
+        run: rm .github/workflows/patch-resend-user-agent.yml
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- app.py .github/workflows/patch-resend-user-agent.yml
+          git diff --cached --check
+          git commit -m "fix: add User-Agent to Resend requests"
+          git push origin HEAD:fix/resend-user-agent
