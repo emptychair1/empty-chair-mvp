@@ -1,5 +1,8 @@
 import os
+import sys
 from pathlib import Path
+
+import pytest
 
 TEST_DB = Path("test_empty_chair.db")
 
@@ -10,16 +13,16 @@ os.environ.pop("DATABASE_URL", None)
 
 from fastapi.testclient import TestClient
 from app import app
-import app as core
+
+core = sys.modules["empty_chair_legacy_app"]
 
 
-def setup_module():
+@pytest.fixture(autouse=True)
+def fresh_database():
     if TEST_DB.exists():
         TEST_DB.unlink()
     core.init_db()
-
-
-def teardown_module():
+    yield
     if TEST_DB.exists():
         TEST_DB.unlink()
 
@@ -89,7 +92,11 @@ def test_basic_opening_flow():
         assert response.status_code == 200
 
         conn = core.connect()
-        artist = core.db_fetchone(conn, "SELECT * FROM artists WHERE name = ?", ("Alex Test",))
+        artist = core.db_fetchone(
+            conn,
+            "SELECT * FROM artists WHERE name = ?",
+            ("Alex Test",),
+        )
         conn.close()
         assert artist
 
