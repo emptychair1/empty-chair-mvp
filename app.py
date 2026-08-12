@@ -2607,39 +2607,20 @@ def dashboard(
         ),
     )
 
-    recovered_row = db_fetchone(
+    recovery_metrics_row = db_fetchone(
     conn,
-    """
-    SELECT
-        COALESCE(
-            SUM(price),
-            0
-        ) AS total
-    FROM openings
-    WHERE shop_id = ?
-        AND status IN (
-            'BOOKED',
-            'COMPLETED'
-        )
-    """,
-    (
-        user["shop_id"],
-    ),
-)
-
-    completed_row = db_fetchone(
-    conn,
-    """
-    SELECT
-        COUNT(*) AS n
-    FROM openings
-    WHERE shop_id = ?
-      AND status IN ('BOOKED', 'COMPLETED')
-    """,
-    (
-        user["shop_id"],
-    ),
-)
+        """
+        SELECT
+            COALESCE(SUM(price), 0) AS total,
+            COUNT(*) AS count
+        FROM openings
+        WHERE shop_id = ?
+            AND status IN ('BOOKED', 'COMPLETED')
+        """,
+        (
+            user["shop_id"],
+        ),
+    )
 
     completed_row = db_fetchone(
         conn,
@@ -2684,14 +2665,14 @@ def dashboard(
     conn.close()
 
     recovered = (
-        recovered_row["total"]
-        if recovered_row
+        recovery_metrics_row["total"]
+        if recovery_metrics_row
         else 0
     )
 
     completed = (
-        completed_row["n"]
-        if completed_row
+        recovery_metrics_row["count"]
+        if recovery_metrics_row
         else 0
     )
 
