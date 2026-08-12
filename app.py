@@ -2612,36 +2612,37 @@ def dashboard(
     """
     SELECT
         COALESCE(
-            SUM(b.amount),
+            SUM(price),
             0
         ) AS total
-    FROM bookings b
-    JOIN openings o
-        ON o.id = b.opening_id
-    WHERE o.status IN ('BOOKED', 'COMPLETED')
-      AND o.shop_id = ?
+    FROM openings
+    WHERE shop_id = ?
+        AND status IN (
+            'BOOKED',
+            'COMPLETED'
+        )
     """,
     (
         user["shop_id"],
     ),
 )
-
 
     completed_row = db_fetchone(
-    conn,
-    """
-    SELECT
-        COUNT(*) AS n
-    FROM bookings b
-    JOIN openings o
-        ON o.id = b.opening_id
-    WHERE o.status IN ('BOOKED', 'COMPLETED')
-      AND o.shop_id = ?
-    """,
-    (
-        user["shop_id"],
-    ),
-)
+        conn,
+        """
+        SELECT
+            COUNT(*) AS n
+        FROM openings
+        WHERE shop_id = ?
+          AND status IN (
+              'BOOKED',
+              'COMPLETED'
+          )
+        """,
+        (
+            user["shop_id"],
+        ),
+    )
 
     completed_row = db_fetchone(
         conn,
