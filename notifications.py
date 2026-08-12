@@ -5,6 +5,7 @@ legacy routes. Recovery offers are delivered by SMS and email when an email is
 available. Successful claims send customer confirmations through both channels.
 """
 
+import json
 from html import escape
 
 import app as core
@@ -121,10 +122,12 @@ def send_offer_multichannel(customer, opening, offer_id):
         "offer.delivery",
         "offer",
         offer_id,
-        {
-            "sms": bool(sms_sent),
-            "email": bool(email_sent),
-        },
+        json.dumps(
+            {
+                "sms": bool(sms_sent),
+                "email": bool(email_sent),
+            }
+        ),
     )
 
     return bool(sms_sent or email_sent)
@@ -208,10 +211,12 @@ def send_customer_claim_confirmation(opening_id):
         "booking.customer_notified",
         "booking",
         row["booking_id"],
-        {
-            "sms": bool(sms_sent),
-            "email": bool(email_sent),
-        },
+        json.dumps(
+            {
+                "sms": bool(sms_sent),
+                "email": bool(email_sent),
+            }
+        ),
     )
 
     return bool(sms_sent or email_sent)
