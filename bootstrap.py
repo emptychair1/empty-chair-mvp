@@ -23,6 +23,9 @@ import pilot  # noqa: F401,E402
 # customer contact cooldown and preserves shop isolation in Pilot activity data.
 import pilot_safety  # noqa: F401,E402
 
+# Replace the legacy artist roster page with forward-looking utilization cards.
+import artist_metrics  # noqa: F401,E402
+
 app = core.app
 
 print(

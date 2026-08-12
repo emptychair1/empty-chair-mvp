@@ -1,10 +1,181 @@
 <!doctype html>
-<html lang="en"><head><link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Artists · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"></head>
-<body><div class="app-shell">
-{% set active_page = 'artists' %}{% include '_sidebar.html' %}
-<main class="main"><header class="topbar"><div class="topbar-left"><div><div class="page-title">Artists</div><div class="page-subtitle">Manage the artists available for openings and recovery.</div></div></div><div class="top-actions"><a class="button secondary" href="/import/artists">↑ Import Artists</a><form method="post" action="/logout" style="margin:0"><button class="button secondary" type="submit">Log out</button></form></div></header>
-<div class="content"><div class="dashboard-grid"><section class="panel"><div class="panel-head"><h2 class="panel-title">Artist Roster</h2><span class="live-pill">{{ artists|length }} TOTAL</span></div><div class="opening-list">
-{% for artist in artists %}<div class="opening-row"><div class="date-block"><div class="date-day">{{ artist["name"][0]|upper }}</div></div><div><div class="opening-time">{{ artist["name"] }}</div><div class="opening-artist">{{ artist["styles"] or "No styles listed" }}</div><div class="opening-meta">{{ artist["services"] or "tattoo" }}{% if artist["email"] %} · {{ artist["email"] }}{% endif %}{% if artist["phone"] %} · {{ artist["phone"] }}{% endif %}</div></div><div class="opening-actions"><span class="status {{ 'OPEN' if artist['active'] else 'NO_RECOVERY' }}">{{ 'ACTIVE' if artist['active'] else 'INACTIVE' }}</span><form method="post" action="/artists/{{ artist['id'] }}/toggle" style="margin:0"><button class="button secondary compact" type="submit">{{ 'Deactivate' if artist['active'] else 'Activate' }}</button></form></div></div>
-{% else %}<div class="opening-row"><div class="date-block"><div class="date-day">—</div></div><div><div class="opening-time">No artists yet</div><div class="opening-meta">Add one manually or import a CSV.</div></div><div></div></div>{% endfor %}</div></section>
-<section class="panel"><div class="panel-head"><h2 class="panel-title">Add Artist</h2></div><form class="create-form" method="post" action="/artists"><label>Name<input name="name" placeholder="e.g. Jordan Reed" required></label><div class="form-row"><label>Email<input type="email" name="email" placeholder="artist@shop.com"></label><label>Phone<input name="phone" placeholder="+17065550123"></label></div><label>Styles<input name="styles" placeholder="Traditional, Blackwork, Fine Line"></label><label>Services<input name="services" value="tattoo" required></label><button class="button" type="submit">Add Artist</button></form></section></div>
-<div class="import-banner"><div class="import-icon">⇧</div><div><div class="import-title">Import your full artist roster</div><div class="import-copy">CSV supports name, email, phone, styles, services, active, and optional id.</div></div><a class="button secondary" href="/import/artists">Import Artist CSV</a></div><div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div></div></main></div></body></html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Artists · Empty Chair</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .artist-shell{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.75fr);gap:22px;align-items:start}
+    .artist-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:20px}
+    .summary-card,.artist-card,.artist-form-card{background:linear-gradient(145deg,rgba(20,20,20,.98),rgba(8,8,8,.98));border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 48px rgba(0,0,0,.22)}
+    .summary-card{border-radius:16px;padding:18px 20px;min-height:110px}
+    .summary-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.14em;color:#878787;font-weight:800}
+    .summary-value{font-size:2rem;line-height:1;margin-top:12px;font-weight:850;color:#fff}
+    .summary-note{font-size:.8rem;color:#777;margin-top:7px}
+    .artist-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .artist-card{border-radius:18px;padding:20px;position:relative;overflow:hidden;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+    .artist-card:hover{transform:translateY(-2px);border-color:rgba(159,17,24,.38);box-shadow:0 22px 55px rgba(0,0,0,.3)}
+    .artist-card:after{content:"";position:absolute;right:-70px;top:-85px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,rgba(159,17,24,.23),rgba(159,17,24,0) 70%);pointer-events:none}
+    .artist-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;position:relative;z-index:1}
+    .artist-identity{display:flex;gap:13px;align-items:center;min-width:0}
+    .artist-avatar{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(145deg,#9f1118,#5f090d);font-weight:900;font-size:1.15rem;color:#fff;box-shadow:0 8px 26px rgba(159,17,24,.23);flex:0 0 auto}
+    .artist-name{font-size:1.08rem;font-weight:850;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .artist-style{color:#8f8f8f;font-size:.82rem;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .artist-status{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;font-weight:850;border-radius:999px;padding:6px 9px;border:1px solid rgba(255,255,255,.1);position:relative;z-index:1}
+    .artist-status.active{color:#79e7a9;border-color:rgba(79,208,138,.3);background:rgba(79,208,138,.07)}
+    .artist-status.inactive{color:#8b8b8b;background:rgba(255,255,255,.03)}
+    .utilization-block{margin-top:22px;position:relative;z-index:1}
+    .utilization-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+    .utilization-value{font-size:2rem;font-weight:900;line-height:1;color:#fff}
+    .utilization-copy{text-align:right;color:#777;font-size:.75rem;line-height:1.35}
+    .utilization-track{height:8px;background:rgba(255,255,255,.07);border-radius:999px;overflow:hidden;margin-top:11px}
+    .utilization-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#7b0d12,#c51d27);box-shadow:0 0 18px rgba(159,17,24,.35)}
+    .artist-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+    .artist-stat{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.055);border-radius:12px;padding:10px}
+    .artist-stat strong{display:block;font-size:.98rem;color:#ddd}.artist-stat span{display:block;color:#707070;font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;margin-top:3px}
+    .artist-contact{margin-top:14px;padding-top:13px;border-top:1px solid rgba(255,255,255,.06);font-size:.77rem;color:#777;line-height:1.55;min-height:34px}
+    .artist-actions{display:flex;justify-content:flex-end;margin-top:14px}
+    .artist-form-card{border-radius:18px;padding:22px;position:sticky;top:18px}
+    .artist-form-card h2{margin:0;font-size:1.05rem}.artist-form-card p{margin:7px 0 18px;color:#818181;font-size:.82rem;line-height:1.45}
+    .artist-empty{grid-column:1/-1;border:1px dashed rgba(255,255,255,.12);border-radius:18px;padding:32px;text-align:center;color:#777;background:rgba(255,255,255,.02)}
+    .artist-window{display:inline-flex;align-items:center;gap:7px;margin-top:8px;color:#777;font-size:.77rem}
+    .artist-window:before{content:"";width:7px;height:7px;border-radius:50%;background:#9f1118;box-shadow:0 0 0 4px rgba(159,17,24,.12)}
+    @media(max-width:1100px){.artist-shell{grid-template-columns:1fr}.artist-form-card{position:static}.artist-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:760px){.artist-summary{grid-template-columns:1fr}.artist-grid{grid-template-columns:1fr}.artist-shell{gap:16px}.artist-card{padding:17px}.artist-stats{grid-template-columns:repeat(3,1fr)}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page = 'artists' %}
+  {% include '_sidebar.html' %}
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <div>
+          <div class="page-title">Artists</div>
+          <div class="page-subtitle">See who has room to book, then let Empty Chair help fill it.</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <a class="button secondary" href="/import/artists">↑ Import Artists</a>
+        <form method="post" action="/logout" style="margin:0"><button class="button secondary" type="submit">Log out</button></form>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="artist-summary">
+        <section class="summary-card">
+          <div class="summary-label">Active Artists</div>
+          <div class="summary-value">{{ active_artists }}</div>
+          <div class="summary-note">{{ artists|length }} total on roster</div>
+        </section>
+        <section class="summary-card">
+          <div class="summary-label">Roster Utilization</div>
+          <div class="summary-value">{{ roster_utilization }}%</div>
+          <div class="summary-note">Across tracked appointment inventory</div>
+        </section>
+        <section class="summary-card">
+          <div class="summary-label">Tracked Slots</div>
+          <div class="summary-value">{{ tracked_slots }}</div>
+          <div class="summary-note">{{ utilization_window }}</div>
+        </section>
+      </div>
+
+      <div class="artist-shell">
+        <section>
+          <div class="panel-head" style="margin-bottom:14px">
+            <div>
+              <h2 class="panel-title" style="margin-bottom:0">Artist Roster</h2>
+              <div class="artist-window">Utilization window: {{ utilization_window }}</div>
+            </div>
+            <span class="live-pill">{{ artists|length }} TOTAL</span>
+          </div>
+
+          <div class="artist-grid">
+            {% for artist in artists %}
+              <article class="artist-card">
+                <div class="artist-head">
+                  <div class="artist-identity">
+                    <div class="artist-avatar">{{ artist["name"][0]|upper }}</div>
+                    <div style="min-width:0">
+                      <div class="artist-name">{{ artist["name"] }}</div>
+                      <div class="artist-style">{{ artist["styles"] or "No styles listed" }}</div>
+                    </div>
+                  </div>
+                  <span class="artist-status {{ 'active' if artist['active'] else 'inactive' }}">{{ 'Active' if artist['active'] else 'Inactive' }}</span>
+                </div>
+
+                <div class="utilization-block">
+                  <div class="utilization-top">
+                    <div>
+                      <div class="summary-label">Utilization</div>
+                      <div class="utilization-value">{{ artist["utilization"] }}%</div>
+                    </div>
+                    <div class="utilization-copy">{{ artist["booked_slots"] }} booked<br>of {{ artist["total_slots"] }} slots</div>
+                  </div>
+                  <div class="utilization-track" aria-label="{{ artist['name'] }} utilization {{ artist['utilization'] }} percent">
+                    <div class="utilization-fill" style="width:{{ [artist['utilization'], 100]|min }}%"></div>
+                  </div>
+                </div>
+
+                <div class="artist-stats">
+                  <div class="artist-stat"><strong>{{ artist["booked_slots"] }}</strong><span>Booked</span></div>
+                  <div class="artist-stat"><strong>{{ artist["available_slots"] }}</strong><span>Open</span></div>
+                  <div class="artist-stat"><strong>{{ artist["total_slots"] }}</strong><span>Total</span></div>
+                </div>
+
+                <div class="artist-contact">
+                  {{ artist["services"] or "tattoo" }}
+                  {% if artist["email"] %} · {{ artist["email"] }}{% endif %}
+                  {% if artist["phone"] %}<br>{{ artist["phone"] }}{% endif %}
+                </div>
+
+                <div class="artist-actions">
+                  <form method="post" action="/artists/{{ artist['id'] }}/toggle" style="margin:0">
+                    <button class="button secondary compact" type="submit">{{ 'Deactivate' if artist['active'] else 'Activate' }}</button>
+                  </form>
+                </div>
+              </article>
+            {% else %}
+              <div class="artist-empty">
+                <strong>No artists yet.</strong><br>
+                Add one manually or import your artist roster CSV.
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        <aside class="artist-form-card">
+          <h2>Add Artist</h2>
+          <p>Add a working artist to the roster. Once appointment inventory exists, their 30-day utilization will appear automatically.</p>
+          <form class="create-form" method="post" action="/artists">
+            <label>Name<input name="name" placeholder="e.g. Jordan Reed" required></label>
+            <div class="form-row">
+              <label>Email<input type="email" name="email" placeholder="artist@shop.com"></label>
+              <label>Phone<input name="phone" placeholder="+17065550123"></label>
+            </div>
+            <label>Styles<input name="styles" placeholder="Traditional, Blackwork, Fine Line"></label>
+            <label>Services<input name="services" value="tattoo" required></label>
+            <button class="button" type="submit">Add Artist</button>
+          </form>
+        </aside>
+      </div>
+
+      <div class="import-banner" style="margin-top:22px">
+        <div class="import-icon">⇧</div>
+        <div>
+          <div class="import-title">Import your full artist roster</div>
+          <div class="import-copy">CSV supports name, email, phone, styles, services, active, and optional id.</div>
+        </div>
+        <a class="button secondary" href="/import/artists">Import Artist CSV</a>
+      </div>
+
+      <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
