@@ -7,10 +7,11 @@ notification, booking, or Autopilot behavior.
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 import app as core
 import artist_metrics
+import onboarding
 
 
 app = core.app
@@ -45,6 +46,9 @@ def dashboard_v2(request: Request):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
+
+    if onboarding.needs_onboarding(user["shop_id"]):
+        return RedirectResponse("/setup", status_code=303)
 
     today = datetime.now(timezone.utc).date()
     end_date = today + timedelta(days=30)
