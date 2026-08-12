@@ -12,20 +12,17 @@
 
   <nav class="sidebar-nav">
     <a class="nav-link {{ 'active' if active_page == 'dashboard' else '' }}" href="/"><span class="nav-icon">⌂</span><span>Dashboard</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'openings' else '' }}" href="/#openings"><span class="nav-icon">▣</span><span>Openings</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'recovery' else '' }}" href="/recovery"><span class="nav-icon">◎</span><span>Recovery</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
+    <a class="nav-link {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Fill Chairs</span></a>
     <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'pilot' else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Pilot</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
+    <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
     <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
 
-    <details class="mobile-more {{ 'active' if active_page in ['bookings', 'artists', 'pilot', 'settings'] else '' }}">
+    <details class="mobile-more {{ 'active' if active_page in ['customers','bookings','settings'] else '' }}">
       <summary><span class="nav-icon">•••</span><span>More</span></summary>
       <div class="mobile-more-sheet">
+        <a href="/customers"><span>♙</span><strong>Customers</strong></a>
         <a href="/bookings"><span>✓</span><strong>Bookings</strong></a>
-        <a href="/artists"><span>✦</span><strong>Artists</strong></a>
-        <a href="/pilot"><span>◈</span><strong>Pilot</strong></a>
         <a href="/settings"><span>⚙</span><strong>Settings</strong></a>
       </div>
     </details>
@@ -35,7 +32,7 @@
     <div class="studio-card">
       <div class="kicker">Studio</div>
       <div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div>
-      <div class="online">● Studio Online</div>
+      <div class="online">● Empty Chair Active</div>
     </div>
     <div class="owner-card">
       <div class="kicker">Owner</div>
