@@ -1,0 +1,29 @@
+name: Generate uv lock
+
+on:
+  push:
+    branches:
+      - chore/render-fast-deploys-final-2
+
+permissions:
+  contents: write
+
+jobs:
+  lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Generate lockfile
+        run: uv lock
+      - name: Commit lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore: add uv lockfile"
+          git push
