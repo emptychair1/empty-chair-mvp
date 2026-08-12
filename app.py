@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import resend
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -767,9 +768,7 @@ def user_owns_offer(user, offer_id):
 
 
 def send_email(to_email, subject, html):
-    to_email = normalize_email(
-        to_email
-    )
+    to_email = normalize_email(to_email)
 
     if not to_email:
         return False
@@ -791,45 +790,30 @@ def send_email(to_email, subject, html):
         )
         return False
 
-    payload = json.dumps(
-        {
-            "from": EMAIL_FROM,
-            "to": [to_email],
-            "subject": subject,
-            "html": html,
-        }
-    ).encode("utf-8")
-
-    request = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=payload,
-        method="POST",
-        headers={
-            "Authorization": (
-                f"Bearer {RESEND_API_KEY}"
-            ),
-            "Content-Type": "application/json",
-            "User-Agent": "empty-chair/1.0",
-        },
-    )
-
     try:
-        with urllib.request.urlopen(
-            request,
-            timeout=15,
-        ) as response:
-            return 200 <= response.status < 300
-    except (
-        urllib.error.HTTPError,
-        urllib.error.URLError,
-        TimeoutError,
-    ) as exc:
+        resend.api_key = RESEND_API_KEY
+
+        response = resend.Emails.send(
+            {
+                "from": EMAIL_FROM,
+                "to": [to_email],
+                "subject": subject,
+                "html": html,
+            }
+        )
+
+        print(
+            f"Email sent successfully to {to_email}: "
+            f"{response}"
+        )
+        return True
+
+    except Exception as exc:
         print(
             "Email send failed:",
             str(exc),
         )
         return False
-
 
 def send_welcome_email(user_name, email, shop_name):
     first_name = (
