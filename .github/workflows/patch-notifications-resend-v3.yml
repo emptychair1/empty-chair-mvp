@@ -1,0 +1,35 @@
+name: Patch notifications Resend sender v3
+
+on:
+  push:
+    branches:
+      - fix/notifications-resend-sdk
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          SEND_EMAIL_B64: ZGVmIHNlbmRfZW1haWwodG9fZW1haWwsIHN1YmplY3QsIGh0bWwpOgogICAgIiIiU2VuZCBlbWFpbCBpbmRlcGVuZGVudGx5IG9mIEVNUFRZX0NIQUlSX0RFTU9fTU9ERS4iIiIKICAgIHRvX2VtYWlsID0gY29yZS5ub3JtYWxpemVfZW1haWwodG9fZW1haWwpCgogICAgaWYgbm90IHRvX2VtYWlsOgogICAgICAgIHJldHVybiBGYWxzZQoKICAgIGlmIG5vdCBFTUFJTF9MSVZFOgogICAgICAgIHByaW50KCkKICAgICAgICBwcmludCgiLS0tIERFTU8gRU1BSUwgLS0tIikKICAgICAgICBwcmludChmIlRvOiB7dG9fZW1haWx9IikKICAgICAgICBwcmludChmIlN1YmplY3Q6IHtzdWJqZWN0fSIpCiAgICAgICAgcHJpbnQoaHRtbCkKICAgICAgICBwcmludCgiLS0tLS0tLS0tLS0tLS0tLS0tIikKICAgICAgICBwcmludCgpCiAgICAgICAgcmV0dXJuIFRydWUKCiAgICBpZiBub3QgY29yZS5SRVNFTkRfQVBJX0tFWToKICAgICAgICBwcmludCgiRW1haWwgc2tpcHBlZDogUkVTRU5EX0FQSV9LRVkgaXMgbm90IGNvbmZpZ3VyZWQuIikKICAgICAgICByZXR1cm4gRmFsc2UKCiAgICByZXR1cm4gY29yZS5zZW5kX2VtYWlsKHRvX2VtYWlsLCBzdWJqZWN0LCBodG1sKQoK
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = 'fix/notifications-resend-sdk';
+            const file = await github.rest.repos.getContent({owner, repo, path: 'notifications.py', ref: branch});
+            let text = Buffer.from(file.data.content, 'base64').toString('utf8');
+            text = text.replace('import urllib.error\nimport urllib.request\n', '');
+            const start = text.indexOf('def send_email(to_email, subject, html):');
+            const end = text.indexOf('\ndef _send_text', start);
+            if (start < 0 || end < 0) core.setFailed('send_email block not found');
+            const replacement = Buffer.from(process.env.SEND_EMAIL_B64, 'base64').toString('utf8');
+            text = text.slice(0, start) + replacement + text.slice(end + 1);
+            if (text.includes('https://api.resend.com/emails')) core.setFailed('raw Resend URL still present');
+            if (!text.includes('return core.send_email(to_email, subject, html)')) core.setFailed('SDK delegation missing');
+            await github.rest.repos.createOrUpdateFileContents({owner, repo, path: 'notifications.py', branch, message: 'fix: route notification emails through Resend SDK', content: Buffer.from(text).toString('base64'), sha: file.data.sha});
