@@ -2618,29 +2618,30 @@ def dashboard(
     FROM bookings b
     JOIN openings o
         ON o.id = b.opening_id
-    WHERE b.status IN ('CONFIRMED', 'COMPLETED')
-        AND o.shop_id = ?
+    WHERE o.status IN ('BOOKED', 'COMPLETED')
+      AND o.shop_id = ?
     """,
     (
         user["shop_id"],
     ),
 )
+)
 
     completed_row = db_fetchone(
-        conn,
-        """
-        SELECT
-            COUNT(*) AS n
-        FROM bookings b
-        JOIN openings o
-            ON o.id = b.opening_id
-        WHERE b.status IN ('CONFIRMED', 'COMPLETED')
-          AND o.shop_id = ?
-        """,
-        (
-            user["shop_id"],
-        ),
-    )
+    conn,
+    """
+    SELECT
+        COUNT(*) AS n
+    FROM bookings b
+    JOIN openings o
+        ON o.id = b.opening_id
+    WHERE o.status IN ('BOOKED', 'COMPLETED')
+      AND o.shop_id = ?
+    """,
+    (
+        user["shop_id"],
+    ),
+)
 
     completed_row = db_fetchone(
         conn,
