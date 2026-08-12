@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -237,7 +238,10 @@ def customers_page(request: Request):
     conn.close()
 
     consented = sum(1 for customer in customers if customer["communication_consent"])
-    total_spend = sum(float(customer["average_spend"] or 0) * int(customer["completed_count"] or 0) for customer in customers)
+    total_spend = sum(
+        float(customer["average_spend"] or 0) * int(customer["completed_count"] or 0)
+        for customer in customers
+    )
 
     return core.templates.TemplateResponse(
         request=request,
@@ -428,19 +432,19 @@ async def import_customers_safe(request: Request, file: UploadFile = File(...)):
                     ),
                 )
                 imported += 1
+
+            conn.commit()
         except Exception as exc:
-            if core.USE_POSTGRES:
-                conn.rollback()
+            conn.rollback()
             skipped += 1
             errors.append(f"Row {row_number}: {exc}")
 
-    conn.commit()
     conn.close()
     core.event(
         "customers.imported",
         "shop",
         shop_id,
-        {"imported": imported, "updated": updated, "skipped": skipped},
+        json.dumps({"imported": imported, "updated": updated, "skipped": skipped}),
     )
 
     return core.templates.TemplateResponse(
