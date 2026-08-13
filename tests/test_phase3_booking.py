@@ -61,16 +61,30 @@ def test_confirmed_booking_visually_fills_calendar():
         _seed_claim()
         with patch.object(google_integration, "calendar_user_for_artist", return_value=None):
             client.post("/bookings/book_p3/confirm", follow_redirects=False)
+        conn = core.connect()
+        try:
+            shop = core.db_fetchone(conn, "SELECT id FROM shops LIMIT 1")
+            now = core.now_iso()
+            core.db_execute(conn, "INSERT INTO openings(id,shop_id,artist_id,date,start_time,end_time,service,price,status,created_at,expires_at) VALUES ('open_needs',?,?,'2026-08-26','10:00','12:00','tattoo',300,'OPEN',?,?)", (shop["id"], "artist_p3", now, now))
+            core.db_execute(conn, "INSERT INTO openings(id,shop_id,artist_id,date,start_time,end_time,service,price,status,created_at,expires_at) VALUES ('open_working',?,?,'2026-08-27','12:00','14:00','tattoo',350,'RECOVERY_ACTIVE',?,?)", (shop["id"], "artist_p3", now, now))
+            conn.commit()
+        finally:
+            conn.close()
 
         response = client.get("/bookings?month=2026-08")
 
         assert response.status_code == 200
-        assert 'aria-label="Confirmed bookings calendar"' in response.text
+        assert 'aria-label="Appointment status calendar"' in response.text
         assert "August 2026" in response.text
         assert "Pilot Artist" in response.text
         assert "Pilot Customer" in response.text
         assert "14:00–16:00" in response.text
         assert "Confirmed revenue" in response.text
+        assert "Needs filling" in response.text
+        assert "Empty Chair working" in response.text
+        assert 'class="calendar-event open"' in response.text
+        assert 'class="calendar-event working"' in response.text
+        assert 'class="calendar-event filled"' in response.text
 
 def test_reject_reopens_slot():
     with TestClient(app) as client:
