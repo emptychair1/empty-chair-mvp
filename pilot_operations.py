@@ -14,6 +14,23 @@ import pilot
 app = core.app
 FAILURE_TYPES = ("autopilot.activation_failed", "autopilot.background_failed", "calendar.availability_error", "calendar.block_failed", "offer.expiration_failed", "pilot.worker_failed", "booking.reopen_failed", "booking.confirmation_delivery_failed")
 
+def _empty_snapshot():
+    return {
+        "pending": [],
+        "recent_bookings": [],
+        "campaigns": [],
+        "failures": [],
+        "failed_deliveries": [],
+        "calendar_health": [],
+        "report": {"confirmed": 0, "revenue": 0.0, "offers": 0, "delivery_rate": 0},
+    }
+
+def _record_operations_failure(shop_id, section, exc):
+    try:
+        core.event("operations.section_failed", "shop", shop_id, json.dumps({"section": section, "error": str(exc)}))
+    except Exception:
+        pass
+
 def _count(conn, query, params=()):
     row = core.db_fetchone(conn, query, params)
     return int(row["n"] or 0) if row else 0
@@ -23,7 +40,7 @@ def _safe_fetchall(conn, query, params=(), *, section, shop_id):
         return core.db_fetchall(conn, query, params)
     except Exception as exc:
         conn.rollback()
-        core.event("operations.section_failed", "shop", shop_id, json.dumps({"section": section, "error": str(exc)}))
+        _record_operations_failure(shop_id, section, exc)
         return []
 
 def _snapshot(shop_id):
@@ -34,7 +51,7 @@ def _snapshot(shop_id):
         try:
             campaigns = pilot._campaign_rows(shop_id)
         except Exception as exc:
-            core.event("operations.section_failed", "shop", shop_id, json.dumps({"section": "campaigns", "error": str(exc)}))
+            _record_operations_failure(shop_id, "campaigns", exc)
             campaigns = []
         failures = _safe_fetchall(conn, "SELECT * FROM events WHERE event_type IN (" + ",".join("?" for _ in FAILURE_TYPES) + ") ORDER BY created_at DESC LIMIT 40", FAILURE_TYPES, section="failures", shop_id=shop_id)
         shop_failures = []
@@ -56,7 +73,7 @@ def _snapshot(shop_id):
             try:
                 connected = google_integration.artist_calendar_connected(artist["id"])
             except Exception as exc:
-                core.event("operations.section_failed", "shop", shop_id, json.dumps({"section": "calendar_health", "artist_id": artist["id"], "error": str(exc)}))
+                _record_operations_failure(shop_id, f"calendar_health:{artist['id']}", exc)
                 connected = False
             calendar_health.append({"name": artist["name"], "connected": connected})
     finally: conn.close()
@@ -66,12 +83,22 @@ def _snapshot(shop_id):
 def operations_page(request: Request, message: str=""):
     user, redirect = core.login_required_redirect(request)
     if redirect: return redirect
-    conn = core.connect()
     try:
-        shop = core.db_fetchone(conn, "SELECT * FROM shops WHERE id=?", (user["shop_id"],))
-    finally:
-        conn.close()
-    return core.templates.TemplateResponse(request=request,name="operations.html",context={"user":user,"shop":shop,"ops":_snapshot(user["shop_id"]),"message":message})
+        conn = core.connect()
+        try:
+            shop = core.db_fetchone(conn, "SELECT * FROM shops WHERE id=?", (user["shop_id"],))
+        finally:
+            conn.close()
+    except Exception as exc:
+        _record_operations_failure(user["shop_id"], "shop", exc)
+        shop = {"name": user["shop_name"]}
+    try:
+        operations = _snapshot(user["shop_id"])
+    except Exception as exc:
+        _record_operations_failure(user["shop_id"], "snapshot", exc)
+        operations = _empty_snapshot()
+        message = "Operations loaded in safe mode. Some production data is temporarily unavailable."
+    return core.templates.TemplateResponse(request=request,name="operations.html",context={"user":user,"shop":shop,"ops":operations,"message":message})
 
 @app.post("/operations/campaigns/{campaign_id}/pause")
 def pause_campaign(request: Request, campaign_id: str):
