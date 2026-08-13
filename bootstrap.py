@@ -23,6 +23,7 @@ import calendar_safety  # noqa: F401,E402
 # notification overrides are installed.
 import claim_flow  # noqa: F401,E402
 import booking_confirmation  # noqa: F401,E402
+import pilot_operations  # noqa: F401,E402
 
 # Register Pilot v1.1 data structures and core Autopilot helpers.
 import pilot  # noqa: F401,E402
