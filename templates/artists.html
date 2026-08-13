@@ -1,5 +1,71 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Artists · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"><style>.summary{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}.box,.artist{padding:18px;border:1px solid var(--line);border-radius:15px;background:#101010}.box strong{display:block;font-size:28px;margin-top:6px}.label{font-size:10px;color:var(--gold-light);text-transform:uppercase;letter-spacing:.1em}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.head{display:flex;justify-content:space-between;gap:12px}.name{font-size:18px;font-weight:850}.util{font-size:27px;font-weight:900}.sub{color:var(--muted);font-size:11px}.track{height:8px;background:#1a1a1a;border-radius:99px;overflow:hidden;margin:12px 0}.track span{display:block;height:100%;background:linear-gradient(90deg,#7b0d12,#c71f28)}.actions{display:flex;justify-content:space-between;align-items:center;gap:10px}.add{margin-top:18px}details summary{cursor:pointer;color:var(--cream-dim);font-weight:700}@media(max-width:700px){.summary,.grid{grid-template-columns:1fr}}</style></head><body><div class="app-shell">{% set active_page='artists' %}{% include '_sidebar.html' %}<main class="main"><header class="topbar"><div><div class="page-title">Artists</div><div class="page-subtitle">See who wants more work and send Empty Chair their available time.</div></div><div class="top-actions"><a class="button" href="/pilot">Fill Chairs</a></div></header><div class="content">
-<section class="summary"><div class="box"><div class="label">Working artists</div><strong>{{ active_artists }}</strong><div class="sub">{{ artists|length }} on roster</div></div><div class="box"><div class="label">Tracked utilization</div><strong>{{ roster_utilization }}%</strong><div class="sub">{{ utilization_window }}</div></div></section>
-<div class="panel-head"><div><h2 class="panel-title">Your artists</h2><div class="sub">Utilization only reflects availability you've told Empty Chair about.</div></div></div><section class="grid">{% for artist in artists %}<article class="artist"><div class="head"><div><div class="name">{{ artist.name }}</div><div class="sub">{{ artist.styles or 'No styles listed' }}</div></div><div class="util">{{ artist.utilization }}%</div></div><div class="track"><span style="width:{{ [artist.utilization,100]|min }}%"></span></div><div class="sub">{{ artist.booked_slots }} filled · {{ artist.available_slots }} available · {{ artist.total_slots }} tracked</div><div class="actions" style="margin-top:14px"><span class="sub">{{ 'Calendar connected' if artist.calendar_connected else 'Calendar not connected' }}</span>{% if not artist.calendar_connected %}<a class="button secondary compact" href="/integrations/google-calendar/connect?artist_id={{ artist.id }}">Connect Calendar</a>{% endif %}<a class="button compact" href="/pilot">Fill {{ artist.name }}</a></div></article>{% else %}<div class="box">Add your first artist to start.</div>{% endfor %}</section>
-<section class="box add"><details><summary>Add or manage artists</summary><form class="create-form" method="post" action="/artists" style="margin-top:16px"><label>Name<input name="name" required></label><div class="form-row"><label>Email<input type="email" name="email"></label><label>Phone<input name="phone"></label></div><label>Styles<input name="styles" placeholder="Traditional, Blackwork"></label><label>Services<input name="services" value="tattoo" required></label><button class="button" type="submit">Add Artist</button></form><div style="margin-top:12px"><a class="button secondary compact" href="/import/artists">Import Artist CSV</a></div></details></section>
-<div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div></div></main></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Artists · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .summary{display:grid;grid-template-columns:1.25fr .75fr;gap:14px;margin-bottom:18px}.box,.artist{padding:18px;border:1px solid var(--line);border-radius:15px;background:#101010}
+    .box strong{display:block;font-size:28px;margin-top:6px}.box.priority{padding:22px;border-color:rgba(225,38,38,.45);background:linear-gradient(145deg,rgba(225,38,38,.1),#101010)}.box.priority strong{font-size:42px}
+    .label{font-size:10px;color:var(--gold-light);text-transform:uppercase;letter-spacing:.12em}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    .head{display:flex;justify-content:space-between;gap:16px}.name{font-size:19px;font-weight:850}.opportunity{text-align:right}.opportunity strong{display:block;color:var(--gold-light);font-size:31px;line-height:1}.opportunity span{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+    .sub{color:var(--muted);font-size:11px;line-height:1.5}.track{height:8px;background:#1a1a1a;border-radius:99px;overflow:hidden;margin:12px 0}.track span{display:block;height:100%;background:linear-gradient(90deg,#7b0d12,#e12626)}
+    .actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px}.action-buttons{display:flex;gap:8px;flex-wrap:wrap}.add{margin-top:18px}details summary{cursor:pointer;color:var(--cream-dim);font-weight:700}
+    @media(max-width:700px){.summary,.grid{grid-template-columns:1fr}.actions{align-items:flex-start;flex-direction:column}.action-buttons,.action-buttons .button{width:100%}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page='artists' %}{% include '_sidebar.html' %}
+  <main class="main">
+    <header class="topbar">
+      <div><div class="page-title">Artists</div><div class="page-subtitle">See where earning time is available and fill it.</div></div>
+      <div class="top-actions"><a class="button" href="/pilot">Fill Chairs</a></div>
+    </header>
+    <div class="content">
+      <section class="summary">
+        <div class="box priority"><div class="label">Available earning time</div><strong>{{ available_slots }} slots</strong><div class="sub">Open appointments across the roster in the next 30 days.</div></div>
+        <div class="box"><div class="label">Roster utilization</div><strong>{{ roster_utilization }}%</strong><div class="sub">{{ utilization_window }} · {{ active_artists }} working artists</div></div>
+      </section>
+
+      <div class="panel-head"><div><h2 class="panel-title">Who wants more work?</h2><div class="sub">Artists with the most open earning time should be filled first.</div></div></div>
+      <section class="grid">
+        {% for artist in artists %}
+        <article class="artist">
+          <div class="head">
+            <div><div class="name">{{ artist.name }}</div><div class="sub">{{ artist.styles or 'No styles listed' }}</div></div>
+            <div class="opportunity"><strong>{{ artist.available_slots }}</strong><span>slots to fill</span></div>
+          </div>
+          <div class="track"><span style="width:{{ [artist.utilization,100]|min }}%"></span></div>
+          <div class="sub">{{ artist.utilization }}% utilized · {{ artist.booked_slots }} filled of {{ artist.total_slots }} tracked</div>
+          <div class="actions">
+            <span class="sub">{{ 'Calendar connected' if artist.calendar_connected else 'Calendar not connected' }}</span>
+            <div class="action-buttons">{% if not artist.calendar_connected %}<a class="button secondary compact" href="/integrations/google-calendar/connect?artist_id={{ artist.id }}">Connect Calendar</a>{% endif %}<a class="button compact" href="/pilot">Fill {{ artist.name }}</a></div>
+          </div>
+        </article>
+        {% else %}
+        <div class="box">Add your first artist to start.</div>
+        {% endfor %}
+      </section>
+
+      <section class="box add">
+        <details>
+          <summary>Add or manage artists</summary>
+          <form class="create-form" method="post" action="/artists" style="margin-top:16px">
+            <label>Name<input name="name" required></label>
+            <div class="form-row"><label>Email<input type="email" name="email"></label><label>Phone<input name="phone"></label></div>
+            <label>Styles<input name="styles" placeholder="Traditional, Blackwork"></label>
+            <label>Services<input name="services" value="tattoo" required></label>
+            <button class="button" type="submit">Add Artist</button>
+          </form>
+          <div style="margin-top:12px"><a class="button secondary compact" href="/import/artists">Import Artist CSV</a></div>
+        </details>
+      </section>
+      <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
