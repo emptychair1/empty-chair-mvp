@@ -1,3 +1,116 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bookings · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">{% include '_table_style.html' %}<style>.hero{padding:22px;border:1px solid rgba(79,208,138,.22);border-radius:16px;background:#101010;margin-bottom:16px}.hero h2{margin:5px 0}.sub{color:var(--muted);font-size:12px}.label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.1em}.booking-actions{display:flex;gap:6px;flex-wrap:wrap}</style></head>
-<body><div class="app-shell">{% set active_page='bookings' %}{% include '_sidebar.html' %}<main class="main"><header class="topbar"><div><div class="page-title">Bookings</div><div class="page-subtitle">Confirm customer claims before they count as recovered revenue.</div></div><div class="top-actions"><a class="button" href="/pilot">Fill More Chairs</a></div></header><div class="content"><section class="hero"><div class="label">Booking certainty</div><h2>{{ bookings|length }} claims and bookings</h2><div class="sub">Awaiting-confirmation claims are provisional. Only confirmed bookings count as recovered revenue.</div></section><section class="panel"><div style="overflow:auto"><table><thead><tr><th>When</th><th>Customer</th><th>Artist</th><th>Work</th><th>Value</th><th>Status</th><th>Action</th></tr></thead><tbody>{% for booking in bookings %}<tr><td><strong>{{ booking.date }}</strong><br><span class="sub">{{ booking.start_time }}</span></td><td>{{ booking.customer_name }}</td><td>{{ booking.artist_name }}</td><td>{{ booking.style or booking.service }}</td><td><strong>${{ '%.0f'|format(booking.amount) }}</strong></td><td>{{ booking.status.replace('_',' ') }}</td><td><div class="booking-actions">{% if booking.status == 'AWAITING_CONFIRMATION' %}<form method="post" action="/bookings/{{ booking.id }}/confirm"><button class="button compact" type="submit">Confirm</button></form><form method="post" action="/bookings/{{ booking.id }}/reject"><button class="button secondary compact" type="submit">Reject</button></form>{% else %}<a class="button secondary compact" href="/booking/{{ booking.id }}">View</a>{% endif %}</div></td></tr>{% else %}<tr><td colspan="7">No claims yet. <a href="/pilot">Tell Empty Chair when you want more work.</a></td></tr>{% endfor %}</tbody></table></div></section><div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div></div></main></div></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bookings · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  {% include '_table_style.html' %}
+  <style>
+    .booking-summary{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-bottom:16px}
+    .summary-card{padding:20px;border:1px solid var(--line);border-radius:15px;background:#101010}.summary-card.primary{border-color:rgba(225,38,38,.45);background:linear-gradient(145deg,rgba(225,38,38,.1),#101010)}
+    .summary-card strong{display:block;font-size:34px;margin-top:5px}.summary-card.primary strong{font-size:42px}
+    .label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.12em}.sub{color:var(--muted);font-size:11px;line-height:1.5}
+    .calendar-shell{padding:18px;border:1px solid var(--line);border-radius:16px;background:#0d0d0d;margin-bottom:18px}
+    .calendar-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:15px}.calendar-head h2{margin:0;font-size:24px}.calendar-nav{display:flex;gap:7px}
+    .weekday-row,.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.weekday{padding:7px;text-align:center;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}
+    .day{min-height:118px;padding:8px;border:1px solid var(--line-soft);border-radius:10px;background:#090909;overflow:hidden}.day.outside{opacity:.32}.day.today{border-color:rgba(208,170,112,.52)}.day-number{display:block;margin-bottom:7px;color:var(--muted);font-size:10px;font-weight:800}.day.today .day-number{color:var(--gold-light)}
+    .calendar-booking{display:block;margin-top:5px;padding:8px;border:1px solid rgba(225,38,38,.48);border-left:3px solid var(--red-bright);border-radius:8px;background:linear-gradient(135deg,rgba(225,38,38,.24),rgba(78,8,12,.2));color:var(--cream);text-decoration:none;box-shadow:0 5px 14px rgba(0,0,0,.28)}
+    .calendar-booking:hover{border-color:rgba(225,38,38,.75)}.calendar-booking.completed{border-color:rgba(117,203,69,.35);border-left-color:var(--green);background:rgba(117,203,69,.08)}
+    .calendar-booking time{display:block;color:var(--gold-light);font-size:10px;font-weight:900}.calendar-booking strong{display:block;margin:2px 0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calendar-booking span{display:block;color:var(--cream-dim);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .agenda{display:none}.agenda-day{padding:13px 0;border-bottom:1px solid var(--line-soft)}.agenda-day:last-child{border:0}.agenda-date{margin-bottom:8px;color:var(--gold-light);font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}
+    .panel-title-row{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:20px 0 10px}.panel-title-row h2{margin:0}.booking-actions{display:flex;gap:6px;flex-wrap:wrap}.status{font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.status.confirmed,.status.completed{color:var(--green)}.status.awaiting_confirmation{color:var(--gold-light)}
+    @media(max-width:850px){.day{min-height:96px;padding:6px}.calendar-booking{padding:6px}.calendar-booking span{display:none}}
+    @media(max-width:650px){.booking-summary{grid-template-columns:1fr}.calendar-shell{padding:15px}.weekday-row,.month-grid{display:none}.agenda{display:block}.calendar-head h2{font-size:20px}.summary-card.primary strong{font-size:36px}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page='bookings' %}{% include '_sidebar.html' %}
+  <main class="main">
+    <header class="topbar">
+      <div><div class="page-title">Bookings</div><div class="page-subtitle">See Empty Chair turn available time into occupied calendar time.</div></div>
+      <div class="top-actions"><a class="button" href="/pilot">Fill More Chairs</a></div>
+    </header>
+    <div class="content">
+      <section class="booking-summary">
+        <div class="summary-card primary"><div class="label">Confirmed revenue</div><strong>${{ '%.0f'|format(confirmed_revenue) }}</strong><div class="sub">Revenue represented by confirmed and completed calendar time.</div></div>
+        <div class="summary-card"><div class="label">Calendar filled</div><strong>{{ confirmed_count }} booking{{ '' if confirmed_count == 1 else 's' }}</strong><div class="sub">Confirmed appointments across all tracked dates.</div></div>
+      </section>
+
+      <section class="calendar-shell" aria-label="Confirmed bookings calendar">
+        <div class="calendar-head">
+          <a class="button secondary compact" href="/bookings?month={{ previous_month }}" aria-label="Previous month">←</a>
+          <h2>{{ selected_month.strftime('%B %Y') }}</h2>
+          <a class="button secondary compact" href="/bookings?month={{ next_month }}" aria-label="Next month">→</a>
+        </div>
+
+        <div class="weekday-row" aria-hidden="true">
+          {% for weekday in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}<div class="weekday">{{ weekday }}</div>{% endfor %}
+        </div>
+        <div class="month-grid">
+          {% for week in calendar_weeks %}
+            {% for day in week %}
+            <div class="day {{ 'outside' if day.month != selected_month.month else '' }} {{ 'today' if day == today else '' }}">
+              <span class="day-number">{{ day.day }}</span>
+              {% for booking in calendar_bookings.get(day.isoformat(), []) %}
+              <a class="calendar-booking {{ 'completed' if booking.status == 'COMPLETED' else '' }}" href="/booking/{{ booking.id }}">
+                <time>{{ booking.start_time }}{% if booking.end_time %}–{{ booking.end_time }}{% endif %}</time>
+                <strong>{{ booking.artist_name }}</strong>
+                <span>{{ booking.customer_name }} · ${{ '%.0f'|format(booking.amount) }}</span>
+              </a>
+              {% endfor %}
+            </div>
+            {% endfor %}
+          {% endfor %}
+        </div>
+
+        <div class="agenda">
+          {% set agenda = namespace(has_bookings=false) %}
+          {% for week in calendar_weeks %}{% for day in week %}
+            {% if day.month == selected_month.month and calendar_bookings.get(day.isoformat(), []) %}
+              {% set agenda.has_bookings = true %}
+              <div class="agenda-day">
+                <div class="agenda-date">{{ day.strftime('%A · %B %d') }}</div>
+                {% for booking in calendar_bookings.get(day.isoformat(), []) %}
+                <a class="calendar-booking {{ 'completed' if booking.status == 'COMPLETED' else '' }}" href="/booking/{{ booking.id }}">
+                  <time>{{ booking.start_time }}{% if booking.end_time %}–{{ booking.end_time }}{% endif %}</time>
+                  <strong>{{ booking.artist_name }} · {{ booking.customer_name }}</strong>
+                  <span>{{ booking.style or booking.service }} · ${{ '%.0f'|format(booking.amount) }}</span>
+                </a>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}{% endfor %}
+          {% if not agenda.has_bookings %}<div class="sub">No confirmed bookings in this month yet.</div>{% endif %}
+        </div>
+      </section>
+
+      <div class="panel-title-row"><div><h2>Claims and booking details</h2><div class="sub">Provisional claims stay outside the calendar until you confirm them.</div></div></div>
+      <section class="panel">
+        <div style="overflow:auto">
+          <table>
+            <thead><tr><th>When</th><th>Customer</th><th>Artist</th><th>Work</th><th>Value</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+              {% for booking in bookings %}
+              <tr>
+                <td><strong>{{ booking.date }}</strong><br><span class="sub">{{ booking.start_time }}</span></td>
+                <td>{{ booking.customer_name }}</td><td>{{ booking.artist_name }}</td><td>{{ booking.style or booking.service }}</td>
+                <td><strong>${{ '%.0f'|format(booking.amount) }}</strong></td>
+                <td><span class="status {{ booking.status.lower() }}">{{ booking.status.replace('_',' ') }}</span></td>
+                <td><div class="booking-actions">{% if booking.status == 'AWAITING_CONFIRMATION' %}<form method="post" action="/bookings/{{ booking.id }}/confirm"><button class="button compact" type="submit">Confirm</button></form><form method="post" action="/bookings/{{ booking.id }}/reject"><button class="button secondary compact" type="submit">Reject</button></form>{% else %}<a class="button secondary compact" href="/booking/{{ booking.id }}">View</a>{% endif %}</div></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="7">No claims yet. <a href="/pilot">Tell Empty Chair when you want more work.</a></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

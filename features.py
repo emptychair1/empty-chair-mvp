@@ -1,7 +1,9 @@
 import csv
+import calendar
 import io
 import json
 import uuid
+from datetime import date
 
 from fastapi import File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -45,6 +47,7 @@ def bookings_page(request: Request):
             c.phone AS customer_phone,
             o.date,
             o.start_time,
+            o.end_time,
             o.service,
             o.style,
             a.name AS artist_name
@@ -59,6 +62,37 @@ def bookings_page(request: Request):
     )
     conn.close()
 
+    month_text = request.query_params.get("month", "")
+    try:
+        selected_month = date.fromisoformat(f"{month_text}-01") if month_text else date.today().replace(day=1)
+    except ValueError:
+        selected_month = date.today().replace(day=1)
+
+    previous_month = (
+        selected_month.replace(year=selected_month.year - 1, month=12)
+        if selected_month.month == 1
+        else selected_month.replace(month=selected_month.month - 1)
+    )
+    next_month = (
+        selected_month.replace(year=selected_month.year + 1, month=1)
+        if selected_month.month == 12
+        else selected_month.replace(month=selected_month.month + 1)
+    )
+    calendar_weeks = calendar.Calendar(firstweekday=6).monthdatescalendar(
+        selected_month.year,
+        selected_month.month,
+    )
+    calendar_bookings = {}
+    confirmed_count = 0
+    confirmed_revenue = 0.0
+    for row in bookings:
+        if row["status"] not in ("CONFIRMED", "COMPLETED"):
+            continue
+        confirmed_count += 1
+        confirmed_revenue += float(row["amount"] or 0)
+        if str(row["date"])[:7] == selected_month.strftime("%Y-%m"):
+            calendar_bookings.setdefault(str(row["date"]), []).append(dict(row))
+
     return core.templates.TemplateResponse(
         request=request,
         name="bookings.html",
@@ -66,6 +100,14 @@ def bookings_page(request: Request):
             "user": user,
             "shop": shop,
             "bookings": bookings,
+            "calendar_weeks": calendar_weeks,
+            "calendar_bookings": calendar_bookings,
+            "selected_month": selected_month,
+            "previous_month": previous_month.strftime("%Y-%m"),
+            "next_month": next_month.strftime("%Y-%m"),
+            "today": date.today(),
+            "confirmed_count": confirmed_count,
+            "confirmed_revenue": confirmed_revenue,
         },
     )
 

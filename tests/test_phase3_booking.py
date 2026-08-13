@@ -54,6 +54,24 @@ def test_shop_confirms_provisional_claim():
         assert booking["booked_at"]
         assert opening["status"] == "BOOKED"
 
+
+def test_confirmed_booking_visually_fills_calendar():
+    with TestClient(app) as client:
+        create_test_account(client)
+        _seed_claim()
+        with patch.object(google_integration, "calendar_user_for_artist", return_value=None):
+            client.post("/bookings/book_p3/confirm", follow_redirects=False)
+
+        response = client.get("/bookings?month=2026-08")
+
+        assert response.status_code == 200
+        assert 'aria-label="Confirmed bookings calendar"' in response.text
+        assert "August 2026" in response.text
+        assert "Pilot Artist" in response.text
+        assert "Pilot Customer" in response.text
+        assert "14:00–16:00" in response.text
+        assert "Confirmed revenue" in response.text
+
 def test_reject_reopens_slot():
     with TestClient(app) as client:
         create_test_account(client)
