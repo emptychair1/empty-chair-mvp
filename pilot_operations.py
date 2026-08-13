@@ -22,6 +22,7 @@ def _snapshot(shop_id):
     conn = core.connect()
     try:
         pending = core.db_fetchall(conn, """SELECT b.id,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status='AWAITING_CONFIRMATION' ORDER BY o.date,o.start_time""", (shop_id,))
+        recent_bookings = core.db_fetchall(conn, """SELECT b.id,b.status,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status IN ('CONFIRMED','COMPLETED','CANCELLED') ORDER BY COALESCE(b.booked_at,b.cancelled_at,o.created_at) DESC LIMIT 12""", (shop_id,))
         campaigns = pilot._campaign_rows(shop_id)
         failures = core.db_fetchall(conn, "SELECT * FROM events WHERE event_type IN (" + ",".join("?" for _ in FAILURE_TYPES) + ") ORDER BY created_at DESC LIMIT 40", FAILURE_TYPES)
         shop_failures = []
@@ -40,13 +41,18 @@ def _snapshot(shop_id):
         artists = core.db_fetchall(conn, "SELECT id,name FROM artists WHERE shop_id=? AND active=1 ORDER BY name", (shop_id,))
         calendar_health = [{"name": a["name"], "connected": google_integration.artist_calendar_connected(a["id"])} for a in artists]
     finally: conn.close()
-    return {"pending":pending,"campaigns":campaigns,"failures":shop_failures,"failed_deliveries":failed_deliveries,"calendar_health":calendar_health,"report":{"confirmed":confirmed,"revenue":float(revenue or 0),"offers":offers,"delivery_rate":round(delivered/offers*100,1) if offers else 0}}
+    return {"pending":pending,"recent_bookings":recent_bookings,"campaigns":campaigns,"failures":shop_failures,"failed_deliveries":failed_deliveries,"calendar_health":calendar_health,"report":{"confirmed":confirmed,"revenue":float(revenue or 0),"offers":offers,"delivery_rate":round(delivered/offers*100,1) if offers else 0}}
 
 @app.get("/operations", response_class=HTMLResponse)
 def operations_page(request: Request, message: str=""):
     user, redirect = core.login_required_redirect(request)
     if redirect: return redirect
-    return core.templates.TemplateResponse(request=request,name="operations.html",context={"user":user,"ops":_snapshot(user["shop_id"]),"message":message})
+    conn = core.connect()
+    try:
+        shop = core.db_fetchone(conn, "SELECT * FROM shops WHERE id=?", (user["shop_id"],))
+    finally:
+        conn.close()
+    return core.templates.TemplateResponse(request=request,name="operations.html",context={"user":user,"shop":shop,"ops":_snapshot(user["shop_id"]),"message":message})
 
 @app.post("/operations/campaigns/{campaign_id}/pause")
 def pause_campaign(request: Request, campaign_id: str):
