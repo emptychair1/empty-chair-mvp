@@ -1,11 +1,6 @@
-<link rel="stylesheet" href="{{ url_for('static', path='/flashy.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', path='/mobile.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', path='/mobile-nav.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', path='/pwa.css') }}">
-<script src="{{ url_for('static', path='/flashy.js') }}" defer></script>
-<script src="{{ url_for('static', path='/pwa.js') }}" defer></script>
 <style>
-.setup-mascot-link{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:center;margin:12px 8px 8px;padding:8px 10px;border:1px solid rgba(159,17,24,.42);border-radius:14px;background:linear-gradient(145deg,#120707,#080808);box-shadow:0 10px 24px rgba(0,0,0,.28);text-decoration:none;overflow:hidden;transition:transform .18s ease,border-color .18s ease}.setup-mascot-link:hover{transform:translateY(-2px);border-color:rgba(225,38,38,.72)}.setup-mascot-art{width:96px;height:118px;overflow:hidden;border-radius:10px;background:#080808}.setup-mascot-link img{display:block;width:100%;height:100%;object-fit:cover;object-position:63% 60%;filter:drop-shadow(0 8px 14px rgba(0,0,0,.35));transform:scale(1.42)}.setup-mascot-copy strong{display:block;color:var(--cream);font-size:14px}.setup-mascot-copy small{display:block;color:var(--muted);font-size:10px;line-height:1.35;margin-top:3px}.setup-mascot-copy b{display:block;color:var(--red-bright);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-top:7px}.setup-mascot-mobile{display:none}.setup-mascot-mobile .setup-mobile-art{width:52px;height:66px;overflow:hidden;border-radius:8px;flex:0 0 auto;background:#080808}.setup-mascot-mobile img{width:100%;height:100%;object-fit:cover;object-position:63% 60%;transform:scale(1.45)}@media(max-width:1050px){.setup-mascot-link{grid-template-columns:76px minmax(0,1fr);padding:7px 8px}.setup-mascot-art{width:76px;height:94px}.setup-mascot-copy strong{font-size:12px}}@media(max-width:760px){.setup-mascot-link{display:none}.setup-mascot-mobile{display:flex!important;align-items:center;gap:10px}.setup-mascot-mobile strong{display:block}.setup-mascot-mobile small{display:block;color:var(--muted);margin-top:2px}}
+.nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--gold-light);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.setup-mobile-art{width:44px;height:52px;overflow:hidden;border-radius:8px;background:#080808}.setup-mobile-art img{width:100%;height:100%;object-fit:cover;object-position:63% 60%;transform:scale(1.45)}
 </style>
 
 <aside class="sidebar">
@@ -13,42 +8,36 @@
     <img class="brand-logo" src="{{ url_for('static', path='/empty-chair-logo.png') }}" alt="Empty Chair — Fill More Chairs">
   </div>
 
-  <nav class="sidebar-nav">
-    <a class="nav-link {{ 'active' if active_page == 'dashboard' else '' }}" href="/"><span class="nav-icon">⌂</span><span>Dashboard</span></a>
+  <nav class="sidebar-nav" aria-label="Primary navigation">
+    <a class="nav-link {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon">⌂</span><span>Results</span></a>
     <a class="nav-link {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Fill Chairs</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
-    <a class="nav-link mobile-overflow {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
-    <a class="nav-link mobile-overflow {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon">◎</span><span>Operations</span></a>
+    <a class="nav-link {{ 'active' if active_page in ['bookings','calendar'] else '' }}" href="/bookings"><span class="nav-icon">▣</span><span>Calendar</span></a>
 
-    <a class="setup-mascot-link mobile-overflow" href="/setup" aria-label="Open Setup Guide">
-      <span class="setup-mascot-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span>
-      <span class="setup-mascot-copy"><strong>Setup Guide</strong><small>New here? Follow the four-step setup.</small><b>Start here →</b></span>
-    </a>
+    <details class="nav-group mobile-overflow" {{ 'open' if active_page in ['artists','customers','operations','settings','setup'] else '' }}>
+      <summary>Manage &amp; setup</summary>
+      <div class="nav-group-links">
+        <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
+        <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
+        <a class="nav-link {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon">◎</span><span>Operations</span></a>
+        <a class="nav-link {{ 'active' if active_page == 'setup' else '' }}" href="/setup"><span class="nav-icon">☠</span><span>Setup Guide</span></a>
+        <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
+      </div>
+    </details>
 
-    <a class="nav-link mobile-overflow {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
-
-    <details class="mobile-more {{ 'active' if active_page in ['customers','bookings','operations','settings','setup'] else '' }}">
+    <details class="mobile-more {{ 'active' if active_page in ['artists','customers','operations','settings','setup'] else '' }}">
       <summary><span class="nav-icon">•••</span><span>More</span></summary>
       <div class="mobile-more-sheet">
+        <a href="/artists"><span>✦</span><strong>Artists</strong></a>
         <a href="/customers"><span>♙</span><strong>Customers</strong></a>
-        <a href="/bookings"><span>✓</span><strong>Bookings</strong></a>
         <a href="/operations"><span>◎</span><strong>Operations</strong></a>
-        <a class="setup-mascot-mobile" href="/setup"><span class="setup-mobile-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span><span><strong>Setup Guide</strong><small>New here? Start here.</small></span></a>
+        <a href="/setup"><span class="setup-mobile-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span><strong>Setup Guide</strong></a>
         <a href="/settings"><span>⚙</span><strong>Settings</strong></a>
       </div>
     </details>
   </nav>
 
   <div class="sidebar-footer">
-    <div class="studio-card">
-      <div class="kicker">Studio</div>
-      <div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div>
-      <div class="online">● Empty Chair Active</div>
-    </div>
-    <div class="owner-card">
-      <div class="kicker">Owner</div>
-      <div class="owner-name">{{ user["name"] if user else "Owner" }}</div>
-    </div>
+    <div class="studio-card"><div class="kicker">Studio</div><div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div><div class="online">● Empty Chair Active</div></div>
+    <div class="owner-card"><div class="kicker">Owner</div><div class="owner-name">{{ user["name"] if user else "Owner" }}</div></div>
   </div>
 </aside>

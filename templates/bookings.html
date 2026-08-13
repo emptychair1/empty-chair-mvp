@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Bookings · Empty Chair</title>
+  <title>Calendar · Empty Chair</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
   {% include '_table_style.html' %}
@@ -28,10 +28,10 @@
 </head>
 <body>
 <div class="app-shell">
-  {% set active_page='bookings' %}{% include '_sidebar.html' %}
+  {% set active_page='calendar' %}{% include '_sidebar.html' %}
   <main class="main">
     <header class="topbar">
-      <div><div class="page-title">Bookings</div><div class="page-subtitle">See Empty Chair turn available time into occupied calendar time.</div></div>
+      <div><div class="page-title">Calendar</div><div class="page-subtitle">See what is open, what Empty Chair is filling, and what is booked.</div></div>
       <div class="top-actions"><a class="button" href="/pilot">Fill More Chairs</a></div>
     </header>
     <div class="content">

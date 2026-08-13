@@ -201,12 +201,35 @@ def test_google_side_reschedule_updates_empty_chair_calendar_time():
 def test_mobile_navigation_uses_explicit_overflow_items():
     sidebar = Path("templates/_sidebar.html").read_text()
     mobile_css = Path("static/mobile-nav.css").read_text()
-    assert sidebar.count("mobile-overflow") == 4
+    assert sidebar.count("mobile-overflow") == 1
     assert ".sidebar-nav > .mobile-overflow" in mobile_css
     assert "nth-child" not in mobile_css
     assert 'class="mobile-brand"' not in sidebar
     assert ".topbar::before" in mobile_css
     assert "empty-chair-logo.png" in mobile_css
+    assert "grid-template-columns: repeat(4" in mobile_css
+    assert "position: fixed !important" in mobile_css
+
+
+def test_primary_product_navigation_is_reduced_to_three_jobs():
+    sidebar = Path("templates/_sidebar.html").read_text()
+    primary = sidebar.split('<details class="nav-group')[0]
+    assert ">Results<" in primary
+    assert ">Fill Chairs<" in primary
+    assert ">Calendar<" in primary
+    assert ">Artists<" not in primary
+    assert ">Customers<" not in primary
+    assert "Manage &amp; setup" in sidebar
+
+
+def test_results_and_calendar_use_plain_product_language():
+    results = Path("templates/dashboard_v2.html").read_text()
+    calendar = Path("templates/bookings.html").read_text()
+    assert '<div class="page-title">Results</div>' in results
+    assert "Revenue recovered" in results
+    assert "Recent appointment results" in results
+    assert '<div class="page-title">Calendar</div>' in calendar
+    assert "what Empty Chair is filling" in calendar
 
 
 def test_visual_polish_keeps_accessibility_guards():
@@ -221,9 +244,9 @@ def test_owner_and_artist_value_hierarchy_is_explicit():
     artists = Path("templates/artists.html").read_text()
     operations = Path("templates/operations.html").read_text()
 
-    assert "Recovered revenue" in dashboard
-    assert "Earning time available" in dashboard
-    assert "Artists with earning time" in dashboard
+    assert "Revenue recovered" in dashboard
+    assert "Next opportunity" in dashboard
+    assert "Recent appointment results" in dashboard
     assert "Available earning time" in artists
     assert "slots to fill" in artists
     assert operations.index("Confirmed revenue") < operations.index("Confirmed bookings")
