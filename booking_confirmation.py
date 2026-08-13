@@ -32,7 +32,9 @@ def confirm_booking(request: Request, booking_id: str):
     if calendar_user_id:
         try:
             result = google_integration.block_calendar_time_for_user(calendar_user_id, f"Empty Chair · {booking['customer_name']} with {booking['artist_name']}", start_iso, end_iso, booking["shop_timezone"])
-            if result: core.event("calendar.slot_blocked", "booking", booking_id, result.get("id"))
+            if result:
+                google_integration.remember_booking_event(booking_id, calendar_user_id, result.get("id"))
+                core.event("calendar.slot_blocked", "booking", booking_id, result.get("id"))
         except Exception as exc: core.event("calendar.block_failed", "booking", booking_id, str(exc))
     core.event("booking.confirmed", "booking", booking_id)
     if booking["customer_email"]:

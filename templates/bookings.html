@@ -18,7 +18,7 @@
     .day{min-height:118px;padding:8px;border:1px solid var(--line-soft);border-radius:10px;background:#090909;overflow:hidden}.day.outside{opacity:.32}.day.today{border-color:rgba(208,170,112,.52)}.day-number{display:block;margin-bottom:7px;color:var(--muted);font-size:10px;font-weight:800}.day.today .day-number{color:var(--gold-light)}
     .calendar-legend{display:flex;justify-content:center;gap:15px;flex-wrap:wrap;margin:-3px 0 14px}.legend-item{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}.legend-dot{width:8px;height:8px;border-radius:2px}.legend-dot.open{border:1px solid var(--gold-light);background:transparent}.legend-dot.working{background:var(--gold-light);box-shadow:0 0 8px rgba(208,170,112,.4)}.legend-dot.filled{background:var(--red-bright)}.legend-dot.completed{background:var(--green)}
     .calendar-event{display:block;margin-top:5px;padding:8px;border:1px solid rgba(225,38,38,.48);border-left:3px solid var(--red-bright);border-radius:8px;background:linear-gradient(135deg,rgba(225,38,38,.24),rgba(78,8,12,.2));color:var(--cream);text-decoration:none;box-shadow:0 5px 14px rgba(0,0,0,.28)}
-    .calendar-event:hover{filter:brightness(1.14)}.calendar-event.open{border:1px dashed rgba(208,170,112,.58);border-left:3px solid var(--gold-light);background:rgba(208,170,112,.035);box-shadow:none}.calendar-event.working{border-color:rgba(208,170,112,.6);border-left-color:var(--gold-light);background:linear-gradient(135deg,rgba(208,170,112,.18),rgba(92,55,14,.12));box-shadow:0 0 18px rgba(208,170,112,.07)}.calendar-event.completed{border-color:rgba(117,203,69,.35);border-left-color:var(--green);background:rgba(117,203,69,.08)}
+    .calendar-event:hover{filter:brightness(1.14)}.calendar-event.open{border:1px dashed rgba(208,170,112,.58);border-left:3px solid var(--gold-light);background:rgba(208,170,112,.035);box-shadow:none}.calendar-event.working{border-color:rgba(208,170,112,.6);border-left-color:var(--gold-light);background:linear-gradient(135deg,rgba(208,170,112,.18),rgba(92,55,14,.12));box-shadow:0 0 18px rgba(208,170,112,.07)}.calendar-event.completed{border-color:rgba(117,203,69,.35);border-left-color:var(--green);background:rgba(117,203,69,.08)}.calendar-event.external{border:1px dashed rgba(146,157,179,.5);border-left:3px solid #929db3;background:rgba(146,157,179,.07);box-shadow:none}
     .calendar-event time{display:block;color:var(--gold-light);font-size:10px;font-weight:900}.calendar-event strong{display:block;margin:2px 0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calendar-event span{display:block;color:var(--cream-dim);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.event-state{margin-top:4px!important;color:var(--cream)!important;font-size:8px!important;font-weight:900;text-transform:uppercase;letter-spacing:.07em}
     .agenda{display:none}.agenda-day{padding:13px 0;border-bottom:1px solid var(--line-soft)}.agenda-day:last-child{border:0}.agenda-date{margin-bottom:8px;color:var(--gold-light);font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}
     .panel-title-row{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:20px 0 10px}.panel-title-row h2{margin:0}.booking-actions{display:flex;gap:6px;flex-wrap:wrap}.status{font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.status.confirmed,.status.completed{color:var(--green)}.status.awaiting_confirmation{color:var(--gold-light)}
@@ -52,6 +52,7 @@
           <span class="legend-item"><i class="legend-dot working"></i>Empty Chair working</span>
           <span class="legend-item"><i class="legend-dot filled"></i>Filled</span>
           <span class="legend-item"><i class="legend-dot completed"></i>Completed</span>
+          <span class="legend-item"><i class="legend-dot" style="background:#929db3"></i>Google busy</span>
         </div>
 
         <div class="weekday-row" aria-hidden="true">
@@ -63,10 +64,10 @@
             <div class="day {{ 'outside' if day.month != selected_month.month else '' }} {{ 'today' if day == today else '' }}">
               <span class="day-number">{{ day.day }}</span>
               {% for event in calendar_events.get(day.isoformat(), []) %}
-              <a class="calendar-event {{ event.calendar_state }}" href="{{ event.href }}">
+              <a class="calendar-event {{ event.calendar_state }}" href="{{ event.href }}" {% if event.external %}target="_blank" rel="noopener"{% endif %}>
                 <time>{{ event.start_time }}{% if event.end_time %}–{{ event.end_time }}{% endif %}</time>
                 <strong>{{ event.artist_name }}</strong>
-                <span>{{ event.detail }} · ${{ '%.0f'|format(event.value) }}</span>
+                <span>{{ event.detail }}{% if not event.external %} · ${{ '%.0f'|format(event.value) }}{% endif %}</span>
                 <span class="event-state">{{ event.status_label }}</span>
               </a>
               {% endfor %}
@@ -83,10 +84,10 @@
               <div class="agenda-day">
                 <div class="agenda-date">{{ day.strftime('%A · %B %d') }}</div>
                 {% for event in calendar_events.get(day.isoformat(), []) %}
-                <a class="calendar-event {{ event.calendar_state }}" href="{{ event.href }}">
+                <a class="calendar-event {{ event.calendar_state }}" href="{{ event.href }}" {% if event.external %}target="_blank" rel="noopener"{% endif %}>
                   <time>{{ event.start_time }}{% if event.end_time %}–{{ event.end_time }}{% endif %}</time>
                   <strong>{{ event.artist_name }} · {{ event.detail }}</strong>
-                  <span>{{ event.style or event.service }} · ${{ '%.0f'|format(event.value) }}</span>
+                  <span>{% if event.external %}External booking{% else %}{{ event.style or event.service }} · ${{ '%.0f'|format(event.value) }}{% endif %}</span>
                   <span class="event-state">{{ event.status_label }}</span>
                 </a>
                 {% endfor %}

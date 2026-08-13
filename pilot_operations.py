@@ -12,7 +12,7 @@ import notifications
 import pilot
 
 app = core.app
-FAILURE_TYPES = ("autopilot.activation_failed", "autopilot.background_failed", "calendar.availability_error", "calendar.block_failed", "offer.expiration_failed", "pilot.worker_failed", "booking.reopen_failed", "booking.confirmation_delivery_failed")
+FAILURE_TYPES = ("autopilot.activation_failed", "autopilot.background_failed", "calendar.availability_error", "calendar.block_failed", "calendar.delete_failed", "calendar.import_failed", "calendar.reconcile_failed", "offer.expiration_failed", "pilot.worker_failed", "booking.reopen_failed", "booking.confirmation_delivery_failed")
 
 def _empty_snapshot():
     return {
@@ -146,14 +146,24 @@ def cancel_booking(request: Request, booking_id: str):
     conn=core.connect()
     try:
         row=core.db_fetchone(conn,"SELECT b.id,b.opening_id,b.status FROM bookings b JOIN openings o ON o.id=b.opening_id WHERE b.id=? AND o.shop_id=?",(booking_id,user["shop_id"]))
-        if not row: raise HTTPException(404,"Booking not found")
-        if row["status"] not in ('AWAITING_CONFIRMATION','CONFIRMED'): raise HTTPException(409,"Booking cannot be cancelled")
+    finally: conn.close()
+    if not row: raise HTTPException(404,"Booking not found")
+    if row["status"] not in ('AWAITING_CONFIRMATION','CONFIRMED'): raise HTTPException(409,"Booking cannot be cancelled")
+    try:
+        calendar_deleted = google_integration.delete_booking_event(booking_id)
+    except Exception as exc:
+        calendar_deleted = False
+        core.event("calendar.delete_failed", "booking", booking_id, str(exc))
+    conn=core.connect()
+    try:
         core.db_execute(conn,"UPDATE bookings SET status='CANCELLED',cancelled_at=? WHERE id=?",(core.now_iso(),booking_id))
         core.db_execute(conn,"UPDATE openings SET status='OPEN',booking_id=NULL WHERE id=?",(row["opening_id"],))
         core.db_execute(conn,"UPDATE offers SET status='CANCELLED' WHERE opening_id=? AND status IN ('CLAIMED','SENT')",(row["opening_id"],))
         conn.commit()
     finally: conn.close()
     core.event("booking.operator_cancelled","booking",booking_id)
+    if not calendar_deleted:
+        core.event("calendar.delete_failed", "booking", booking_id, "Google event could not be removed")
     try: core.start_recovery_campaign(row["opening_id"])
     except Exception as exc: core.event("booking.reopen_failed","booking",booking_id,str(exc))
     return RedirectResponse("/operations?message=Booking+cancelled+and+slot+reopened",status_code=303)

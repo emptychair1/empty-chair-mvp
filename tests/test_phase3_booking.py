@@ -71,7 +71,8 @@ def test_confirmed_booking_visually_fills_calendar():
         finally:
             conn.close()
 
-        response = client.get("/bookings?month=2026-08")
+        with patch.object(google_integration, "external_calendar_events_for_shop", return_value=[{"id":"external_1","artist_name":"Pilot Artist","start":"2026-08-28T09:00:00-04:00","end":"2026-08-28T11:00:00-04:00","html_link":"https://calendar.google.com/event"}]):
+            response = client.get("/bookings?month=2026-08")
 
         assert response.status_code == 200
         assert 'aria-label="Appointment status calendar"' in response.text
@@ -85,6 +86,8 @@ def test_confirmed_booking_visually_fills_calendar():
         assert 'class="calendar-event open"' in response.text
         assert 'class="calendar-event working"' in response.text
         assert 'class="calendar-event filled"' in response.text
+        assert 'class="calendar-event external"' in response.text
+        assert "Google Calendar busy" in response.text
 
 def test_reject_reopens_slot():
     with TestClient(app) as client:
