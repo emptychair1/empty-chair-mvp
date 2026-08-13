@@ -37,6 +37,9 @@ import pilot_safety  # noqa: F401,E402
 # while Calendar checks and offer delivery run after START FILLING redirects.
 import fill_chairs_flow  # noqa: F401,E402
 
+# Optional isolated live-demo account. Disabled unless explicitly enabled.
+import demo_mode  # noqa: F401,E402
+
 # Replace the legacy artist roster page with forward-looking utilization cards.
 import artist_metrics  # noqa: F401,E402
 
