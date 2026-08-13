@@ -184,8 +184,8 @@ def setup_demo(request: Request):
                         id, shop_id, name, phone, email, communication_consent,
                         preferred_artists, preferred_styles, preferred_services,
                         appointment_count, completed_count, cancellation_count,
-                        no_show_count, average_spend, created_at
-                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'tattoo', 3, 2, 0, 0, ?, ?)
+                        no_show_count, average_spend, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'tattoo', 3, 2, 0, 0, ?, ?, ?)
                     """,
                     (
                         f"customer_{uuid.uuid4().hex[:12]}",
@@ -196,6 +196,7 @@ def setup_demo(request: Request):
                         "Alex Rivera",
                         style,
                         spend,
+                        core.now_iso(),
                         core.now_iso(),
                     ),
                 )
