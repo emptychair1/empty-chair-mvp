@@ -350,7 +350,7 @@ def customers_page(request: Request):
 
 
 @app.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, saved: int = 0, test_email: str = ""):
+def settings_page(request: Request, saved: int = 0, test_email: str = "", stripe: str = ""):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
@@ -381,7 +381,11 @@ def settings_page(request: Request, saved: int = 0, test_email: str = ""):
             "demo_mode": core.DEMO_MODE,
             "database_type": "PostgreSQL" if core.USE_POSTGRES else "SQLite",
             "test_email": test_email,
-            "stripe_ready": bool(__import__("stripe_deposits").configured()),
+            "stripe_platform_ready": bool(__import__("stripe_deposits").configured()),
+            "stripe_account_connected": bool(shop["stripe_account_id"]),
+            "stripe_payments_ready": bool(shop["stripe_charges_enabled"]),
+            "stripe_payouts_ready": bool(shop["stripe_payouts_enabled"]),
+            "stripe_message": stripe,
         },
     )
 
@@ -407,6 +411,13 @@ def update_settings(
     default_deposit_amount = max(0, min(float(default_deposit_amount or 0), 10000))
 
     conn = core.connect()
+    payment_state = core.db_fetchone(
+        conn,
+        "SELECT stripe_charges_enabled FROM shops WHERE id=?",
+        (user["shop_id"],),
+    )
+    deposits_requested = bool(deposits_enabled)
+    deposits_active = deposits_requested and bool(payment_state and payment_state["stripe_charges_enabled"])
     core.db_execute(
         conn,
         """
@@ -427,7 +438,7 @@ def update_settings(
             phone.strip() or None,
             booking_url.strip() or None,
             timezone_name.strip() or "America/New_York",
-            1 if deposits_enabled else 0,
+            1 if deposits_active else 0,
             default_deposit_amount,
             user["shop_id"],
         ),

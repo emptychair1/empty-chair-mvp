@@ -47,6 +47,12 @@ def _seed_deposit_booking():
 def test_owner_can_configure_deposit_amount():
     with TestClient(app) as client:
         create_test_account(client)
+        conn = core.connect()
+        try:
+            core.db_execute(conn, "UPDATE shops SET stripe_account_id='acct_ready',stripe_charges_enabled=1,stripe_payouts_enabled=1")
+            conn.commit()
+        finally:
+            conn.close()
         response = client.post("/settings", data={"name":"Test Tattoo Studio","email":"","phone":"","booking_url":"","timezone_name":"America/New_York","deposits_enabled":"1","default_deposit_amount":"100"}, follow_redirects=False)
         assert response.status_code == 303
         conn = core.connect()
@@ -62,6 +68,12 @@ def test_customer_is_redirected_to_hosted_stripe_checkout():
     with TestClient(app) as client:
         create_test_account(client)
         _seed_deposit_booking()
+        conn = core.connect()
+        try:
+            core.db_execute(conn, "UPDATE shops SET stripe_account_id='acct_shop',stripe_charges_enabled=1,stripe_payouts_enabled=1")
+            conn.commit()
+        finally:
+            conn.close()
         session = {"id":"cs_test_deposit","url":"https://checkout.stripe.com/c/pay/test"}
         with patch.object(stripe_deposits, "STRIPE_SECRET_KEY", "sk_test_value"), patch.object(stripe_deposits, "_stripe_post", return_value=session) as create:
             response = client.post("/booking/stripe_booking/deposit", follow_redirects=False)
@@ -70,6 +82,51 @@ def test_customer_is_redirected_to_hosted_stripe_checkout():
         fields = create.call_args.args[1]
         assert fields["line_items[0][price_data][unit_amount]"] == "10000"
         assert fields["metadata[booking_id]"] == "stripe_booking"
+        assert fields["payment_intent_data[transfer_data][destination]"] == "acct_shop"
+        assert fields["payment_intent_data[on_behalf_of]"] == "acct_shop"
+
+
+def test_owner_can_start_stripe_connect_onboarding():
+    with TestClient(app) as client:
+        create_test_account(client)
+        account = {"id": "acct_new"}
+        link = {"url": "https://connect.stripe.com/setup/test"}
+        with patch.object(stripe_deposits, "STRIPE_SECRET_KEY", "sk_test_value"), patch.object(stripe_deposits, "_stripe_post", side_effect=[account, link]) as stripe_post:
+            response = client.post("/settings/stripe/connect", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == link["url"]
+        assert stripe_post.call_args_list[0].args[0] == "/accounts"
+        assert stripe_post.call_args_list[1].args[0] == "/account_links"
+        conn = core.connect()
+        try:
+            shop = core.db_fetchone(conn, "SELECT stripe_account_id FROM shops LIMIT 1")
+        finally:
+            conn.close()
+        assert shop["stripe_account_id"] == "acct_new"
+
+
+def test_stripe_return_updates_payment_and_payout_readiness():
+    with TestClient(app) as client:
+        create_test_account(client)
+        conn = core.connect()
+        try:
+            core.db_execute(conn, "UPDATE shops SET stripe_account_id='acct_return'")
+            conn.commit()
+        finally:
+            conn.close()
+        account = {"id":"acct_return","details_submitted":True,"charges_enabled":True,"payouts_enabled":True}
+        with patch.object(stripe_deposits, "STRIPE_SECRET_KEY", "sk_test_value"), patch.object(stripe_deposits, "_stripe_get", return_value=account):
+            response = client.get("/settings/stripe/return", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/settings?stripe=ready"
+        conn = core.connect()
+        try:
+            shop = core.db_fetchone(conn, "SELECT stripe_details_submitted,stripe_charges_enabled,stripe_payouts_enabled FROM shops LIMIT 1")
+        finally:
+            conn.close()
+        assert shop["stripe_details_submitted"] == 1
+        assert shop["stripe_charges_enabled"] == 1
+        assert shop["stripe_payouts_enabled"] == 1
 
 
 def test_signed_paid_webhook_unlocks_owner_confirmation_and_is_idempotent():
