@@ -123,6 +123,8 @@ def test_mobile_navigation_uses_explicit_overflow_items():
     assert sidebar.count("mobile-overflow") == 4
     assert ".sidebar-nav > .mobile-overflow" in mobile_css
     assert "nth-child" not in mobile_css
+    assert 'class="mobile-brand"' in sidebar
+    assert ".mobile-brand" in mobile_css
 
 
 def test_optional_operations_panel_failure_does_not_take_down_page():
