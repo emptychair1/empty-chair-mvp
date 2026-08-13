@@ -1,5 +1,6 @@
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 import pytest
 from fastapi.testclient import TestClient
@@ -115,6 +116,86 @@ def test_cancel_booking_reopens_slot_and_invalidates_offer():
         assert opening["status"] == "OPEN"
         assert opening["booking_id"] is None
         assert offer["status"] == "CANCELLED"
+
+
+def test_cancel_booking_removes_managed_google_event():
+    with TestClient(app) as client:
+        create_test_account(client)
+        _seed_operations_data()
+        conn = core.connect()
+        try:
+            user = core.db_fetchone(conn, "SELECT id FROM users LIMIT 1")
+        finally:
+            conn.close()
+        google_integration.remember_booking_event("book_p4", user["id"], "google_event_1")
+
+        with patch.object(google_integration, "_access_token", return_value="token"), patch.object(google_integration, "_authorized_request", return_value={}) as request_google, patch.object(core, "start_recovery_campaign", return_value=None):
+            response = client.post("/operations/bookings/book_p4/cancel", follow_redirects=False)
+
+        assert response.status_code == 303
+        request_google.assert_called_once()
+        assert request_google.call_args.kwargs["method"] == "DELETE"
+        assert google_integration.booking_event("book_p4") is None
+
+
+def test_google_side_cancellation_reopens_empty_chair_slot():
+    with TestClient(app) as client:
+        create_test_account(client)
+        _seed_operations_data()
+        conn = core.connect()
+        try:
+            user = core.db_fetchone(conn, "SELECT id FROM users LIMIT 1")
+        finally:
+            conn.close()
+        google_integration.remember_booking_event("book_p4", user["id"], "deleted_google_event")
+        missing = HTTPError("https://google.test/event", 404, "Not found", None, None)
+
+        with patch.object(google_integration, "_access_token", return_value="token"), patch.object(google_integration, "_authorized_request", side_effect=missing), patch.object(core, "start_recovery_campaign", return_value=None) as recovery:
+            reopened = google_integration.reconcile_deleted_booking_events()
+
+        assert reopened == 1
+        recovery.assert_called_once_with("open_p4")
+        conn = core.connect()
+        try:
+            booking = core.db_fetchone(conn, "SELECT status FROM bookings WHERE id='book_p4'")
+            opening = core.db_fetchone(conn, "SELECT status,booking_id FROM openings WHERE id='open_p4'")
+        finally:
+            conn.close()
+        assert booking["status"] == "CANCELLED"
+        assert opening["status"] == "OPEN"
+        assert opening["booking_id"] is None
+
+
+def test_google_side_reschedule_updates_empty_chair_calendar_time():
+    with TestClient(app) as client:
+        create_test_account(client)
+        _seed_operations_data()
+        conn = core.connect()
+        try:
+            user = core.db_fetchone(conn, "SELECT id FROM users LIMIT 1")
+        finally:
+            conn.close()
+        google_integration.remember_booking_event("book_p4", user["id"], "moved_google_event")
+        moved_event = {
+            "id": "moved_google_event",
+            "status": "confirmed",
+            "start": {"dateTime": "2026-08-31T15:00:00-04:00"},
+            "end": {"dateTime": "2026-08-31T17:00:00-04:00"},
+        }
+
+        with patch.object(google_integration, "_access_token", return_value="token"), patch.object(google_integration, "_authorized_request", return_value=moved_event):
+            reopened = google_integration.reconcile_deleted_booking_events()
+
+        assert reopened == 0
+        conn = core.connect()
+        try:
+            opening = core.db_fetchone(conn, "SELECT date,start_time,end_time,status FROM openings WHERE id='open_p4'")
+        finally:
+            conn.close()
+        assert opening["date"] == "2026-08-31"
+        assert opening["start_time"] == "15:00"
+        assert opening["end_time"] == "17:00"
+        assert opening["status"] == "BOOKED"
 
 
 def test_mobile_navigation_uses_explicit_overflow_items():
