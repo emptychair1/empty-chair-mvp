@@ -51,10 +51,16 @@ def claim_offer_atomic(offer_id: str):
             conn.rollback(); raise HTTPException(409, "This offer is no longer active.")
 
         booking_id = f"booking_{uuid.uuid4().hex[:12]}"
-        shop = core.db_fetchone(conn, "SELECT booking_url FROM shops WHERE id=?", (offer["shop_id"],))
+        shop = core.db_fetchone(conn, "SELECT booking_url,deposits_enabled,default_deposit_amount FROM shops WHERE id=?", (offer["shop_id"],))
         booking_url = shop["booking_url"] if shop else None
+        deposit_amount = min(
+            max(float(shop["default_deposit_amount"] or 0), 0),
+            float(offer["price"] or 0),
+        ) if shop and shop["deposits_enabled"] else 0
+        booking_status = "PAYMENT_REQUIRED" if deposit_amount > 0 else "AWAITING_CONFIRMATION"
+        deposit_status = "REQUIRED" if deposit_amount > 0 else "NOT_REQUIRED"
         core.db_execute(conn, "UPDATE offers SET status='CANCELLED' WHERE opening_id=? AND id!=? AND status IN ('PENDING','SENT')", (offer["opening_id"], offer_id))
-        core.db_execute(conn, "INSERT INTO bookings(id,opening_id,customer_id,artist_id,booking_url,status,amount,booked_at) VALUES (?,?,?,?,?,?,?,?)", (booking_id, offer["opening_id"], offer["customer_id"], offer["artist_id"], booking_url, "AWAITING_CONFIRMATION", offer["price"], None))
+        core.db_execute(conn, "INSERT INTO bookings(id,opening_id,customer_id,artist_id,booking_url,status,amount,deposit_amount,deposit_status,booked_at) VALUES (?,?,?,?,?,?,?,?,?,?)", (booking_id, offer["opening_id"], offer["customer_id"], offer["artist_id"], booking_url, booking_status, offer["price"], deposit_amount, deposit_status, None))
         core.db_execute(conn, "UPDATE openings SET booking_id=? WHERE id=?", (booking_id, offer["opening_id"]))
         conn.commit()
     except HTTPException:

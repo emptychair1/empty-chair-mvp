@@ -12,6 +12,7 @@ import features  # noqa: F401,E402
 # Install SMS/email notification overrides after core is fully imported.
 import notifications  # noqa: F401,E402
 import delivery_safety  # noqa: F401,E402
+import stripe_deposits  # noqa: F401,E402
 
 # Register Google authentication and the optional Calendar double-booking safety layer.
 import google_integration  # noqa: F401,E402
@@ -58,5 +59,6 @@ print(
     f"email_live={notifications.EMAIL_LIVE}, "
     f"resend_configured={bool(core.RESEND_API_KEY)}, "
     f"google_configured={bool(google_integration.GOOGLE_CLIENT_ID)}, "
+    f"stripe_configured={stripe_deposits.configured()}, "
     f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
 )
