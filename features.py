@@ -3,13 +3,14 @@ import calendar
 import io
 import json
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 import app as core
 import delivery_safety
+import google_integration
 
 app = core.app
 
@@ -147,6 +148,53 @@ def bookings_page(request: Request):
                 }
             )
             calendar_events.setdefault(str(row["date"]), []).append(event)
+
+    month_start_iso = datetime(selected_month.year, selected_month.month, 1, tzinfo=timezone.utc).isoformat()
+    month_end_iso = datetime(next_month.year, next_month.month, 1, tzinfo=timezone.utc).isoformat()
+    try:
+        external_events = google_integration.external_calendar_events_for_shop(
+            user["shop_id"],
+            month_start_iso,
+            month_end_iso,
+        )
+    except Exception as exc:
+        external_events = []
+        core.event("calendar.import_failed", "shop", user["shop_id"], str(exc))
+    for external in external_events:
+        try:
+            start = datetime.fromisoformat(external["start"].replace("Z", "+00:00"))
+            end = datetime.fromisoformat(external["end"].replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            continue
+        day_key = start.date().isoformat()
+        start_label = start.strftime("%H:%M")
+        end_label = end.strftime("%H:%M")
+        calendar_events[day_key] = [
+            event
+            for event in calendar_events.get(day_key, [])
+            if not (
+                event.get("artist_name") == external["artist_name"]
+                and event.get("calendar_state") in ("open", "working")
+                and str(event.get("start_time", ""))[:5] < end_label
+                and str(event.get("end_time", ""))[:5] > start_label
+            )
+        ]
+        calendar_events.setdefault(day_key, []).append(
+            {
+                "id": external["id"],
+                "artist_name": external["artist_name"],
+                "start_time": start_label,
+                "end_time": end_label,
+                "calendar_state": "external",
+                "status_label": "Google Calendar busy",
+                "detail": "External booking",
+                "value": 0,
+                "style": "",
+                "service": "",
+                "href": external["html_link"] or "/bookings",
+                "external": True,
+            }
+        )
 
     for day_events in calendar_events.values():
         day_events.sort(key=lambda event: str(event["start_time"]))
