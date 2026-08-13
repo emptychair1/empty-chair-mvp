@@ -123,3 +123,21 @@ def test_mobile_navigation_uses_explicit_overflow_items():
     assert sidebar.count("mobile-overflow") == 4
     assert ".sidebar-nav > .mobile-overflow" in mobile_css
     assert "nth-child" not in mobile_css
+
+
+def test_optional_operations_panel_failure_does_not_take_down_page():
+    with TestClient(app) as client:
+        create_test_account(client)
+        _seed_operations_data()
+        original = core.db_fetchall
+
+        def fail_recent_only(conn, query, params=()):
+            if "b.status IN ('CONFIRMED','COMPLETED','CANCELLED')" in query:
+                raise RuntimeError("legacy production schema")
+            return original(conn, query, params)
+
+        with patch.object(core, "db_fetchall", side_effect=fail_recent_only), patch.object(google_integration, "artist_calendar_connected", return_value=False):
+            response = client.get("/operations")
+        assert response.status_code == 200
+        assert "Pilot Operations" in response.text
+        assert "No confirmed bookings yet." in response.text

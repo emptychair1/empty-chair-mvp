@@ -18,13 +18,25 @@ def _count(conn, query, params=()):
     row = core.db_fetchone(conn, query, params)
     return int(row["n"] or 0) if row else 0
 
+def _safe_fetchall(conn, query, params=(), *, section, shop_id):
+    try:
+        return core.db_fetchall(conn, query, params)
+    except Exception as exc:
+        conn.rollback()
+        core.event("operations.section_failed", "shop", shop_id, json.dumps({"section": section, "error": str(exc)}))
+        return []
+
 def _snapshot(shop_id):
     conn = core.connect()
     try:
-        pending = core.db_fetchall(conn, """SELECT b.id,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status='AWAITING_CONFIRMATION' ORDER BY o.date,o.start_time""", (shop_id,))
-        recent_bookings = core.db_fetchall(conn, """SELECT b.id,b.status,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status IN ('CONFIRMED','COMPLETED','CANCELLED') ORDER BY COALESCE(b.booked_at,b.cancelled_at,o.created_at) DESC LIMIT 12""", (shop_id,))
-        campaigns = pilot._campaign_rows(shop_id)
-        failures = core.db_fetchall(conn, "SELECT * FROM events WHERE event_type IN (" + ",".join("?" for _ in FAILURE_TYPES) + ") ORDER BY created_at DESC LIMIT 40", FAILURE_TYPES)
+        pending = _safe_fetchall(conn, """SELECT b.id,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status='AWAITING_CONFIRMATION' ORDER BY o.date,o.start_time""", (shop_id,), section="pending", shop_id=shop_id)
+        recent_bookings = _safe_fetchall(conn, """SELECT b.id,b.status,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status IN ('CONFIRMED','COMPLETED','CANCELLED') ORDER BY o.date DESC,o.start_time DESC LIMIT 12""", (shop_id,), section="recent_bookings", shop_id=shop_id)
+        try:
+            campaigns = pilot._campaign_rows(shop_id)
+        except Exception as exc:
+            core.event("operations.section_failed", "shop", shop_id, json.dumps({"section": "campaigns", "error": str(exc)}))
+            campaigns = []
+        failures = _safe_fetchall(conn, "SELECT * FROM events WHERE event_type IN (" + ",".join("?" for _ in FAILURE_TYPES) + ") ORDER BY created_at DESC LIMIT 40", FAILURE_TYPES, section="failures", shop_id=shop_id)
         shop_failures = []
         for row in failures:
             item = dict(row)
@@ -33,13 +45,20 @@ def _snapshot(shop_id):
             if not belongs:
                 belongs = bool(core.db_fetchone(conn, "SELECT o.id FROM openings o LEFT JOIN offers f ON f.opening_id=o.id LEFT JOIN bookings b ON b.opening_id=o.id WHERE o.shop_id=? AND (o.id=? OR f.id=? OR b.id=?) LIMIT 1", (shop_id,entity_id,entity_id,entity_id)))
             if belongs: shop_failures.append(item)
-        failed_deliveries = core.db_fetchall(conn, """SELECT e.created_at,e.entity_id,e.metadata,c.name AS customer_name,o.date,o.start_time FROM events e JOIN offers f ON f.id=e.entity_id JOIN openings o ON o.id=f.opening_id JOIN customers c ON c.id=f.customer_id WHERE e.event_type='offer.delivery' AND o.shop_id=? AND f.status='SENT' AND e.metadata NOT LIKE '%\"sms\": true%' AND e.metadata NOT LIKE '%\"email\": true%' ORDER BY e.created_at DESC LIMIT 20""", (shop_id,))
+        failed_deliveries = _safe_fetchall(conn, """SELECT e.created_at,e.entity_id,e.metadata,c.name AS customer_name,o.date,o.start_time FROM events e JOIN offers f ON f.id=e.entity_id JOIN openings o ON o.id=f.opening_id JOIN customers c ON c.id=f.customer_id WHERE e.event_type='offer.delivery' AND o.shop_id=? AND f.status='SENT' AND e.metadata NOT LIKE '%\"sms\": true%' AND e.metadata NOT LIKE '%\"email\": true%' ORDER BY e.created_at DESC LIMIT 20""", (shop_id,), section="failed_deliveries", shop_id=shop_id)
         confirmed = _count(conn, "SELECT COUNT(*) AS n FROM bookings b JOIN openings o ON o.id=b.opening_id WHERE o.shop_id=? AND b.status IN ('CONFIRMED','COMPLETED')", (shop_id,))
         revenue = core.db_fetchone(conn, "SELECT COALESCE(SUM(b.amount),0) AS total FROM bookings b JOIN openings o ON o.id=b.opening_id WHERE o.shop_id=? AND b.status IN ('CONFIRMED','COMPLETED')", (shop_id,))["total"]
         offers = _count(conn, "SELECT COUNT(DISTINCT e.entity_id) AS n FROM events e JOIN offers f ON f.id=e.entity_id JOIN openings o ON o.id=f.opening_id WHERE e.event_type='offer.delivery' AND o.shop_id=?", (shop_id,))
         delivered = _count(conn, """SELECT COUNT(DISTINCT e.entity_id) AS n FROM events e JOIN offers f ON f.id=e.entity_id JOIN openings o ON o.id=f.opening_id WHERE e.event_type='offer.delivery' AND o.shop_id=? AND (e.metadata LIKE '%\"sms\": true%' OR e.metadata LIKE '%\"email\": true%')""", (shop_id,))
         artists = core.db_fetchall(conn, "SELECT id,name FROM artists WHERE shop_id=? AND active=1 ORDER BY name", (shop_id,))
-        calendar_health = [{"name": a["name"], "connected": google_integration.artist_calendar_connected(a["id"])} for a in artists]
+        calendar_health = []
+        for artist in artists:
+            try:
+                connected = google_integration.artist_calendar_connected(artist["id"])
+            except Exception as exc:
+                core.event("operations.section_failed", "shop", shop_id, json.dumps({"section": "calendar_health", "artist_id": artist["id"], "error": str(exc)}))
+                connected = False
+            calendar_health.append({"name": artist["name"], "connected": connected})
     finally: conn.close()
     return {"pending":pending,"recent_bookings":recent_bookings,"campaigns":campaigns,"failures":shop_failures,"failed_deliveries":failed_deliveries,"calendar_health":calendar_health,"report":{"confirmed":confirmed,"revenue":float(revenue or 0),"offers":offers,"delivery_rate":round(delivered/offers*100,1) if offers else 0}}
 
