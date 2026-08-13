@@ -91,9 +91,9 @@ def _reset_data():
         core.db_execute(conn, "INSERT INTO artists(id,shop_id,name,email,phone,styles,services,active) VALUES (?,?,?,?,?,?,?,1)",
                         ("demo_artist_morgan", DEMO_SHOP_ID, "Morgan Vale", "morgan@example.test", "+17065550102", "Fine line, Realism", "Tattoo"))
         customers = [
-            ("demo_customer_jordan", "Jordan Lee", None, None, "demo_artist_alex", "Blackwork", 425),
-            ("demo_customer_casey", "Casey Reed", None, None, "demo_artist_alex", "Traditional", 350),
-            ("demo_customer_riley", "Riley Chen", None, None, "demo_artist_morgan", "Fine line", 300),
+            ("demo_customer_jordan", "Jordan Lee", "+17065550201", None, "demo_artist_alex", "Blackwork", 425),
+            ("demo_customer_casey", "Casey Reed", "+17065550202", None, "demo_artist_alex", "Traditional", 350),
+            ("demo_customer_riley", "Riley Chen", "+17065550203", None, "demo_artist_morgan", "Fine line", 300),
         ]
         for cid, name, phone, email, artist, style, spend in customers:
             core.db_execute(conn, "INSERT INTO customers(id,shop_id,name,phone,email,communication_consent,preferred_artists,preferred_styles,preferred_services,appointment_count,completed_count,cancellation_count,no_show_count,average_spend,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?,?,3,3,0,0,?,?,?)",
