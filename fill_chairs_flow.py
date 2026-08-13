@@ -94,6 +94,20 @@ def _database_snapshot(shop_id: str) -> dict:
             """,
             (shop_id,),
         )
+        delivery_rows = core.db_fetchall(
+            conn,
+            """
+            SELECT e.*
+            FROM events e
+            JOIN offers ofr ON ofr.id = e.entity_id
+            JOIN openings o ON o.id = ofr.opening_id
+            WHERE e.event_type = 'offer.delivery'
+              AND o.shop_id = ?
+            ORDER BY e.created_at DESC
+            LIMIT 12
+            """,
+            (shop_id,),
+        )
     finally:
         conn.close()
 
@@ -123,6 +137,26 @@ def _database_snapshot(shop_id: str) -> dict:
     ]
     passed = sum(1 for item in checks if item["ok"])
 
+    recent_deliveries = []
+    for row in delivery_rows:
+        try:
+            metadata = json.loads(row["metadata"] or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            metadata = {}
+        recent_deliveries.append(
+            {
+                "created_at": row["created_at"],
+                "success": bool(metadata.get("sms") or metadata.get("email")),
+                "sms": bool(metadata.get("sms")),
+                "email": bool(metadata.get("email")),
+                "attempts": max(
+                    int(metadata.get("sms_attempts") or 0),
+                    int(metadata.get("email_attempts") or 0),
+                ),
+                "error": metadata.get("error") or "",
+            }
+        )
+
     return {
         "version": pilot.PILOT_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -145,6 +179,7 @@ def _database_snapshot(shop_id: str) -> dict:
             ),
         },
         "campaigns": campaigns,
+        "recent_deliveries": recent_deliveries,
     }
 
 

@@ -9,6 +9,7 @@ This allows live email delivery while Twilio remains in demo mode.
 
 import json
 import os
+import time
 from html import escape
 
 import app as core
@@ -21,6 +22,7 @@ _ORIGINAL_SEND_RECOVERY_EMAIL = core.send_recovery_email
 
 SMS_LIVE = os.getenv("EMPTY_CHAIR_SMS_LIVE", "false").lower() == "true"
 EMAIL_LIVE = os.getenv("EMPTY_CHAIR_EMAIL_LIVE", "false").lower() == "true"
+DELIVERY_ATTEMPTS = max(1, int(os.getenv("EMPTY_CHAIR_DELIVERY_ATTEMPTS", "3")))
 
 
 def _first_name(name):
@@ -152,13 +154,35 @@ def send_offer_multichannel(customer, opening, offer_id):
         f"Claim it: {claim_url}"
     )
 
-    sms_sent = _send_text(customer["phone"], sms_body)
+    sms_attempts = 0
+    sms_sent = False
+    if SMS_LIVE:
+        for attempt in range(1, DELIVERY_ATTEMPTS + 1):
+            sms_attempts = attempt
+            sms_sent = _send_text(customer["phone"], sms_body)
+            if sms_sent:
+                break
+            if attempt < DELIVERY_ATTEMPTS:
+                time.sleep(0.25 * attempt)
+    else:
+        sms_attempts = 1
+        sms_sent = _send_text(customer["phone"], sms_body)
 
     email_sent = False
-    try:
-        email_sent = send_offer_email(customer, opening, offer_id)
-    except Exception as exc:
-        print("Offer email send failed:", str(exc))
+    email_attempts = 0
+    last_error = ""
+    for attempt in range(1, DELIVERY_ATTEMPTS + 1):
+        email_attempts = attempt
+        try:
+            email_sent = send_offer_email(customer, opening, offer_id)
+        except Exception as exc:
+            last_error = str(exc)
+            print("Offer email send failed:", last_error)
+            email_sent = False
+        if email_sent or not EMAIL_LIVE:
+            break
+        if attempt < DELIVERY_ATTEMPTS:
+            time.sleep(0.25 * attempt)
 
     core.event(
         "offer.delivery",
@@ -170,6 +194,9 @@ def send_offer_multichannel(customer, opening, offer_id):
                 "email": bool(email_sent),
                 "sms_live": SMS_LIVE,
                 "email_live": EMAIL_LIVE,
+                "sms_attempts": sms_attempts,
+                "email_attempts": email_attempts,
+                "error": last_error,
             }
         ),
     )

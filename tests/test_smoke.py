@@ -12,7 +12,7 @@ os.environ["EMPTY_CHAIR_SESSION_SECRET"] = "test-secret"
 os.environ.pop("DATABASE_URL", None)
 
 from fastapi.testclient import TestClient
-from app import app
+from bootstrap import app
 
 core = sys.modules["empty_chair_legacy_app"]
 
