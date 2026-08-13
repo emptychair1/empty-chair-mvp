@@ -36,6 +36,19 @@ def _json_request(url, token, payload=None):
         return json.loads(response.read().decode())
 
 
+def _authorized_request(url, token, method="GET", payload=None):
+    data = None if payload is None else json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method=method,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as response:
+        body = response.read().decode()
+        return json.loads(body) if body else {}
+
+
 def _oauth_url(request, redirect_uri, scopes, purpose):
     state = secrets.token_urlsafe(24)
     request.session[f"google_{purpose}_state"] = state
@@ -47,6 +60,7 @@ def _ensure_schema():
     try:
         core.db_execute(conn, """CREATE TABLE IF NOT EXISTS google_calendar_connections (user_id TEXT PRIMARY KEY, access_token TEXT, refresh_token TEXT, expires_at TEXT, calendar_id TEXT NOT NULL DEFAULT 'primary', connected_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))""")
         core.db_execute(conn, """CREATE TABLE IF NOT EXISTS artist_calendar_connections (artist_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, connected_at TEXT NOT NULL, FOREIGN KEY(artist_id) REFERENCES artists(id), FOREIGN KEY(user_id) REFERENCES users(id))""")
+        core.db_execute(conn, """CREATE TABLE IF NOT EXISTS google_booking_events (booking_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, event_id TEXT NOT NULL, created_at TEXT NOT NULL, FOREIGN KEY(booking_id) REFERENCES bookings(id), FOREIGN KEY(user_id) REFERENCES users(id))""")
         conn.commit()
     finally:
         conn.close()
@@ -195,6 +209,192 @@ def block_calendar_time_for_user(user_id, summary, start_iso, end_iso, timezone_
     token = _access_token(user_id)
     if not token: return None
     return _json_request(EVENTS_URL, token, {"summary": summary, "description": "Booked by Empty Chair", "start": {"dateTime": start_iso, "timeZone": timezone_name}, "end": {"dateTime": end_iso, "timeZone": timezone_name}})
+
+
+def remember_booking_event(booking_id, user_id, event_id):
+    if not event_id:
+        return
+    conn = core.connect()
+    try:
+        core.db_execute(conn, "DELETE FROM google_booking_events WHERE booking_id = ?", (booking_id,))
+        core.db_execute(
+            conn,
+            "INSERT INTO google_booking_events(booking_id,user_id,event_id,created_at) VALUES (?,?,?,?)",
+            (booking_id, user_id, event_id, core.now_iso()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def booking_event(booking_id):
+    conn = core.connect()
+    try:
+        return core.db_fetchone(conn, "SELECT * FROM google_booking_events WHERE booking_id = ?", (booking_id,))
+    finally:
+        conn.close()
+
+
+def delete_booking_event(booking_id):
+    mapping = booking_event(booking_id)
+    if not mapping:
+        return True
+    token = _access_token(mapping["user_id"])
+    if not token:
+        return False
+    url = f"{EVENTS_URL}/{urllib.parse.quote(mapping['event_id'], safe='')}"
+    try:
+        _authorized_request(url, token, method="DELETE")
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+    conn = core.connect()
+    try:
+        core.db_execute(conn, "DELETE FROM google_booking_events WHERE booking_id = ?", (booking_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return True
+
+
+def list_calendar_events_for_user(user_id, time_min, time_max):
+    token = _access_token(user_id)
+    if not token:
+        return []
+    events = []
+    page_token = ""
+    while True:
+        query = {
+            "timeMin": time_min,
+            "timeMax": time_max,
+            "singleEvents": "true",
+            "orderBy": "startTime",
+            "maxResults": "250",
+        }
+        if page_token:
+            query["pageToken"] = page_token
+        result = _authorized_request(EVENTS_URL + "?" + urllib.parse.urlencode(query), token)
+        events.extend(item for item in result.get("items", []) if item.get("status") != "cancelled")
+        page_token = result.get("nextPageToken", "")
+        if not page_token:
+            return events
+
+
+def external_calendar_events_for_shop(shop_id, time_min, time_max):
+    conn = core.connect()
+    try:
+        artists = core.db_fetchall(
+            conn,
+            """SELECT a.id,a.name,ac.user_id FROM artists a JOIN artist_calendar_connections ac ON ac.artist_id=a.id WHERE a.shop_id=? AND a.active=1""",
+            (shop_id,),
+        )
+        managed = {
+            row["event_id"]
+            for row in core.db_fetchall(
+                conn,
+                """SELECT gbe.event_id FROM google_booking_events gbe JOIN bookings b ON b.id=gbe.booking_id JOIN openings o ON o.id=b.opening_id WHERE o.shop_id=?""",
+                (shop_id,),
+            )
+        }
+    finally:
+        conn.close()
+    external = []
+    seen = set()
+    for artist in artists:
+        for event in list_calendar_events_for_user(artist["user_id"], time_min, time_max):
+            event_id = event.get("id")
+            if not event_id or event_id in managed or (artist["id"], event_id) in seen:
+                continue
+            seen.add((artist["id"], event_id))
+            start = event.get("start", {}).get("dateTime")
+            end = event.get("end", {}).get("dateTime")
+            if not start or not end:
+                continue
+            external.append(
+                {
+                    "id": event_id,
+                    "artist_id": artist["id"],
+                    "artist_name": artist["name"],
+                    "start": start,
+                    "end": end,
+                    "html_link": event.get("htmlLink", ""),
+                }
+            )
+    return external
+
+
+def reconcile_deleted_booking_events():
+    conn = core.connect()
+    try:
+        rows = core.db_fetchall(
+            conn,
+            """SELECT gbe.booking_id,gbe.user_id,gbe.event_id,b.opening_id,b.status,o.date,o.start_time,o.end_time,s.timezone AS shop_timezone FROM google_booking_events gbe JOIN bookings b ON b.id=gbe.booking_id JOIN openings o ON o.id=b.opening_id JOIN shops s ON s.id=o.shop_id""",
+        )
+    finally:
+        conn.close()
+    reopened = []
+    for row in rows:
+        if row["status"] == "CANCELLED":
+            try:
+                delete_booking_event(row["booking_id"])
+            except Exception as exc:
+                core.event("calendar.delete_failed", "booking", row["booking_id"], str(exc))
+            continue
+        if row["status"] != "CONFIRMED":
+            continue
+        token = _access_token(row["user_id"])
+        if not token:
+            continue
+        missing = False
+        try:
+            event = _authorized_request(f"{EVENTS_URL}/{urllib.parse.quote(row['event_id'], safe='')}", token)
+            missing = event.get("status") == "cancelled"
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                missing = True
+            else:
+                core.event("calendar.reconcile_failed", "booking", row["booking_id"], str(exc))
+                continue
+        except Exception as exc:
+            core.event("calendar.reconcile_failed", "booking", row["booking_id"], str(exc))
+            continue
+        if not missing:
+            try:
+                start_value = event.get("start", {}).get("dateTime")
+                end_value = event.get("end", {}).get("dateTime")
+                if start_value and end_value:
+                    zone = ZoneInfo(row["shop_timezone"] or "America/New_York")
+                    start = datetime.fromisoformat(start_value.replace("Z", "+00:00")).astimezone(zone)
+                    end = datetime.fromisoformat(end_value.replace("Z", "+00:00")).astimezone(zone)
+                    new_values = (start.date().isoformat(), start.strftime("%H:%M"), end.strftime("%H:%M"))
+                    old_values = (str(row["date"]), str(row["start_time"])[:5], str(row["end_time"])[:5])
+                    if new_values != old_values:
+                        conn = core.connect()
+                        try:
+                            core.db_execute(conn, "UPDATE openings SET date=?,start_time=?,end_time=? WHERE id=?", (*new_values, row["opening_id"]))
+                            conn.commit()
+                        finally:
+                            conn.close()
+                        core.event("calendar.external_reschedule", "booking", row["booking_id"])
+            except Exception as exc:
+                core.event("calendar.reconcile_failed", "booking", row["booking_id"], str(exc))
+            continue
+        conn = core.connect()
+        try:
+            core.db_execute(conn, "UPDATE bookings SET status='CANCELLED',cancelled_at=? WHERE id=? AND status='CONFIRMED'", (core.now_iso(), row["booking_id"]))
+            core.db_execute(conn, "UPDATE openings SET status='OPEN',booking_id=NULL WHERE id=?", (row["opening_id"],))
+            core.db_execute(conn, "DELETE FROM google_booking_events WHERE booking_id=?", (row["booking_id"],))
+            conn.commit()
+        finally:
+            conn.close()
+        reopened.append(row["opening_id"])
+        core.event("calendar.external_cancellation", "booking", row["booking_id"])
+    for opening_id in reopened:
+        try:
+            core.start_recovery_campaign(opening_id)
+        except Exception as exc:
+            core.event("booking.reopen_failed", "opening", opening_id, str(exc))
+    return len(reopened)
 
 
 def calendar_is_available(request, start_iso, end_iso):
