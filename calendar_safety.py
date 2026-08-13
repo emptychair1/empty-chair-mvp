@@ -22,17 +22,8 @@ def _calendar_owner_and_opening(opening_id):
         )
         if not opening:
             return None, None
-        owner = core.db_fetchone(
-            conn,
-            """
-            SELECT id
-            FROM users
-            WHERE shop_id = ? AND is_active = 1
-            ORDER BY created_at
-            LIMIT 1
-            """,
-            (opening["shop_id"],),
-        )
+        calendar_user_id = google_integration.calendar_user_for_artist(opening["artist_id"])
+        owner = {"id": calendar_user_id} if calendar_user_id else None
         return owner, opening
     finally:
         conn.close()

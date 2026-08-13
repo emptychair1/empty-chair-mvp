@@ -264,9 +264,8 @@ def send_customer_claim_confirmation(opening_id):
     price = float(row["price"] or 0)
 
     sms_body = (
-        f"You're in, {first_name}! Your opening with {row['artist_name']} "
-        f"on {row['date']} at {row['start_time']} has been claimed. "
-        f"Details: {booking_url}"
+        f"Claim received, {first_name}. {row['shop_name']} will confirm your "
+        f"{row['date']} appointment with {row['artist_name']}. Status: {booking_url}"
     )
     sms_sent = _send_text(row["customer_phone"], sms_body)
 
@@ -278,7 +277,7 @@ def send_customer_claim_confirmation(opening_id):
             f"You claimed the opening at {row['shop_name']}",
             f"""
             <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;line-height:1.55;">
-                <h2>You got the chair.</h2>
+                <h2>Your claim is awaiting shop confirmation.</h2>
                 <p>Hey {escape(first_name)},</p>
                 <p>
                     You claimed the opening with
@@ -286,6 +285,7 @@ def send_customer_claim_confirmation(opening_id):
                     <strong>{escape(str(row['date']))}</strong> at
                     <strong>{escape(str(row['start_time']))}</strong>.
                 </p>
+                <p>The shop will confirm or reject this request. It is not booked yet.</p>
                 <p>Appointment value: <strong>${price:.0f}</strong></p>
                 <p style="margin:28px 0;">
                     <a href="{booking_url}"
@@ -340,20 +340,18 @@ def send_recovery_email_with_customer_confirmation(opening_id):
             if user:
                 shop_email_sent = send_email(
                     user["email"],
-                    "Empty Chair recovered an opening",
+                    "Empty Chair claim needs confirmation",
                     f"""
                     <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;line-height:1.55;">
-                        <h2>Chair recovered</h2>
+                        <h2>Confirm this customer claim</h2>
                         <p>
                             <strong>{escape(str(row['customer_name']))}</strong>
                             claimed the {escape(str(row['date']))} opening at
                             {escape(str(row['start_time']))} with
                             {escape(str(row['artist_name']))}.
                         </p>
-                        <p>
-                            Estimated recovered revenue:
-                            <strong>${float(row['price'] or 0):.0f}</strong>
-                        </p>
+                        <p>Potential value: <strong>${float(row['price'] or 0):.0f}</strong>. This will not count as recovered revenue until you confirm it.</p>
+                        <p><a href="{core.PUBLIC_BASE_URL.rstrip('/')}/bookings">Review claim</a></p>
                     </div>
                     """,
                 )
