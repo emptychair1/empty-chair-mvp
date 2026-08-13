@@ -141,3 +141,13 @@ def test_optional_operations_panel_failure_does_not_take_down_page():
         assert response.status_code == 200
         assert "Pilot Operations" in response.text
         assert "No confirmed bookings yet." in response.text
+
+
+def test_complete_snapshot_failure_renders_safe_mode_instead_of_500():
+    with TestClient(app) as client:
+        create_test_account(client)
+        with patch("pilot_operations._snapshot", side_effect=RuntimeError("production database mismatch")):
+            response = client.get("/operations")
+        assert response.status_code == 200
+        assert "Pilot Operations" in response.text
+        assert "Operations loaded in safe mode" in response.text
