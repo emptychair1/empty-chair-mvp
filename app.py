@@ -2142,7 +2142,13 @@ def signup(
 def login_page(
     request: Request,
     next: str = "/",
+    fresh: int = 0,
 ):
+    # Public sales-site login should always show the form, even if this
+    # browser still holds a demo or owner session.
+    if fresh:
+        request.session.clear()
+
     if get_current_user(request):
         return RedirectResponse(
             "/",
