@@ -11,6 +11,7 @@ import features  # noqa: F401,E402
 
 # Install SMS/email notification overrides after core is fully imported.
 import notifications  # noqa: F401,E402
+import delivery_safety  # noqa: F401,E402
 
 # Register Google authentication and the optional Calendar double-booking safety layer.
 import google_integration  # noqa: F401,E402

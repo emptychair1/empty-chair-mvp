@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import app as core
+import delivery_safety
 import pilot
 
 
@@ -60,6 +61,10 @@ def frequency_safe_recovery_queue(opening_id):
         cutoff = datetime.now(timezone.utc) - timedelta(hours=CONTACT_COOLDOWN_HOURS)
         candidates = []
         for customer in customers:
+            if delivery_safety.is_suppressed(conn, customer["id"]):
+                continue
+            if not delivery_safety.eligible_for_offer(customer):
+                continue
             last_offer = core.parse_datetime(customer["last_offer_at"])
             if last_offer and last_offer > cutoff:
                 continue

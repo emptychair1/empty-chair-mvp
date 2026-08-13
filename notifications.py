@@ -33,6 +33,9 @@ def _first_name(name):
 def _claim_url(offer_id):
     return f"{core.PUBLIC_BASE_URL.rstrip('/')}/offer/{offer_id}"
 
+def _unsubscribe_url(offer_id):
+    return f"{core.PUBLIC_BASE_URL.rstrip('/')}/offer/{offer_id}/unsubscribe"
+
 
 def _booking_url(booking_id):
     return f"{core.PUBLIC_BASE_URL.rstrip('/')}/booking/{booking_id}"
@@ -114,6 +117,7 @@ def send_offer_email(customer, opening, offer_id):
     start_time = escape(str(opening["start_time"]))
     price = float(opening["price"] or 0)
     claim_url = _claim_url(offer_id)
+    unsubscribe_url = _unsubscribe_url(offer_id)
 
     return send_email(
         email,
@@ -137,6 +141,7 @@ def send_offer_email(customer, opening, offer_id):
                 If you do not want it, you can decline from the offer page and
                 Empty Chair will pass it to the next customer.
             </p>
+            <p style="font-size:12px;color:#777;"><a href="{unsubscribe_url}">Stop receiving Empty Chair offers</a></p>
         </div>
         """,
     )
@@ -146,12 +151,13 @@ def send_offer_multichannel(customer, opening, offer_id):
     first_name = _first_name(customer["name"])
     style = opening["style"] or "tattoo"
     claim_url = _claim_url(offer_id)
+    unsubscribe_url = _unsubscribe_url(offer_id)
 
     sms_body = (
         f"Hey {first_name} — a {style} opening is available "
         f"on {opening['date']} at {opening['start_time']} "
         f"for ${float(opening['price']):.0f}. "
-        f"Claim it: {claim_url}"
+        f"Claim it: {claim_url} Stop offers: {unsubscribe_url}"
     )
 
     sms_attempts = 0

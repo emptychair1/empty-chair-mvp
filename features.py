@@ -7,6 +7,7 @@ from fastapi import File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 import app as core
+import delivery_safety
 
 app = core.app
 
@@ -174,6 +175,11 @@ def customers_page(request: Request):
         for customer in customers
         if customer["communication_consent"]
     )
+    customer_rows = []
+    for row in customers:
+        customer = dict(row)
+        customer.update(delivery_safety.contact_status(row))
+        customer_rows.append(customer)
     estimated_lifetime_spend = sum(
         float(customer["average_spend"] or 0)
         * int(customer["completed_count"] or 0)
@@ -186,7 +192,7 @@ def customers_page(request: Request):
         context={
             "user": user,
             "shop": shop,
-            "customers": customers,
+            "customers": customer_rows,
             "consented": consented,
             "estimated_lifetime_spend": estimated_lifetime_spend,
         },
@@ -194,7 +200,7 @@ def customers_page(request: Request):
 
 
 @app.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, saved: int = 0):
+def settings_page(request: Request, saved: int = 0, test_email: str = ""):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
@@ -224,6 +230,7 @@ def settings_page(request: Request, saved: int = 0):
             "email_ready": bool(core.RESEND_API_KEY),
             "demo_mode": core.DEMO_MODE,
             "database_type": "PostgreSQL" if core.USE_POSTGRES else "SQLite",
+            "test_email": test_email,
         },
     )
 
@@ -379,6 +386,12 @@ async def import_customers_safe(
             )
 
             email = row.get("email", "") or None
+            if email and not delivery_safety.valid_email(email):
+                errors.append(f"Row {row_number}: email is invalid or a placeholder and was removed.")
+                email = None
+            if not delivery_safety.valid_phone(phone) and not email:
+                consent = 0
+                errors.append(f"Row {row_number}: no deliverable email or E.164 phone; contact disabled.")
             preferred_artists = row.get("preferred_artists", "")
             preferred_styles = row.get("preferred_styles", "")
             preferred_services = (
