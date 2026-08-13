@@ -125,6 +125,7 @@ def artists_page_v2(request: Request):
     active_artists = sum(1 for artist in artists if artist["active"])
     tracked_slots = sum(artist["total_slots"] for artist in artists)
     booked_slots = sum(artist["booked_slots"] for artist in artists)
+    available_slots = sum(artist["available_slots"] for artist in artists)
     roster_utilization = (
         round((booked_slots / tracked_slots * 100), 1)
         if tracked_slots
@@ -140,6 +141,7 @@ def artists_page_v2(request: Request):
             "artists": artists,
             "active_artists": active_artists,
             "tracked_slots": tracked_slots,
+            "available_slots": available_slots,
             "roster_utilization": roster_utilization,
             "utilization_window": "Next 30 days",
         },
