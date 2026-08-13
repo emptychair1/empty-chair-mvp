@@ -46,8 +46,8 @@ def _safe_fetchall(conn, query, params=(), *, section, shop_id):
 def _snapshot(shop_id):
     conn = core.connect()
     try:
-        pending = _safe_fetchall(conn, """SELECT b.id,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status='AWAITING_CONFIRMATION' ORDER BY o.date,o.start_time""", (shop_id,), section="pending", shop_id=shop_id)
-        recent_bookings = _safe_fetchall(conn, """SELECT b.id,b.status,b.amount,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status IN ('CONFIRMED','COMPLETED','CANCELLED') ORDER BY o.date DESC,o.start_time DESC LIMIT 12""", (shop_id,), section="recent_bookings", shop_id=shop_id)
+        pending = _safe_fetchall(conn, """SELECT b.id,b.amount,b.deposit_amount,b.deposit_status,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status='AWAITING_CONFIRMATION' ORDER BY o.date,o.start_time""", (shop_id,), section="pending", shop_id=shop_id)
+        recent_bookings = _safe_fetchall(conn, """SELECT b.id,b.status,b.amount,b.deposit_amount,b.deposit_status,o.date,o.start_time,a.name AS artist_name,c.name AS customer_name FROM bookings b JOIN openings o ON o.id=b.opening_id JOIN artists a ON a.id=b.artist_id JOIN customers c ON c.id=b.customer_id WHERE o.shop_id=? AND b.status IN ('CONFIRMED','COMPLETED','CANCELLED') ORDER BY o.date DESC,o.start_time DESC LIMIT 12""", (shop_id,), section="recent_bookings", shop_id=shop_id)
         try:
             campaigns = pilot._campaign_rows(shop_id)
         except Exception as exc:

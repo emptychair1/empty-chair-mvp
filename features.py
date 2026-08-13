@@ -381,6 +381,7 @@ def settings_page(request: Request, saved: int = 0, test_email: str = ""):
             "demo_mode": core.DEMO_MODE,
             "database_type": "PostgreSQL" if core.USE_POSTGRES else "SQLite",
             "test_email": test_email,
+            "stripe_ready": bool(__import__("stripe_deposits").configured()),
         },
     )
 
@@ -392,6 +393,8 @@ def update_settings(
     email: str = Form(""),
     phone: str = Form(""),
     booking_url: str = Form(""),
+    deposits_enabled: str = Form(""),
+    default_deposit_amount: float = Form(0),
     timezone_name: str = Form("America/New_York"),
 ):
     user, redirect = core.login_required_redirect(request)
@@ -401,6 +404,7 @@ def update_settings(
     name = name.strip()
     if not name:
         raise HTTPException(400, "Shop name is required.")
+    default_deposit_amount = max(0, min(float(default_deposit_amount or 0), 10000))
 
     conn = core.connect()
     core.db_execute(
@@ -412,7 +416,9 @@ def update_settings(
             email = ?,
             phone = ?,
             booking_url = ?,
-            timezone = ?
+            timezone = ?,
+            deposits_enabled = ?,
+            default_deposit_amount = ?
         WHERE id = ?
         """,
         (
@@ -421,6 +427,8 @@ def update_settings(
             phone.strip() or None,
             booking_url.strip() or None,
             timezone_name.strip() or "America/New_York",
+            1 if deposits_enabled else 0,
+            default_deposit_amount,
             user["shop_id"],
         ),
     )

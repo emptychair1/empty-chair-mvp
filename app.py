@@ -224,6 +224,8 @@ def init_db():
             phone TEXT,
             email TEXT,
             booking_url TEXT,
+            deposits_enabled INTEGER NOT NULL DEFAULT 0,
+            default_deposit_amount REAL NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT NOT NULL
         );
@@ -308,6 +310,10 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'PENDING',
             amount REAL NOT NULL,
             deposit_amount REAL NOT NULL DEFAULT 0,
+            deposit_status TEXT NOT NULL DEFAULT 'NOT_REQUIRED',
+            deposit_paid_at TEXT,
+            stripe_checkout_session_id TEXT,
+            stripe_payment_intent_id TEXT,
             booked_at TEXT,
             completed_at TEXT,
             cancelled_at TEXT,
@@ -338,6 +344,8 @@ def init_db():
             phone TEXT,
             email TEXT,
             booking_url TEXT,
+            deposits_enabled INTEGER NOT NULL DEFAULT 0,
+            default_deposit_amount REAL NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT NOT NULL
         );
@@ -422,6 +430,10 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'PENDING',
             amount REAL NOT NULL,
             deposit_amount REAL NOT NULL DEFAULT 0,
+            deposit_status TEXT NOT NULL DEFAULT 'NOT_REQUIRED',
+            deposit_paid_at TEXT,
+            stripe_checkout_session_id TEXT,
+            stripe_payment_intent_id TEXT,
             booked_at TEXT,
             completed_at TEXT,
             cancelled_at TEXT,
@@ -4495,11 +4507,13 @@ def booking_page(
         SELECT
             b.*,
             c.name AS customer_name,
+            c.email AS customer_email,
             o.date,
             o.start_time,
             o.service,
             o.style,
             a.name AS artist_name
+            ,s.name AS shop_name
         FROM bookings b
         JOIN customers c
             ON c.id = b.customer_id
@@ -4507,6 +4521,8 @@ def booking_page(
             ON o.id = b.opening_id
         JOIN artists a
             ON a.id = b.artist_id
+        JOIN shops s
+            ON s.id = o.shop_id
         WHERE b.id = ?
         """,
         (
