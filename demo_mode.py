@@ -1,6 +1,7 @@
 """Reusable, isolated live-demo account and reset controls."""
 
 import os
+import secrets
 from datetime import date, timedelta
 
 from fastapi import Form, HTTPException, Request
@@ -14,7 +15,7 @@ DEMO_ENABLED = os.getenv("EMPTY_CHAIR_PUBLIC_DEMO", "false").lower() == "true"
 DEMO_USER_ID = "user_live_demo"
 DEMO_SHOP_ID = "shop_live_demo"
 DEMO_EMAIL = os.getenv("EMPTY_CHAIR_DEMO_EMAIL", "demo@emptychair.app")
-DEMO_PASSWORD = os.getenv("EMPTY_CHAIR_DEMO_PASSWORD", "EmptyChairDemo!")
+DEMO_PASSWORD = os.getenv("EMPTY_CHAIR_DEMO_PASSWORD") or secrets.token_urlsafe(24)
 
 # A demo claim must never trigger live SMS or email, even when the production
 # account has delivery credentials configured.
@@ -79,7 +80,7 @@ def _reset_data():
             marks = ",".join("?" for _ in artist_ids)
             core.db_execute(conn, f"DELETE FROM artist_calendar_connections WHERE artist_id IN ({marks})", artist_ids)
         core.db_execute(conn, "DELETE FROM artists WHERE shop_id=?", (DEMO_SHOP_ID,))
-        core.db_execute(conn, "DELETE FROM events WHERE entity_id LIKE 'demo_%'")
+        core.db_execute(conn, "DELETE FROM events WHERE entity_id LIKE ?", ("demo_%",))
 
         today = date.today()
         claim_day = today + timedelta(days=2)
