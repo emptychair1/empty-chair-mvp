@@ -146,7 +146,12 @@ def demo_control(request: Request):
     conn = core.connect()
     try:
         offer = core.db_fetchone(conn, "SELECT status FROM offers WHERE id='demo_offer_claim'")
-        booking = core.db_fetchone(conn, "SELECT id,status FROM bookings WHERE opening_id='demo_opening_claim' ORDER BY rowid DESC LIMIT 1")
+        # An opening can have at most one active demo booking. Avoid SQLite's
+        # implicit `rowid`, which does not exist in production PostgreSQL.
+        booking = core.db_fetchone(
+            conn,
+            "SELECT id,status FROM bookings WHERE opening_id='demo_opening_claim' LIMIT 1",
+        )
     finally:
         conn.close()
     return core.templates.TemplateResponse(request=request, name="demo_control.html", context={"user": user, "offer": offer, "booking": booking})

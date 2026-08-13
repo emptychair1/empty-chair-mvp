@@ -58,6 +58,17 @@ def test_public_auth_pages_render():
             assert response.status_code == 200, path
 
 
+def test_fresh_login_clears_existing_session():
+    with TestClient(app) as client:
+        create_test_account(client)
+        response = client.get("/login?fresh=1", follow_redirects=False)
+        assert response.status_code == 200
+        assert "Welcome back" in response.text
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code in (302, 303)
+        assert response.headers["location"].startswith("/login")
+
+
 def test_private_pages_redirect_when_logged_out():
     with TestClient(app) as client:
         for path in ["/", "/artists", "/bookings", "/recovery", "/customers", "/settings"]:
