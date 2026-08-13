@@ -68,6 +68,8 @@ def test_operations_page_and_export_are_shop_scoped():
             page = client.get("/operations")
         assert page.status_code == 200
         assert "Ops Customer" in page.text
+        assert "Cancel & Reopen" in page.text
+        assert "Test Tattoo Studio" in page.text
         assert "Private Customer" not in page.text
         export = client.get("/operations/export.csv")
         assert export.status_code == 200
@@ -113,3 +115,11 @@ def test_cancel_booking_reopens_slot_and_invalidates_offer():
         assert opening["status"] == "OPEN"
         assert opening["booking_id"] is None
         assert offer["status"] == "CANCELLED"
+
+
+def test_mobile_navigation_uses_explicit_overflow_items():
+    sidebar = Path("templates/_sidebar.html").read_text()
+    mobile_css = Path("static/mobile-nav.css").read_text()
+    assert sidebar.count("mobile-overflow") == 4
+    assert ".sidebar-nav > .mobile-overflow" in mobile_css
+    assert "nth-child" not in mobile_css
