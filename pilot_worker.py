@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 import app as core
 import fill_chairs_flow
+import google_integration
 
 
 WORKER_INTERVAL_SECONDS = max(
@@ -72,6 +73,10 @@ def run_tick() -> None:
         return
     try:
         expire_due_offers()
+        try:
+            google_integration.reconcile_deleted_booking_events()
+        except Exception as exc:
+            core.event("calendar.reconcile_failed", "system", "pilot-worker", str(exc))
         for shop_id in active_shop_ids():
             fill_chairs_flow._activate_shop(shop_id)
     except Exception as exc:
