@@ -128,6 +128,13 @@ def test_mobile_navigation_uses_explicit_overflow_items():
     assert "empty-chair-logo.png" in mobile_css
 
 
+def test_visual_polish_keeps_accessibility_guards():
+    stylesheet = Path("static/style.css").read_text()
+    assert ":focus-visible" in stylesheet
+    assert "prefers-reduced-motion" in stylesheet
+    assert "@media (hover: none)" in stylesheet
+
+
 def test_optional_operations_panel_failure_does_not_take_down_page():
     with TestClient(app) as client:
         create_test_account(client)
