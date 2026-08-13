@@ -1,1 +1,62 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pilot Operations · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static',path='/style.css') }}"><style>.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.box{padding:18px;border:1px solid var(--line);border-radius:14px;background:#101010;margin-bottom:16px}.metric strong{font-size:28px;display:block}.row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line-soft)}.row:last-child{border:0}.actions{display:flex;gap:6px;flex-wrap:wrap}.sub{color:var(--muted);font-size:11px}@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}.row{align-items:flex-start;flex-direction:column}}@media(max-width:480px){.grid{grid-template-columns:1fr}}</style></head><body><div class="app-shell">{% set active_page='operations' %}{% include '_sidebar.html' %}<main class="main"><header class="topbar"><div><div class="page-title">Pilot Operations</div><div class="page-subtitle">Everything requiring owner attention in one place.</div></div><a class="button secondary" href="/operations/export.csv">Export CSV</a></header><div class="content">{% if message %}<div class="box">{{ message }}</div>{% endif %}<section class="grid"><div class="box metric"><span class="sub">Confirmed bookings</span><strong>{{ ops.report.confirmed }}</strong></div><div class="box metric"><span class="sub">Confirmed revenue</span><strong>${{ '%.0f'|format(ops.report.revenue) }}</strong></div><div class="box metric"><span class="sub">Offers</span><strong>{{ ops.report.offers }}</strong></div><div class="box metric"><span class="sub">Delivery success</span><strong>{{ ops.report.delivery_rate }}%</strong></div></section><section class="box"><h2>Needs attention</h2>{% for b in ops.pending %}<div class="row"><div><strong>{{ b.customer_name }} · {{ b.artist_name }}</strong><div class="sub">{{ b.date }} {{ b.start_time }} · ${{ '%.0f'|format(b.amount) }}</div></div><div class="actions"><form method="post" action="/bookings/{{ b.id }}/confirm"><button class="button compact">Confirm</button></form><form method="post" action="/bookings/{{ b.id }}/reject"><button class="button secondary compact">Reject</button></form></div></div>{% else %}<div class="sub">No claims waiting for confirmation.</div>{% endfor %}</section><section class="box"><h2>Campaign controls</h2>{% for c in ops.campaigns %}<div class="row"><div><strong>{{ c.artist_name }}</strong><div class="sub">{{ c.start_date }} → {{ c.end_date }} · {{ c.filled_slots }}/{{ c.total_slots }} filled · {{ c.status }}</div></div>{% if c.status=='ACTIVE' %}<form method="post" action="/operations/campaigns/{{ c.id }}/pause"><button class="button secondary compact">Pause</button></form>{% elif c.status=='PAUSED' %}<form method="post" action="/operations/campaigns/{{ c.id }}/resume"><button class="button compact">Resume</button></form>{% endif %}</div>{% else %}<div class="sub">No campaigns yet.</div>{% endfor %}</section><section class="box"><h2>Artist calendars</h2>{% for a in ops.calendar_health %}<div class="row"><strong>{{ a.name }}</strong><span>{{ 'Connected ✓' if a.connected else 'Disconnected' }}</span></div>{% endfor %}</section><section class="box"><h2>Failed deliveries</h2>{% for d in ops.failed_deliveries %}<div class="row"><div><strong>{{ d.customer_name }}</strong><div class="sub">{{ d.date }} {{ d.start_time }} · {{ d.metadata }}</div></div><form method="post" action="/operations/offers/{{ d.entity_id }}/retry"><button class="button secondary compact">Retry</button></form></div>{% else %}<div class="sub">No failed delivery attempts.</div>{% endfor %}</section><section class="box"><h2>System failures</h2>{% for f in ops.failures %}<div class="row"><div><strong>{{ f.event_type.replace('_',' ') }}</strong><div class="sub">{{ f.created_at }} · {{ f.metadata or 'No details' }}</div></div></div>{% else %}<div class="sub">No operational failures recorded.</div>{% endfor %}</section></div></main></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pilot Operations · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .ops-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .ops-box{padding:18px;border:1px solid var(--line);border-radius:14px;background:#101010;margin-bottom:16px}
+    .ops-box h2{margin:0 0 14px}.ops-metric strong{font-size:28px;display:block;margin-top:5px}
+    .ops-row{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line-soft)}
+    .ops-row:last-child{border:0}.ops-actions{display:flex;gap:7px;flex-wrap:wrap}
+    .ops-sub{color:var(--muted);font-size:11px;line-height:1.5;overflow-wrap:anywhere}.ops-empty{color:var(--muted);font-size:12px;padding:4px 0}
+    .ops-message{border-color:rgba(117,203,69,.55);color:var(--green)}
+    .ops-status{display:inline-flex;align-items:center;min-height:27px;padding:0 9px;border:1px solid var(--line-soft);border-radius:999px;color:var(--gold-light);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .ops-status.good{border-color:rgba(117,203,69,.35);color:var(--green)}.ops-status.bad{border-color:rgba(255,100,100,.35);color:var(--danger)}
+    @media(max-width:980px){.ops-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:610px){.ops-grid{grid-template-columns:1fr}.ops-row{align-items:flex-start;flex-direction:column}.ops-actions,.ops-actions form,.ops-actions .button{width:100%}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page='operations' %}{% include '_sidebar.html' %}
+  <main class="main">
+    <header class="topbar">
+      <div><div class="page-title">Pilot Operations</div><div class="page-subtitle">Everything requiring owner attention in one place.</div></div>
+      <div class="top-actions"><a class="button secondary" href="/operations/export.csv">Export CSV</a></div>
+    </header>
+    <div class="content">
+      {% if message %}<div class="ops-box ops-message" role="status">{{ message }}</div>{% endif %}
+      <section class="ops-grid" aria-label="Pilot metrics">
+        <div class="ops-box ops-metric"><span class="ops-sub">Confirmed bookings</span><strong>{{ ops.report.confirmed }}</strong></div>
+        <div class="ops-box ops-metric"><span class="ops-sub">Confirmed revenue</span><strong>${{ '%.0f'|format(ops.report.revenue) }}</strong></div>
+        <div class="ops-box ops-metric"><span class="ops-sub">Offers attempted</span><strong>{{ ops.report.offers }}</strong></div>
+        <div class="ops-box ops-metric"><span class="ops-sub">Delivery success</span><strong>{{ ops.report.delivery_rate }}%</strong></div>
+      </section>
+      <section class="ops-box"><h2>Needs attention</h2>
+        {% for b in ops.pending %}<div class="ops-row"><div><strong>{{ b.customer_name }} · {{ b.artist_name }}</strong><div class="ops-sub">{{ b.date }} at {{ b.start_time }} · ${{ '%.0f'|format(b.amount) }}</div></div><div class="ops-actions"><form method="post" action="/bookings/{{ b.id }}/confirm"><button class="button compact" type="submit">Confirm</button></form><form method="post" action="/bookings/{{ b.id }}/reject"><button class="button secondary compact" type="submit">Reject</button></form></div></div>{% else %}<div class="ops-empty">No claims waiting for confirmation.</div>{% endfor %}
+      </section>
+      <section class="ops-box"><h2>Campaign controls</h2>
+        {% for c in ops.campaigns %}<div class="ops-row"><div><strong>{{ c.artist_name }}</strong><div class="ops-sub">{{ c.start_date }} → {{ c.end_date }} · {{ c.filled_slots }}/{{ c.total_slots }} filled</div></div><div class="ops-actions"><span class="ops-status {{ 'good' if c.status=='ACTIVE' else '' }}">{{ c.status.replace('_',' ') }}</span>{% if c.status=='ACTIVE' %}<form method="post" action="/operations/campaigns/{{ c.id }}/pause"><button class="button secondary compact" type="submit">Pause</button></form>{% endif %}{% if c.status=='PAUSED' %}<form method="post" action="/operations/campaigns/{{ c.id }}/resume"><button class="button compact" type="submit">Resume</button></form>{% endif %}</div></div>{% else %}<div class="ops-empty">No campaigns yet.</div>{% endfor %}
+      </section>
+      <section class="ops-box"><h2>Recent bookings</h2>
+        {% for b in ops.recent_bookings %}<div class="ops-row"><div><strong>{{ b.customer_name }} · {{ b.artist_name }}</strong><div class="ops-sub">{{ b.date }} at {{ b.start_time }} · ${{ '%.0f'|format(b.amount) }}</div></div><div class="ops-actions"><span class="ops-status {{ 'good' if b.status in ['CONFIRMED','COMPLETED'] else '' }}">{{ b.status.replace('_',' ') }}</span>{% if b.status=='CONFIRMED' %}<form method="post" action="/operations/bookings/{{ b.id }}/cancel" onsubmit="return confirm('Cancel this booking and reopen the slot?')"><button class="button secondary compact" type="submit">Cancel & Reopen</button></form>{% endif %}</div></div>{% else %}<div class="ops-empty">No confirmed bookings yet.</div>{% endfor %}
+      </section>
+      <section class="ops-box"><h2>Artist calendars</h2>
+        {% for a in ops.calendar_health %}<div class="ops-row"><strong>{{ a.name }}</strong><span class="ops-status {{ 'good' if a.connected else 'bad' }}">{{ 'Connected' if a.connected else 'Disconnected' }}</span></div>{% else %}<div class="ops-empty">No active artists.</div>{% endfor %}
+      </section>
+      <section class="ops-box"><h2>Failed deliveries</h2>
+        {% for d in ops.failed_deliveries %}<div class="ops-row"><div><strong>{{ d.customer_name }}</strong><div class="ops-sub">{{ d.date }} at {{ d.start_time }} · Neither delivery channel succeeded.</div></div><form method="post" action="/operations/offers/{{ d.entity_id }}/retry"><button class="button secondary compact" type="submit">Retry</button></form></div>{% else %}<div class="ops-empty">No failed delivery attempts.</div>{% endfor %}
+      </section>
+      <section class="ops-box"><h2>System failures</h2>
+        {% for f in ops.failures %}<div class="ops-row"><div><strong>{{ f.event_type.replace('.',' · ').replace('_',' ')|title }}</strong><div class="ops-sub">{{ f.created_at }}{% if f.metadata %} · {{ f.metadata }}{% endif %}</div></div></div>{% else %}<div class="ops-empty">No operational failures recorded.</div>{% endfor %}
+      </section>
+      <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

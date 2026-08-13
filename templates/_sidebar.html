@@ -17,16 +17,16 @@
     <a class="nav-link {{ 'active' if active_page == 'dashboard' else '' }}" href="/"><span class="nav-icon">⌂</span><span>Dashboard</span></a>
     <a class="nav-link {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Fill Chairs</span></a>
     <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
+    <a class="nav-link mobile-overflow {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
     <a class="nav-link {{ 'active' if active_page == 'bookings' else '' }}" href="/bookings"><span class="nav-icon">✓</span><span>Bookings</span></a>
-    <a class="nav-link {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon">◎</span><span>Operations</span></a>
+    <a class="nav-link mobile-overflow {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon">◎</span><span>Operations</span></a>
 
-    <a class="setup-mascot-link" href="/setup" aria-label="Open Setup Guide">
+    <a class="setup-mascot-link mobile-overflow" href="/setup" aria-label="Open Setup Guide">
       <span class="setup-mascot-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span>
       <span class="setup-mascot-copy"><strong>Setup Guide</strong><small>New here? Follow the four-step setup.</small><b>Start here →</b></span>
     </a>
 
-    <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
+    <a class="nav-link mobile-overflow {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
 
     <details class="mobile-more {{ 'active' if active_page in ['customers','bookings','operations','settings','setup'] else '' }}">
       <summary><span class="nav-icon">•••</span><span>More</span></summary>
