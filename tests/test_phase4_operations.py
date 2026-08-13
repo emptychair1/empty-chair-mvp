@@ -135,6 +135,20 @@ def test_visual_polish_keeps_accessibility_guards():
     assert "@media (hover: none)" in stylesheet
 
 
+def test_owner_and_artist_value_hierarchy_is_explicit():
+    dashboard = Path("templates/dashboard_v2.html").read_text()
+    artists = Path("templates/artists.html").read_text()
+    operations = Path("templates/operations.html").read_text()
+
+    assert "Recovered revenue" in dashboard
+    assert "Earning time available" in dashboard
+    assert "Artists with earning time" in dashboard
+    assert "Available earning time" in artists
+    assert "slots to fill" in artists
+    assert operations.index("Confirmed revenue") < operations.index("Confirmed bookings")
+    assert "Action required" in operations
+
+
 def test_optional_operations_panel_failure_does_not_take_down_page():
     with TestClient(app) as client:
         create_test_account(client)
