@@ -39,7 +39,7 @@ def frequency_safe_recovery_queue(opening_id):
 
         existing_count_row = core.db_fetchone(
             conn,
-            "SELECT COUNT(*) AS n FROM offers WHERE opening_id = ?",
+            "SELECT COUNT(*) AS n FROM offers WHERE opening_id = ? AND status IN ('PENDING','SENT')",
             (opening_id,),
         )
         existing_count = int(existing_count_row["n"] or 0) if existing_count_row else 0

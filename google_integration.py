@@ -46,6 +46,7 @@ def _ensure_schema():
     conn = core.connect()
     try:
         core.db_execute(conn, """CREATE TABLE IF NOT EXISTS google_calendar_connections (user_id TEXT PRIMARY KEY, access_token TEXT, refresh_token TEXT, expires_at TEXT, calendar_id TEXT NOT NULL DEFAULT 'primary', connected_at TEXT NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id))""")
+        core.db_execute(conn, """CREATE TABLE IF NOT EXISTS artist_calendar_connections (artist_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, connected_at TEXT NOT NULL, FOREIGN KEY(artist_id) REFERENCES artists(id), FOREIGN KEY(user_id) REFERENCES users(id))""")
         conn.commit()
     finally:
         conn.close()
@@ -90,6 +91,17 @@ def calendar_connected(user_id):
     finally:
         conn.close()
 
+def calendar_user_for_artist(artist_id):
+    conn = core.connect()
+    try:
+        row = core.db_fetchone(conn, "SELECT user_id FROM artist_calendar_connections WHERE artist_id = ?", (artist_id,))
+        return row["user_id"] if row else None
+    finally: conn.close()
+
+def artist_calendar_connected(artist_id):
+    user_id = calendar_user_for_artist(artist_id)
+    return bool(user_id and calendar_connected(user_id))
+
 
 def slot_iso(date_value, time_value, timezone_name):
     zone = ZoneInfo(timezone_name or "America/New_York")
@@ -123,11 +135,17 @@ def google_login_callback(request: Request, code: str = "", state: str = ""):
 
 
 @core.app.get("/integrations/google-calendar/connect")
-def connect_google_calendar(request: Request):
+def connect_google_calendar(request: Request, artist_id: str = ""):
     user, redirect = core.login_required_redirect(request)
     if redirect: return redirect
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         return RedirectResponse("/settings?calendar=not_configured", status_code=303)
+    if artist_id:
+        conn = core.connect()
+        try: artist = core.db_fetchone(conn, "SELECT id FROM artists WHERE id = ? AND shop_id = ?", (artist_id, user["shop_id"]))
+        finally: conn.close()
+        if not artist: return RedirectResponse("/artists?calendar=invalid_artist", status_code=303)
+        request.session["google_calendar_artist_id"] = artist_id
     return RedirectResponse(_oauth_url(request, GOOGLE_CALENDAR_REDIRECT_URI, ["openid", "email", "https://www.googleapis.com/auth/calendar"], "calendar"), status_code=303)
 
 
@@ -140,8 +158,18 @@ def google_calendar_callback(request: Request, code: str = "", state: str = ""):
         return RedirectResponse("/settings?calendar=invalid_state", status_code=303)
     token = _post_form(TOKEN_URL, {"code": code, "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET, "redirect_uri": GOOGLE_CALENDAR_REDIRECT_URI, "grant_type": "authorization_code"})
     _save_connection(user["id"], token)
+    artist_id = request.session.pop("google_calendar_artist_id", None)
+    if artist_id:
+        conn = core.connect()
+        try:
+            artist = core.db_fetchone(conn, "SELECT id FROM artists WHERE id = ? AND shop_id = ?", (artist_id, user["shop_id"]))
+            if artist:
+                core.db_execute(conn, "DELETE FROM artist_calendar_connections WHERE artist_id = ?", (artist_id,))
+                core.db_execute(conn, "INSERT INTO artist_calendar_connections(artist_id, user_id, connected_at) VALUES (?, ?, ?)", (artist_id, user["id"], core.now_iso()))
+                conn.commit()
+        finally: conn.close()
     core.event("calendar.connected", "user", user["id"])
-    return RedirectResponse("/settings?calendar=connected", status_code=303)
+    return RedirectResponse("/artists?calendar=connected" if artist_id else "/settings?calendar=connected", status_code=303)
 
 
 @core.app.post("/integrations/google-calendar/disconnect")
@@ -180,3 +208,7 @@ def block_calendar_time(request, summary, start_iso, end_iso, timezone_name):
 
 
 _ensure_schema()
+
+@core.app.on_event("startup")
+def ensure_google_schema_on_startup():
+    _ensure_schema()

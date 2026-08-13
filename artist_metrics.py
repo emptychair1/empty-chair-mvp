@@ -11,6 +11,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 
 import app as core
+import google_integration
 
 
 app = core.app
@@ -116,6 +117,7 @@ def artists_page_v2(request: Request):
                     end_date_text,
                 )
             )
+            artist["calendar_connected"] = google_integration.artist_calendar_connected(artist["id"])
             artists.append(artist)
     finally:
         conn.close()

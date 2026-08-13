@@ -22,6 +22,7 @@ import calendar_safety  # noqa: F401,E402
 # Replace the public claim endpoint with the atomic implementation after
 # notification overrides are installed.
 import claim_flow  # noqa: F401,E402
+import booking_confirmation  # noqa: F401,E402
 
 # Register Pilot v1.1 data structures and core Autopilot helpers.
 import pilot  # noqa: F401,E402

@@ -126,7 +126,7 @@ def dashboard_v2(request: Request):
             SELECT COALESCE(SUM(price), 0) AS total
             FROM openings
             WHERE shop_id = ?
-              AND status IN ('CLAIMED', 'BOOKED', 'COMPLETED')
+              AND status IN ('BOOKED', 'COMPLETED')
             """,
             (user["shop_id"],),
         )
