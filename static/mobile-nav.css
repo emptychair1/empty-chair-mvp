@@ -2,38 +2,23 @@
   display: none;
 }
 
-.mobile-brand {
-  display: none;
-}
-
 @media (max-width: 610px) {
-  .mobile-brand {
-    position: fixed;
-    top: calc(7px + env(safe-area-inset-top));
-    left: 10px;
-    z-index: 60;
-    width: 92px;
-    height: 48px;
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-    border: 1px solid rgba(208, 170, 112, .28);
-    border-radius: 10px;
-    background: rgba(8, 8, 8, .92);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-  }
-
-  .mobile-brand img {
-    width: 88px;
-    height: 44px;
-    display: block;
-    object-fit: contain;
-  }
-
   .topbar {
-    padding-left: 112px !important;
+    display: grid !important;
+    grid-template-columns: 78px minmax(0, 1fr) auto;
+    align-items: center !important;
+  }
+
+  .topbar::before {
+    content: '';
+    width: 72px;
+    height: 48px;
+    display: block;
+    background: url('/static/empty-chair-logo.png') center / contain no-repeat;
+  }
+
+  .topbar > div:first-of-type {
+    min-width: 0;
   }
 
   .sidebar-nav > .mobile-overflow {
@@ -149,15 +134,12 @@
 }
 
 @media (max-width: 390px) {
-  .mobile-brand {
-    width: 76px;
-  }
-
-  .mobile-brand img {
-    width: 72px;
-  }
-
   .topbar {
-    padding-left: 96px !important;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+  }
+
+  .topbar::before {
+    width: 58px;
+    height: 42px;
   }
 }
