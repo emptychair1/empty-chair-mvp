@@ -226,6 +226,10 @@ def init_db():
             booking_url TEXT,
             deposits_enabled INTEGER NOT NULL DEFAULT 0,
             default_deposit_amount REAL NOT NULL DEFAULT 0,
+            stripe_account_id TEXT,
+            stripe_details_submitted INTEGER NOT NULL DEFAULT 0,
+            stripe_charges_enabled INTEGER NOT NULL DEFAULT 0,
+            stripe_payouts_enabled INTEGER NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT NOT NULL
         );
@@ -346,6 +350,10 @@ def init_db():
             booking_url TEXT,
             deposits_enabled INTEGER NOT NULL DEFAULT 0,
             default_deposit_amount REAL NOT NULL DEFAULT 0,
+            stripe_account_id TEXT,
+            stripe_details_submitted INTEGER NOT NULL DEFAULT 0,
+            stripe_charges_enabled INTEGER NOT NULL DEFAULT 0,
+            stripe_payouts_enabled INTEGER NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'active',
             created_at TEXT NOT NULL
         );
