@@ -60,6 +60,27 @@ def bookings_page(request: Request):
         """,
         (user["shop_id"],),
     )
+    open_slots = core.db_fetchall(
+        conn,
+        """
+        SELECT
+            o.id,
+            o.date,
+            o.start_time,
+            o.end_time,
+            o.service,
+            o.style,
+            o.price,
+            o.status,
+            a.name AS artist_name
+        FROM openings o
+        JOIN artists a ON a.id = o.artist_id
+        WHERE o.shop_id = ?
+          AND o.status IN ('OPEN', 'NO_RECOVERY', 'RECOVERY_ACTIVE', 'CLAIMED')
+        ORDER BY o.date, o.start_time
+        """,
+        (user["shop_id"],),
+    )
     conn.close()
 
     month_text = request.query_params.get("month", "")
@@ -82,7 +103,7 @@ def bookings_page(request: Request):
         selected_month.year,
         selected_month.month,
     )
-    calendar_bookings = {}
+    calendar_events = {}
     confirmed_count = 0
     confirmed_revenue = 0.0
     for row in bookings:
@@ -91,7 +112,44 @@ def bookings_page(request: Request):
         confirmed_count += 1
         confirmed_revenue += float(row["amount"] or 0)
         if str(row["date"])[:7] == selected_month.strftime("%Y-%m"):
-            calendar_bookings.setdefault(str(row["date"]), []).append(dict(row))
+            event = dict(row)
+            event.update(
+                {
+                    "calendar_state": "completed" if row["status"] == "COMPLETED" else "filled",
+                    "status_label": "Completed" if row["status"] == "COMPLETED" else "Filled",
+                    "detail": row["customer_name"],
+                    "value": float(row["amount"] or 0),
+                    "href": f"/booking/{row['id']}",
+                }
+            )
+            calendar_events.setdefault(str(row["date"]), []).append(event)
+
+    needs_fill_count = 0
+    working_count = 0
+    for row in open_slots:
+        if row["status"] in ("OPEN", "NO_RECOVERY"):
+            needs_fill_count += 1
+            calendar_state = "open"
+            status_label = "Needs filling"
+        else:
+            working_count += 1
+            calendar_state = "working"
+            status_label = "Claim pending" if row["status"] == "CLAIMED" else "Empty Chair working"
+        if str(row["date"])[:7] == selected_month.strftime("%Y-%m"):
+            event = dict(row)
+            event.update(
+                {
+                    "calendar_state": calendar_state,
+                    "status_label": status_label,
+                    "detail": row["style"] or row["service"] or "Appointment",
+                    "value": float(row["price"] or 0),
+                    "href": f"/opening/{row['id']}",
+                }
+            )
+            calendar_events.setdefault(str(row["date"]), []).append(event)
+
+    for day_events in calendar_events.values():
+        day_events.sort(key=lambda event: str(event["start_time"]))
 
     return core.templates.TemplateResponse(
         request=request,
@@ -101,13 +159,15 @@ def bookings_page(request: Request):
             "shop": shop,
             "bookings": bookings,
             "calendar_weeks": calendar_weeks,
-            "calendar_bookings": calendar_bookings,
+            "calendar_events": calendar_events,
             "selected_month": selected_month,
             "previous_month": previous_month.strftime("%Y-%m"),
             "next_month": next_month.strftime("%Y-%m"),
             "today": date.today(),
             "confirmed_count": confirmed_count,
             "confirmed_revenue": confirmed_revenue,
+            "needs_fill_count": needs_fill_count,
+            "working_count": working_count,
         },
     )
 

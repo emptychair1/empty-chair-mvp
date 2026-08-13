@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
   {% include '_table_style.html' %}
   <style>
-    .booking-summary{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;margin-bottom:16px}
+    .booking-summary{display:grid;grid-template-columns:1.15fr .85fr .85fr;gap:14px;margin-bottom:16px}
     .summary-card{padding:20px;border:1px solid var(--line);border-radius:15px;background:#101010}.summary-card.primary{border-color:rgba(225,38,38,.45);background:linear-gradient(145deg,rgba(225,38,38,.1),#101010)}
     .summary-card strong{display:block;font-size:34px;margin-top:5px}.summary-card.primary strong{font-size:42px}
     .label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.12em}.sub{color:var(--muted);font-size:11px;line-height:1.5}
@@ -16,13 +16,14 @@
     .calendar-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:15px}.calendar-head h2{margin:0;font-size:24px}.calendar-nav{display:flex;gap:7px}
     .weekday-row,.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}.weekday{padding:7px;text-align:center;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}
     .day{min-height:118px;padding:8px;border:1px solid var(--line-soft);border-radius:10px;background:#090909;overflow:hidden}.day.outside{opacity:.32}.day.today{border-color:rgba(208,170,112,.52)}.day-number{display:block;margin-bottom:7px;color:var(--muted);font-size:10px;font-weight:800}.day.today .day-number{color:var(--gold-light)}
-    .calendar-booking{display:block;margin-top:5px;padding:8px;border:1px solid rgba(225,38,38,.48);border-left:3px solid var(--red-bright);border-radius:8px;background:linear-gradient(135deg,rgba(225,38,38,.24),rgba(78,8,12,.2));color:var(--cream);text-decoration:none;box-shadow:0 5px 14px rgba(0,0,0,.28)}
-    .calendar-booking:hover{border-color:rgba(225,38,38,.75)}.calendar-booking.completed{border-color:rgba(117,203,69,.35);border-left-color:var(--green);background:rgba(117,203,69,.08)}
-    .calendar-booking time{display:block;color:var(--gold-light);font-size:10px;font-weight:900}.calendar-booking strong{display:block;margin:2px 0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calendar-booking span{display:block;color:var(--cream-dim);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .calendar-legend{display:flex;justify-content:center;gap:15px;flex-wrap:wrap;margin:-3px 0 14px}.legend-item{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.07em}.legend-dot{width:8px;height:8px;border-radius:2px}.legend-dot.open{border:1px solid var(--gold-light);background:transparent}.legend-dot.working{background:var(--gold-light);box-shadow:0 0 8px rgba(208,170,112,.4)}.legend-dot.filled{background:var(--red-bright)}.legend-dot.completed{background:var(--green)}
+    .calendar-event{display:block;margin-top:5px;padding:8px;border:1px solid rgba(225,38,38,.48);border-left:3px solid var(--red-bright);border-radius:8px;background:linear-gradient(135deg,rgba(225,38,38,.24),rgba(78,8,12,.2));color:var(--cream);text-decoration:none;box-shadow:0 5px 14px rgba(0,0,0,.28)}
+    .calendar-event:hover{filter:brightness(1.14)}.calendar-event.open{border:1px dashed rgba(208,170,112,.58);border-left:3px solid var(--gold-light);background:rgba(208,170,112,.035);box-shadow:none}.calendar-event.working{border-color:rgba(208,170,112,.6);border-left-color:var(--gold-light);background:linear-gradient(135deg,rgba(208,170,112,.18),rgba(92,55,14,.12));box-shadow:0 0 18px rgba(208,170,112,.07)}.calendar-event.completed{border-color:rgba(117,203,69,.35);border-left-color:var(--green);background:rgba(117,203,69,.08)}
+    .calendar-event time{display:block;color:var(--gold-light);font-size:10px;font-weight:900}.calendar-event strong{display:block;margin:2px 0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calendar-event span{display:block;color:var(--cream-dim);font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.event-state{margin-top:4px!important;color:var(--cream)!important;font-size:8px!important;font-weight:900;text-transform:uppercase;letter-spacing:.07em}
     .agenda{display:none}.agenda-day{padding:13px 0;border-bottom:1px solid var(--line-soft)}.agenda-day:last-child{border:0}.agenda-date{margin-bottom:8px;color:var(--gold-light);font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}
     .panel-title-row{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:20px 0 10px}.panel-title-row h2{margin:0}.booking-actions{display:flex;gap:6px;flex-wrap:wrap}.status{font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.status.confirmed,.status.completed{color:var(--green)}.status.awaiting_confirmation{color:var(--gold-light)}
-    @media(max-width:850px){.day{min-height:96px;padding:6px}.calendar-booking{padding:6px}.calendar-booking span{display:none}}
-    @media(max-width:650px){.booking-summary{grid-template-columns:1fr}.calendar-shell{padding:15px}.weekday-row,.month-grid{display:none}.agenda{display:block}.calendar-head h2{font-size:20px}.summary-card.primary strong{font-size:36px}}
+    @media(max-width:850px){.booking-summary{grid-template-columns:1fr 1fr}.summary-card.primary{grid-column:span 2}.day{min-height:96px;padding:6px}.calendar-event{padding:6px}.calendar-event span:not(.event-state){display:none}}
+    @media(max-width:650px){.booking-summary{grid-template-columns:1fr}.summary-card.primary{grid-column:auto}.calendar-shell{padding:15px}.weekday-row,.month-grid{display:none}.agenda{display:block}.calendar-head h2{font-size:20px}.summary-card.primary strong{font-size:36px}}
   </style>
 </head>
 <body>
@@ -36,14 +37,21 @@
     <div class="content">
       <section class="booking-summary">
         <div class="summary-card primary"><div class="label">Confirmed revenue</div><strong>${{ '%.0f'|format(confirmed_revenue) }}</strong><div class="sub">Revenue represented by confirmed and completed calendar time.</div></div>
-        <div class="summary-card"><div class="label">Calendar filled</div><strong>{{ confirmed_count }} booking{{ '' if confirmed_count == 1 else 's' }}</strong><div class="sub">Confirmed appointments across all tracked dates.</div></div>
+        <div class="summary-card"><div class="label">Still needs filling</div><strong>{{ needs_fill_count }} slot{{ '' if needs_fill_count == 1 else 's' }}</strong><div class="sub">Available earning time not currently being worked.</div></div>
+        <div class="summary-card"><div class="label">Empty Chair working</div><strong>{{ working_count }} slot{{ '' if working_count == 1 else 's' }}</strong><div class="sub">{{ confirmed_count }} confirmed or completed bookings.</div></div>
       </section>
 
-      <section class="calendar-shell" aria-label="Confirmed bookings calendar">
+      <section class="calendar-shell" aria-label="Appointment status calendar">
         <div class="calendar-head">
           <a class="button secondary compact" href="/bookings?month={{ previous_month }}" aria-label="Previous month">←</a>
           <h2>{{ selected_month.strftime('%B %Y') }}</h2>
           <a class="button secondary compact" href="/bookings?month={{ next_month }}" aria-label="Next month">→</a>
+        </div>
+        <div class="calendar-legend" aria-label="Calendar legend">
+          <span class="legend-item"><i class="legend-dot open"></i>Needs filling</span>
+          <span class="legend-item"><i class="legend-dot working"></i>Empty Chair working</span>
+          <span class="legend-item"><i class="legend-dot filled"></i>Filled</span>
+          <span class="legend-item"><i class="legend-dot completed"></i>Completed</span>
         </div>
 
         <div class="weekday-row" aria-hidden="true">
@@ -54,11 +62,12 @@
             {% for day in week %}
             <div class="day {{ 'outside' if day.month != selected_month.month else '' }} {{ 'today' if day == today else '' }}">
               <span class="day-number">{{ day.day }}</span>
-              {% for booking in calendar_bookings.get(day.isoformat(), []) %}
-              <a class="calendar-booking {{ 'completed' if booking.status == 'COMPLETED' else '' }}" href="/booking/{{ booking.id }}">
-                <time>{{ booking.start_time }}{% if booking.end_time %}–{{ booking.end_time }}{% endif %}</time>
-                <strong>{{ booking.artist_name }}</strong>
-                <span>{{ booking.customer_name }} · ${{ '%.0f'|format(booking.amount) }}</span>
+              {% for event in calendar_events.get(day.isoformat(), []) %}
+              <a class="calendar-event {{ event.calendar_state }}" href="{{ event.href }}">
+                <time>{{ event.start_time }}{% if event.end_time %}–{{ event.end_time }}{% endif %}</time>
+                <strong>{{ event.artist_name }}</strong>
+                <span>{{ event.detail }} · ${{ '%.0f'|format(event.value) }}</span>
+                <span class="event-state">{{ event.status_label }}</span>
               </a>
               {% endfor %}
             </div>
@@ -67,23 +76,24 @@
         </div>
 
         <div class="agenda">
-          {% set agenda = namespace(has_bookings=false) %}
+          {% set agenda = namespace(has_events=false) %}
           {% for week in calendar_weeks %}{% for day in week %}
-            {% if day.month == selected_month.month and calendar_bookings.get(day.isoformat(), []) %}
-              {% set agenda.has_bookings = true %}
+            {% if day.month == selected_month.month and calendar_events.get(day.isoformat(), []) %}
+              {% set agenda.has_events = true %}
               <div class="agenda-day">
                 <div class="agenda-date">{{ day.strftime('%A · %B %d') }}</div>
-                {% for booking in calendar_bookings.get(day.isoformat(), []) %}
-                <a class="calendar-booking {{ 'completed' if booking.status == 'COMPLETED' else '' }}" href="/booking/{{ booking.id }}">
-                  <time>{{ booking.start_time }}{% if booking.end_time %}–{{ booking.end_time }}{% endif %}</time>
-                  <strong>{{ booking.artist_name }} · {{ booking.customer_name }}</strong>
-                  <span>{{ booking.style or booking.service }} · ${{ '%.0f'|format(booking.amount) }}</span>
+                {% for event in calendar_events.get(day.isoformat(), []) %}
+                <a class="calendar-event {{ event.calendar_state }}" href="{{ event.href }}">
+                  <time>{{ event.start_time }}{% if event.end_time %}–{{ event.end_time }}{% endif %}</time>
+                  <strong>{{ event.artist_name }} · {{ event.detail }}</strong>
+                  <span>{{ event.style or event.service }} · ${{ '%.0f'|format(event.value) }}</span>
+                  <span class="event-state">{{ event.status_label }}</span>
                 </a>
                 {% endfor %}
               </div>
             {% endif %}
           {% endfor %}{% endfor %}
-          {% if not agenda.has_bookings %}<div class="sub">No confirmed bookings in this month yet.</div>{% endif %}
+          {% if not agenda.has_events %}<div class="sub">No tracked appointment time in this month yet.</div>{% endif %}
         </div>
       </section>
 
