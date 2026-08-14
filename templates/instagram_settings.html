@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Instagram · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .box{padding:22px;border:1px solid var(--line);border-radius:16px;background:#101010;margin-bottom:16px}.artist-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:15px 0;border-bottom:1px solid var(--line-soft)}.artist-row:last-child{border-bottom:0}.sub{color:var(--muted);font-size:12px;line-height:1.5}.label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.1em}.actions{display:flex;gap:8px;flex-wrap:wrap}.connected{color:var(--green)}.warning{color:var(--gold-light)}@media(max-width:650px){.artist-row{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page='settings' %}{% include '_sidebar.html' %}
+  <main class="main">
+    <header class="topbar"><div><div class="page-title">Instagram</div><div class="page-subtitle">Connect each artist's Professional Instagram account.</div></div><div class="top-actions"><a class="button secondary" href="/settings">← Settings</a></div></header>
+    <div class="content">
+      <section class="box">
+        <div class="label">Phase 1</div>
+        <h2>Connect accounts first. No automatic posting yet.</h2>
+        <p class="sub">Empty Chair will request permission to identify the Professional account and publish content later. Automatic offer posting remains disabled until the connection flow is verified.</p>
+        {% if not instagram_configured %}<p class="warning"><strong>Setup required:</strong> add INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET in Render before connecting accounts.</p>{% endif %}
+        {% if instagram_message %}<p class="sub">Instagram: {{ instagram_message.replace('_',' ') }}</p>{% endif %}
+      </section>
+
+      <section class="box">
+        <div class="label">Artists</div>
+        <h2>Instagram connections</h2>
+        {% for artist in artists %}
+        <div class="artist-row">
+          <div>
+            <strong>{{ artist.name }}</strong>
+            {% if artist.instagram_connection_active %}
+              <div class="sub connected">Connected{% if artist.instagram_username %} · @{{ artist.instagram_username }}{% endif %}</div>
+            {% else %}
+              <div class="sub">Not connected</div>
+            {% endif %}
+          </div>
+          <div class="actions">
+            {% if artist.instagram_connection_active %}
+              <form method="post" action="/integrations/instagram/disconnect/{{ artist.id }}"><button class="button secondary compact" type="submit">Disconnect</button></form>
+            {% else %}
+              <a class="button compact" href="/integrations/instagram/connect/{{ artist.id }}" {% if not instagram_configured %}aria-disabled="true" style="pointer-events:none;opacity:.45"{% endif %}>Connect Instagram</a>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+          <p class="sub">Add an artist before connecting Instagram.</p>
+        {% endfor %}
+      </section>
+      <div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
