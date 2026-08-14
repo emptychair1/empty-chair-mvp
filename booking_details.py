@@ -7,8 +7,7 @@ import app as core
 app = core.app
 
 
-@app.get("/bookings/{booking_id}", response_class=HTMLResponse)
-def booking_details(request: Request, booking_id: str):
+def _owner_booking_response(request: Request, booking_id: str):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
@@ -51,3 +50,36 @@ def booking_details(request: Request, booking_id: str):
         name="booking_details.html",
         context={"user": user, "booking": booking},
     )
+
+
+@app.get("/bookings/{booking_id}", response_class=HTMLResponse)
+def booking_details(request: Request, booking_id: str):
+    return _owner_booking_response(request, booking_id)
+
+
+# Calendar links in the current UI still point to /booking/{id}. Put the
+# authenticated studio handler ahead of the older customer-facing route so a
+# logged-in owner sees studio controls, while unauthenticated customer links
+# continue to fall through to the existing public booking route.
+_public_booking_route = next(
+    (
+        route
+        for route in app.router.routes
+        if getattr(route, "path", None) == "/booking/{booking_id}"
+        and "GET" in (getattr(route, "methods", set()) or set())
+    ),
+    None,
+)
+
+if _public_booking_route is not None:
+    app.router.routes.remove(_public_booking_route)
+
+
+@app.get("/booking/{booking_id}", response_class=HTMLResponse)
+def booking_details_compat(request: Request, booking_id: str):
+    user = core.get_current_user(request)
+    if user:
+        return _owner_booking_response(request, booking_id)
+    if _public_booking_route is None:
+        raise HTTPException(404, "Booking not found")
+    return _public_booking_route.endpoint(request, booking_id)
