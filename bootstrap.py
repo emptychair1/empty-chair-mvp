@@ -6,6 +6,10 @@ always registered before the ASGI app starts serving requests.
 
 import app as core
 
+# Register Instagram account connection foundation before settings UI.
+import instagram_integration  # noqa: F401,E402
+import instagram_settings  # noqa: F401,E402
+
 # Register additive pages/routes first.
 import features  # noqa: F401,E402
 
@@ -67,5 +71,6 @@ print(
     f"resend_configured={bool(core.RESEND_API_KEY)}, "
     f"google_configured={bool(google_integration.GOOGLE_CLIENT_ID)}, "
     f"stripe_configured={stripe_deposits.configured()}, "
+    f"instagram_configured={instagram_integration.configured()}, "
     f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
 )
