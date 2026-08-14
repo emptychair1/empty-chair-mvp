@@ -74,4 +74,4 @@ def claim_offer_atomic(offer_id: str):
     core.event("offer.claimed", "offer", offer_id); core.event("booking.created", "booking", booking_id)
     try: core.send_recovery_email(offer["opening_id"])
     except Exception as exc: print("Recovery confirmation send failed:", str(exc))
-    return RedirectResponse(f"/booking/{booking_id}", status_code=303)
+    return RedirectResponse(f"/booking/{booking_id}?customer=1", status_code=303)
