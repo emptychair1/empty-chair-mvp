@@ -20,41 +20,85 @@ def confirm_booking(request: Request, booking_id: str):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
+
     conn = core.connect()
+    booking = None
+    calendar_user_id = None
+    start_iso = None
+    end_iso = None
+
     try:
         booking = _owned_booking(conn, booking_id, user["shop_id"])
         if not booking:
             raise HTTPException(404, "Booking not found")
         if booking["status"] not in APPROVABLE_STATUSES:
             raise HTTPException(409, "Booking is not awaiting confirmation")
-        calendar_user_id = google_integration.calendar_user_for_artist(booking["artist_id"])
-        start_iso = google_integration.slot_iso(booking["date"], booking["start_time"], booking["shop_timezone"])
-        end_iso = google_integration.slot_iso(booking["date"], booking["end_time"], booking["shop_timezone"])
-        if calendar_user_id and google_integration.calendar_is_available_for_user(calendar_user_id, start_iso, end_iso) is False:
-            raise HTTPException(409, "Artist calendar is busy. Reject this claim or resolve the conflict.")
-        core.db_execute(
+
+        try:
+            calendar_user_id = google_integration.calendar_user_for_artist(booking["artist_id"])
+            if calendar_user_id:
+                timezone_name = booking["shop_timezone"] or "America/New_York"
+                start_iso = google_integration.slot_iso(booking["date"], booking["start_time"], timezone_name)
+                end_iso = google_integration.slot_iso(booking["date"], booking["end_time"], timezone_name)
+                available = google_integration.calendar_is_available_for_user(calendar_user_id, start_iso, end_iso)
+                if available is False:
+                    raise HTTPException(409, "Artist calendar is busy. Reject this claim or resolve the conflict.")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            core.event("calendar.confirm_precheck_failed", "booking", booking_id, str(exc))
+            calendar_user_id = None
+            start_iso = None
+            end_iso = None
+
+        cursor = core.db_execute(
             conn,
             "UPDATE bookings SET status='CONFIRMED', booked_at=? WHERE id=? AND status IN ('AWAITING_CONFIRMATION','PENDING')",
             (core.now_iso(), booking_id),
         )
-        core.db_execute(conn, "UPDATE openings SET status='BOOKED' WHERE id=? AND status='CLAIMED'", (booking["opening_id"],))
+        if cursor.rowcount != 1:
+            raise HTTPException(409, "Booking is no longer awaiting confirmation")
+
+        core.db_execute(
+            conn,
+            "UPDATE openings SET status='BOOKED' WHERE id=? AND status='CLAIMED'",
+            (booking["opening_id"],),
+        )
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
-    if calendar_user_id:
+
+    if calendar_user_id and start_iso and end_iso:
         try:
-            result = google_integration.block_calendar_time_for_user(calendar_user_id, f"Empty Chair · {booking['customer_name']} with {booking['artist_name']}", start_iso, end_iso, booking["shop_timezone"])
+            timezone_name = booking["shop_timezone"] or "America/New_York"
+            result = google_integration.block_calendar_time_for_user(
+                calendar_user_id,
+                f"Empty Chair · {booking['customer_name']} with {booking['artist_name']}",
+                start_iso,
+                end_iso,
+                timezone_name,
+            )
             if result:
                 google_integration.remember_booking_event(booking_id, calendar_user_id, result.get("id"))
                 core.event("calendar.slot_blocked", "booking", booking_id, result.get("id"))
         except Exception as exc:
             core.event("calendar.block_failed", "booking", booking_id, str(exc))
+
     core.event("booking.confirmed", "booking", booking_id)
+
     if booking["customer_email"]:
         try:
-            notifications.send_email(booking["customer_email"], f"Your appointment at {booking['shop_name']} is confirmed", f"<h2>Your appointment is confirmed.</h2><p>{booking['date']} at {booking['start_time']} with {booking['artist_name']}.</p>")
+            notifications.send_email(
+                booking["customer_email"],
+                f"Your appointment at {booking['shop_name']} is confirmed",
+                f"<h2>Your appointment is confirmed.</h2><p>{booking['date']} at {booking['start_time']} with {booking['artist_name']}.</p>",
+            )
         except Exception as exc:
             core.event("booking.confirmation_delivery_failed", "booking", booking_id, str(exc))
+
     return RedirectResponse("/bookings", status_code=303)
 
 
