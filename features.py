@@ -386,6 +386,7 @@ def settings_page(request: Request, saved: int = 0, test_email: str = "", stripe
             "stripe_payments_ready": bool(shop["stripe_charges_enabled"]),
             "stripe_payouts_ready": bool(shop["stripe_payouts_enabled"]),
             "stripe_message": stripe,
+            "calendar_connected": google_integration.calendar_connected(user["id"]),
         },
     )
 
