@@ -1,6 +1,7 @@
 <link rel="stylesheet" href="{{ url_for('static', path='/mobile-nav.css') }}">
 <style>
 .nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--gold-light);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.setup-mobile-art{width:44px;height:52px;overflow:hidden;border-radius:8px;background:#080808}.setup-mobile-art img{width:100%;height:100%;object-fit:cover;object-position:63% 60%;transform:scale(1.45)}
+.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid rgba(194,39,45,.5);border-radius:8px;background:rgba(194,39,45,.12);color:#f0d7d7;cursor:pointer;font:inherit;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.logout-button:hover,.logout-button:focus-visible{background:#8f151a;border-color:#c2272d;color:#fff}
 </style>
 
 <aside class="sidebar">
@@ -41,5 +42,8 @@
   <div class="sidebar-footer">
     <div class="studio-card"><div class="kicker">Studio</div><div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div><div class="online">● Empty Chair Active</div></div>
     <div class="owner-card"><div class="kicker">Owner</div><div class="owner-name">{{ user["name"] if user else "Owner" }}</div></div>
+    <form class="logout-form" method="post" action="/logout">
+      <button class="logout-button" type="submit">Log out</button>
+    </form>
   </div>
 </aside>
