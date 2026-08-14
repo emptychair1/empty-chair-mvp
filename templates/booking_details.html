@@ -23,17 +23,17 @@
     <div class="content">
       <section class="detail-card">
         <div class="detail-label">Status</div>
-        <div class="detail-value status {{ booking.status.lower() }}">{{ booking.status.replace('_',' ') }}</div>
+        <div class="detail-value status {{ booking.status.lower() }}">{% if booking.status == 'PENDING' %}Awaiting confirmation{% else %}{{ booking.status.replace('_',' ') }}{% endif %}</div>
         <div class="detail-grid">
           <div class="detail-item"><div class="detail-label">Customer</div><div class="detail-value">{{ booking.customer_name }}</div>{% if booking.customer_phone %}<div class="page-subtitle">{{ booking.customer_phone }}</div>{% endif %}{% if booking.customer_email %}<div class="page-subtitle">{{ booking.customer_email }}</div>{% endif %}</div>
           <div class="detail-item"><div class="detail-label">Artist</div><div class="detail-value">{{ booking.artist_name }}</div></div>
           <div class="detail-item"><div class="detail-label">Date & time</div><div class="detail-value">{{ booking.date }} · {{ booking.start_time }}{% if booking.end_time %}–{{ booking.end_time }}{% endif %}</div></div>
           <div class="detail-item"><div class="detail-label">Work</div><div class="detail-value">{{ booking.style or booking.service or 'Appointment' }}</div></div>
           <div class="detail-item"><div class="detail-label">Value</div><div class="detail-value">${{ '%.0f'|format(booking.amount or booking.price or 0) }}</div></div>
-          <div class="detail-item"><div class="detail-label">Deposit</div><div class="detail-value">{% if booking.deposit_status == 'PAID' %}${{ '%.0f'|format(booking.deposit_amount or 0) }} paid{% elif booking.deposit_status in ['REQUIRED','PENDING'] %}${{ '%.0f'|format(booking.deposit_amount or 0) }} due{% else %}None{% endif %}</div></div>
+          <div class="detail-item"><div class="detail-label">Deposit</div><div class="detail-value">{% if booking.deposit_status == 'PAID' %}${{ '%.0f'|format(booking.deposit_amount or 0) }} paid{% elif booking.deposit_status in ['REQUIRED','PENDING'] %}${{ '%.0f'|format(booking.deposit_amount or 0) }} due{% else %}Not required{% endif %}</div></div>
         </div>
         <div class="detail-actions">
-          {% if booking.status == 'AWAITING_CONFIRMATION' %}
+          {% if booking.status in ['AWAITING_CONFIRMATION','PENDING'] %}
           <form method="post" action="/bookings/{{ booking.id }}/confirm"><button class="button" type="submit">Confirm Booking</button></form>
           <form method="post" action="/bookings/{{ booking.id }}/reject"><button class="button secondary" type="submit">Reject Claim</button></form>
           {% endif %}
