@@ -107,6 +107,11 @@ if _public_booking_route is not None:
 
 @app.get("/booking/{booking_id}", response_class=HTMLResponse)
 def booking_details_compat(request: Request, booking_id: str):
+    if request.query_params.get("customer") == "1":
+        if _public_booking_route is None:
+            raise HTTPException(404, "Booking not found")
+        return _public_booking_route.endpoint(request, booking_id)
+
     user = core.get_current_user(request)
     if user:
         return _owner_booking_response(request, booking_id)
