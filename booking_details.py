@@ -57,6 +57,36 @@ def booking_details(request: Request, booking_id: str):
     return _owner_booking_response(request, booking_id)
 
 
+@app.get("/opening/{opening_id}", response_class=HTMLResponse)
+def opening_booking_details(request: Request, opening_id: str):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+
+    conn = core.connect()
+    try:
+        opening = core.db_fetchone(
+            conn,
+            """
+            SELECT booking_id
+            FROM openings
+            WHERE id = ? AND shop_id = ?
+            LIMIT 1
+            """,
+            (opening_id, user["shop_id"]),
+        )
+    finally:
+        conn.close()
+
+    if not opening:
+        raise HTTPException(404, "Opening not found")
+
+    if opening["booking_id"]:
+        return _owner_booking_response(request, opening["booking_id"])
+
+    raise HTTPException(404, "No booking exists for this opening")
+
+
 # Calendar links in the current UI still point to /booking/{id}. Put the
 # authenticated studio handler ahead of the older customer-facing route so a
 # logged-in owner sees studio controls, while unauthenticated customer links
