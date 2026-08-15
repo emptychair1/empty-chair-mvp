@@ -21,7 +21,7 @@ def _count(conn, query, params=()):
         return int(row[0] or 0)
 
 
-def _snapshot(shop_id):
+def _snapshot(shop_id, user_id=None):
     conn = core.connect()
     try:
         shop = core.db_fetchone(conn, "SELECT * FROM shops WHERE id = ? LIMIT 1", (shop_id,))
@@ -32,6 +32,9 @@ def _snapshot(shop_id):
             "SELECT COUNT(*) AS n FROM customers WHERE shop_id = ? AND communication_consent = 1",
             (shop_id,),
         )
+        calendar_ready = False
+        if user_id:
+            calendar_ready = bool(core.db_fetchone(conn, "SELECT user_id FROM google_calendar_connections WHERE user_id = ? LIMIT 1", (user_id,)))
     finally:
         conn.close()
 
@@ -43,6 +46,9 @@ def _snapshot(shop_id):
         "shop_ready": bool(shop and shop["name"]),
         "artist_ready": artists > 0,
         "customers_ready": customers > 0,
+        "calendar_ready": calendar_ready,
+        "stripe_connected": bool(shop and shop["stripe_account_id"]),
+        "stripe_ready": bool(shop and shop["stripe_charges_enabled"] and shop["stripe_payouts_enabled"]),
         "ready": artists > 0 and customers > 0,
     }
 
@@ -58,8 +64,8 @@ def setup_page(request: Request, step: int = 1):
     if redirect:
         return redirect
 
-    state = _snapshot(user["shop_id"])
-    step = max(1, min(int(step or 1), 4))
+    state = _snapshot(user["shop_id"], user["id"])
+    step = max(1, min(int(step or 1), 6))
 
     return core.templates.TemplateResponse(
         request=request,
