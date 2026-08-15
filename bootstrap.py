@@ -44,6 +44,9 @@ import demo_mode  # noqa: F401,E402
 # Verify one-time paid activation tokens issued by the standalone sales site.
 import paid_activation  # noqa: F401,E402
 
+# Register the private platform-owner control room.
+import admin_dashboard  # noqa: F401,E402
+
 # Replace the legacy artist roster page with forward-looking utilization cards.
 import artist_metrics  # noqa: F401,E402
 
