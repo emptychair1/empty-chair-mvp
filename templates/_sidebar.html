@@ -11,6 +11,7 @@
 
   <nav class="sidebar-nav" aria-label="Primary navigation">
     <a class="nav-link {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon">⌂</span><span>Results</span></a>
+    {% if is_platform_admin(user) %}<a class="nav-link {{ 'active' if active_page == 'owner' else '' }}" href="/owner"><span class="nav-icon">♛</span><span>Owner Control Room</span></a>{% endif %}
     <a class="nav-link {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Fill Chairs</span></a>
     <a class="nav-link {{ 'active' if active_page in ['bookings','calendar'] else '' }}" href="/bookings"><span class="nav-icon">▣</span><span>Calendar</span></a>
 
