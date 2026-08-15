@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 import app as core
+import stripe_deposits
 
 
 PILOT_MONTHLY_PRICE = float(os.getenv("EMPTY_CHAIR_PILOT_MONTHLY_PRICE", "99"))
@@ -34,6 +35,22 @@ def _count(conn, query, params=()):
 def _money(conn, query, params=()):
     row = core.db_fetchone(conn, query, params)
     return float(row["total"] or 0) if row else 0.0
+
+
+def _subscription_financials(subscription_id):
+    if not subscription_id or not stripe_deposits.STRIPE_SECRET_KEY:
+        return 0.0, 0.0, "not_connected"
+    try:
+        subscription = stripe_deposits._stripe_get(f"/subscriptions/{subscription_id}")
+        invoices = stripe_deposits._stripe_get(
+            f"/invoices?subscription={subscription_id}&status=paid&limit=100"
+        )
+        collected = sum(float(invoice.get("amount_paid") or 0) for invoice in invoices.get("data", [])) / 100
+        status = subscription.get("status") or "unknown"
+        mrr = PILOT_MONTHLY_PRICE if status in {"active", "trialing"} else 0.0
+        return mrr, collected, status
+    except Exception:
+        return PILOT_MONTHLY_PRICE, 0.0, "unavailable"
 
 
 def _studio_snapshot(conn, shop):
@@ -100,6 +117,9 @@ def _studio_snapshot(conn, shop):
     ]
     completed_steps = sum(1 for step in steps if step["done"])
     onboarding_percent = int(round(completed_steps / len(steps) * 100))
+    your_mrr, your_revenue, subscription_status = _subscription_financials(
+        paid_activation["subscription_id"] if paid_activation else ""
+    )
 
     if onboarding_percent == 100:
         onboarding_status = "Ready"
@@ -125,7 +145,9 @@ def _studio_snapshot(conn, shop):
         "chairs_filled": chairs_filled,
         "total_chairs": total_chairs,
         "recovered_revenue": recovered_revenue,
-        "your_mrr": PILOT_MONTHLY_PRICE if paid_activation else 0.0,
+        "your_mrr": your_mrr,
+        "your_revenue": your_revenue,
+        "subscription_status": subscription_status,
     }
 
 
@@ -159,6 +181,7 @@ def owner_control_room(request: Request):
         "chairs_filled": sum(studio["chairs_filled"] for studio in studios),
         "studio_revenue": sum(studio["recovered_revenue"] for studio in studios),
         "your_mrr": sum(studio["your_mrr"] for studio in studios),
+        "your_revenue": sum(studio["your_revenue"] for studio in studios),
     }
 
     current_shop = next((shop for shop in shops if shop["id"] == user["shop_id"]), None)
