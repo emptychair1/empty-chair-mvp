@@ -28,6 +28,7 @@
       <div class="owner-metric"><span>Chairs Filling Now</span><strong>{{ metrics.chairs_filling }}</strong></div>
       <div class="owner-metric"><span>Chairs Filled</span><strong>{{ metrics.chairs_filled }}</strong></div>
       <div class="owner-metric"><span>Your Pilot MRR</span><strong class="good">${{ '%.0f'|format(metrics.your_mrr) }}</strong></div>
+      <div class="owner-metric"><span>Your Revenue Collected</span><strong class="good">${{ '%.0f'|format(metrics.your_revenue) }}</strong></div>
       <div class="owner-metric"><span>Studio Revenue Recovered</span><strong class="good">${{ '%.0f'|format(metrics.studio_revenue) }}</strong></div>
       <div class="owner-metric"><span>Onboarding Complete</span><strong>{{ metrics.ready_studios }} / {{ metrics.studios }}</strong></div>
     </section>
@@ -45,6 +46,7 @@
           <div class="studio-number"><span>Chairs filled</span><strong>{{ studio.chairs_filled }}</strong></div>
           <div class="studio-number"><span>Studio revenue</span><strong class="money">${{ '%.0f'|format(studio.recovered_revenue) }}</strong></div>
           <div class="studio-number"><span>Your MRR</span><strong class="money">${{ '%.0f'|format(studio.your_mrr) }}</strong></div>
+          <div class="studio-number"><span>Your revenue</span><strong class="money">${{ '%.0f'|format(studio.your_revenue) }}</strong></div>
         </div>
       </article>
       {% else %}<div class="empty-state">No studios have joined yet. The first paid signup will appear here automatically.</div>{% endfor %}
