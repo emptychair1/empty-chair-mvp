@@ -1943,8 +1943,8 @@ def advance_opening_queue(
 
 @app.on_event("startup")
 def startup():
-    mascot_source = os.path.join("static", "empty-chair-reaper-seated-v3.b64")
-    mascot_target = os.path.join("static", "empty-chair-reaper-seated-v3.png")
+    mascot_source = os.path.join("static", "empty-chair-reaper-seated-v3-webp.b64")
+    mascot_target = os.path.join("static", "empty-chair-reaper-seated-v3.webp")
     if os.path.exists(mascot_source):
         with open(mascot_source, "r", encoding="utf-8") as source:
             encoded_mascot = source.read().strip()
