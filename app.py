@@ -11,6 +11,7 @@ import secrets
 import resend
 import urllib.error
 import urllib.request
+from support_tickets import register_support_routes
 from datetime import datetime, timedelta, timezone
 
 from fastapi import (
@@ -4807,6 +4808,23 @@ def complete_booking(
         "/",
         status_code=303,
     )
+
+
+# ============================================================
+# SUPPORT TICKETS
+# ============================================================
+
+register_support_routes(
+    app=app,
+    templates=templates,
+    connect=connect,
+    db_execute=db_execute,
+    db_fetchone=db_fetchone,
+    db_fetchall=db_fetchall,
+    get_current_user=get_current_user,
+    login_required_redirect=login_required_redirect,
+    now_iso=now_iso,
+)
 
 
 # ============================================================

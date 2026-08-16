@@ -15,7 +15,7 @@
     <a class="nav-link {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Fill Chairs</span></a>
     <a class="nav-link {{ 'active' if active_page in ['bookings','calendar'] else '' }}" href="/bookings"><span class="nav-icon">▣</span><span>Calendar</span></a>
 
-    <details class="nav-group mobile-overflow" {{ 'open' if active_page in ['artists','customers','operations','settings','setup'] else '' }}>
+    <details class="nav-group mobile-overflow" {{ 'open' if active_page in ['artists','customers','operations','settings','setup','support'] else '' }}>
       <summary>Manage &amp; setup</summary>
       <div class="nav-group-links">
         <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
@@ -23,6 +23,7 @@
         <a class="nav-link {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon">◎</span><span>Operations</span></a>
         <a class="nav-link {{ 'active' if active_page == 'setup' else '' }}" href="/setup"><span class="nav-icon">☠</span><span>Setup Guide</span></a>
         <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
+        <a class="nav-link {{ 'active' if active_page == 'support' else '' }}" href="/support"><span class="nav-icon">?</span><span>Support</span></a>
       </div>
     </details>
 
@@ -36,6 +37,7 @@
         <a href="/operations"><span>◎</span><strong>Operations</strong></a>
         <a href="/setup"><span class="setup-mobile-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span><strong>Setup Guide</strong></a>
         <a href="/settings"><span>⚙</span><strong>Settings</strong></a>
+        <a href="/support"><span>?</span><strong>Support</strong></a>
       </div>
     </details>
   </nav>
