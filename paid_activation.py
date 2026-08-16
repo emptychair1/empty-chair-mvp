@@ -79,7 +79,7 @@ def activated_signup_page(request: Request, activation: str = ""):
             conn.close()
         if used:
             return RedirectResponse("/login?activation=used", status_code=303)
-        request.session["paid_activation"] = payload
+        # A paid activation starts a new studio account, even when the browser\n        # is currently signed into the isolated live demo. Clear that identity\n        # before delegating to the original signup page, which redirects any\n        # authenticated session to the dashboard.\n        request.session.clear()\n        request.session["paid_activation"] = payload
     if BILLING_REQUIRED and not request.session.get("paid_activation"):
         return RedirectResponse(f"{SALES_URL}/#pricing", status_code=303)
     return _original_signup_page(request)
