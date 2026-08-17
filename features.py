@@ -349,6 +349,253 @@ def customers_page(request: Request):
     )
 
 
+def customer_form_values(
+    name,
+    phone,
+    email,
+    communication_consent,
+    preferred_artists,
+    preferred_styles,
+    preferred_services,
+):
+    name = name.strip()
+    phone = phone.strip()
+    email = email.strip().lower()
+
+    if not name:
+        raise HTTPException(400, "Customer name is required.")
+
+    if not phone and not email:
+        raise HTTPException(
+            400,
+            "Add at least a phone number or email address.",
+        )
+
+    return {
+        "name": name,
+        "phone": phone,
+        "email": email or None,
+        "communication_consent": (
+            1 if communication_consent == "on" else 0
+        ),
+        "preferred_artists": preferred_artists.strip(),
+        "preferred_styles": preferred_styles.strip(),
+        "preferred_services": (
+            preferred_services.strip() or "tattoo"
+        ),
+    }
+
+
+@app.get("/customers/new", response_class=HTMLResponse)
+def new_customer_page(request: Request):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+
+    return core.templates.TemplateResponse(
+        request=request,
+        name="customer_form.html",
+        context={
+            "user": user,
+            "customer": None,
+            "page_title": "Add Customer",
+            "form_action": "/customers/new",
+        },
+    )
+
+
+@app.post("/customers/new")
+def create_customer(
+    request: Request,
+    name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    communication_consent: str = Form(""),
+    preferred_artists: str = Form(""),
+    preferred_styles: str = Form(""),
+    preferred_services: str = Form("tattoo"),
+):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+
+    values = customer_form_values(
+        name,
+        phone,
+        email,
+        communication_consent,
+        preferred_artists,
+        preferred_styles,
+        preferred_services,
+    )
+    customer_id = f"cust_{uuid.uuid4().hex[:12]}"
+    timestamp = core.now_iso()
+
+    conn = core.connect()
+    core.db_execute(
+        conn,
+        """
+        INSERT INTO customers(
+            id,
+            shop_id,
+            name,
+            phone,
+            email,
+            communication_consent,
+            preferred_artists,
+            preferred_styles,
+            preferred_services,
+            appointment_count,
+            completed_count,
+            cancellation_count,
+            no_show_count,
+            average_spend,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, ?)
+        """,
+        (
+            customer_id,
+            user["shop_id"],
+            values["name"],
+            values["phone"],
+            values["email"],
+            values["communication_consent"],
+            values["preferred_artists"],
+            values["preferred_styles"],
+            values["preferred_services"],
+            timestamp,
+            timestamp,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    core.event("customer.created", "customer", customer_id)
+    return RedirectResponse("/customers", status_code=303)
+
+
+@app.get(
+    "/customers/{customer_id}/edit",
+    response_class=HTMLResponse,
+)
+def edit_customer_page(
+    request: Request,
+    customer_id: str,
+):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+
+    conn = core.connect()
+    customer = core.db_fetchone(
+        conn,
+        """
+        SELECT *
+        FROM customers
+        WHERE id = ?
+          AND shop_id = ?
+        LIMIT 1
+        """,
+        (customer_id, user["shop_id"]),
+    )
+    conn.close()
+
+    if not customer:
+        raise HTTPException(404, "Customer not found.")
+
+    return core.templates.TemplateResponse(
+        request=request,
+        name="customer_form.html",
+        context={
+            "user": user,
+            "customer": customer,
+            "page_title": "Edit Customer",
+            "form_action": f"/customers/{customer_id}/edit",
+        },
+    )
+
+
+@app.post("/customers/{customer_id}/edit")
+def update_customer(
+    request: Request,
+    customer_id: str,
+    name: str = Form(...),
+    phone: str = Form(""),
+    email: str = Form(""),
+    communication_consent: str = Form(""),
+    preferred_artists: str = Form(""),
+    preferred_styles: str = Form(""),
+    preferred_services: str = Form("tattoo"),
+):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+
+    values = customer_form_values(
+        name,
+        phone,
+        email,
+        communication_consent,
+        preferred_artists,
+        preferred_styles,
+        preferred_services,
+    )
+
+    conn = core.connect()
+    customer = core.db_fetchone(
+        conn,
+        """
+        SELECT id
+        FROM customers
+        WHERE id = ?
+          AND shop_id = ?
+        LIMIT 1
+        """,
+        (customer_id, user["shop_id"]),
+    )
+
+    if not customer:
+        conn.close()
+        raise HTTPException(404, "Customer not found.")
+
+    core.db_execute(
+        conn,
+        """
+        UPDATE customers
+        SET
+            name = ?,
+            phone = ?,
+            email = ?,
+            communication_consent = ?,
+            preferred_artists = ?,
+            preferred_styles = ?,
+            preferred_services = ?,
+            updated_at = ?
+        WHERE id = ?
+          AND shop_id = ?
+        """,
+        (
+            values["name"],
+            values["phone"],
+            values["email"],
+            values["communication_consent"],
+            values["preferred_artists"],
+            values["preferred_styles"],
+            values["preferred_services"],
+            core.now_iso(),
+            customer_id,
+            user["shop_id"],
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    core.event("customer.updated", "customer", customer_id)
+    return RedirectResponse("/customers", status_code=303)
+
+
 @app.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, saved: int = 0, test_email: str = "", stripe: str = ""):
     user, redirect = core.login_required_redirect(request)
