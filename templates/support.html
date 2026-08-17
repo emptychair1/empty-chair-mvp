@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
 <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
 <style>
-.support-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:16px}.box{padding:22px;border:1px solid var(--line);border-radius:16px;background:#101010}.box h2{margin:5px 0 8px}.sub{color:var(--muted);font-size:12px;line-height:1.55}.label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.1em}.notice{padding:14px 16px;border:1px solid rgba(77,175,112,.45);border-radius:12px;background:rgba(77,175,112,.1);color:var(--green);margin-bottom:16px}.notice.warning{border-color:rgba(208,170,112,.45);background:rgba(208,170,112,.08);color:var(--gold-light)}.notice.error{border-color:rgba(194,39,45,.55);background:rgba(194,39,45,.12);color:#f2b9bc}.ticket-list{display:grid;gap:10px;margin-top:14px}.ticket{padding:14px;border:1px solid var(--line-soft);border-radius:12px;background:#0b0b0b}.ticket-top{display:flex;justify-content:space-between;gap:10px}.ticket-title{font-weight:800}.ticket-meta{color:var(--muted);font-size:10px;margin-top:5px}.status{color:var(--gold-light);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.status.TRELLO_CREATED{color:var(--green)}.status.TRELLO_FAILED{color:var(--danger)}textarea{min-height:180px;resize:vertical}@media(max-width:850px){.support-grid{grid-template-columns:1fr}}
+.support-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:16px}.box{padding:22px;border:1px solid var(--line);border-radius:16px;background:#101010}.box h2{margin:5px 0 8px}.sub{color:var(--muted);font-size:12px;line-height:1.55}.label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.1em}.notice{padding:14px 16px;border:1px solid rgba(77,175,112,.45);border-radius:12px;background:rgba(77,175,112,.1);color:var(--green);margin-bottom:16px}.notice.warning{border-color:rgba(208,170,112,.45);background:rgba(208,170,112,.08);color:var(--gold-light)}.notice.error{border-color:rgba(194,39,45,.55);background:rgba(194,39,45,.12);color:#f2b9bc}.ticket-list{display:grid;gap:10px;margin-top:14px}.ticket{padding:14px;border:1px solid var(--line-soft);border-radius:12px;background:#0b0b0b}.ticket-top{display:flex;justify-content:space-between;gap:10px}.ticket-title{font-weight:800}.ticket-meta{color:var(--muted);font-size:10px;margin-top:5px}.status{color:var(--gold-light);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}.status.EMAIL_SENT{color:var(--green)}.status.EMAIL_FAILED{color:var(--danger)}textarea{min-height:180px;resize:vertical}@media(max-width:850px){.support-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -20,16 +20,13 @@
 </header>
 <div class="content">
 {% if submitted %}
-<div class="notice {{ 'warning' if submitted.status != 'TRELLO_CREATED' else '' }}">
+<div class="notice {{ 'warning' if submitted.status != 'EMAIL_SENT' else '' }}">
 <strong>Ticket {{ submitted.id }} received.</strong>
-{% if submitted.status == 'TRELLO_CREATED' %}
-It was added to the support board.
-{% elif submitted.status == 'PENDING_TRELLO' %}
-It is saved and waiting for the Trello connection.
+{% if submitted.status == 'EMAIL_SENT' %}
+Your request was saved and the Empty Chair support team was notified.
 {% else %}
-It is saved, but Trello could not be reached. Support can still see the ticket here.
+Your request was saved, but the email notification could not be sent. Support can still see the ticket in Empty Chair.
 {% endif %}
-{% if submitted.trello_card_url %}<a href="{{ submitted.trello_card_url }}" target="_blank" rel="noopener">Open Trello card</a>{% endif %}
 </div>
 {% endif %}
 {% if error %}<div class="notice error">{{ error }}</div>{% endif %}
@@ -63,14 +60,14 @@ It is saved, but Trello could not be reached. Support can still see the ticket h
 <section class="box">
 <div class="label">Your studio</div>
 <h2>Recent tickets</h2>
-{% if not trello_configured %}<div class="notice warning">Trello is not connected yet. Tickets are still saved safely in Empty Chair.</div>{% endif %}
+{% if not email_configured %}<div class="notice warning">Email notifications are not configured yet. Tickets are still saved safely in Empty Chair.</div>{% endif %}
 {% if tickets %}
 <div class="ticket-list">
 {% for ticket in tickets %}
 <div class="ticket">
 <div class="ticket-top"><div class="ticket-title">{{ ticket.subject }}</div><div class="status {{ ticket.status }}">{{ ticket.status.replace('_',' ') }}</div></div>
 <div class="ticket-meta">{{ ticket.id }} · {{ ticket.category }} · {{ ticket.priority }}</div>
-{% if ticket.trello_card_url %}<div class="ticket-meta"><a href="{{ ticket.trello_card_url }}" target="_blank" rel="noopener">Open Trello card</a></div>{% endif %}
+
 </div>
 {% endfor %}
 </div>
