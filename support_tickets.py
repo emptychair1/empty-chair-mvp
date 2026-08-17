@@ -115,6 +115,7 @@ def register_support_routes(
     get_current_user,
     login_required_redirect,
     now_iso,
+    send_email,
 ):
     @app.on_event("startup")
     def initialize_support_tickets():
@@ -191,7 +192,7 @@ def register_support_routes(
                 "tickets": tickets,
                 "submitted": submitted,
                 "error": error,
-                "trello_configured": trello_is_configured(),
+                "email_configured": bool(os.getenv("RESEND_API_KEY")),
                 "categories": sorted(ALLOWED_CATEGORIES),
                 "priorities": ("Normal", "High", "Urgent", "Low"),
             },
@@ -310,20 +311,39 @@ def register_support_routes(
         conn.commit()
         conn.close()
 
-        card = None
-        trello_error = None
+        support_email = os.getenv(
+            "EMPTY_CHAIR_SUPPORT_EMAIL",
+            "daniels.joshua100@gmail.com",
+        ).strip()
 
-        try:
-            card = create_trello_card(ticket, user, shop)
-        except Exception as exc:
-            trello_error = str(exc)[:1000]
+        email_html = f"""
+        <h2>New Empty Chair support ticket</h2>
+        <p><strong>Ticket:</strong> {ticket_id}</p>
+        <p><strong>Studio:</strong> {shop['name']} ({shop['id']})</p>
+        <p><strong>Submitted by:</strong> {user['name']} &lt;{user['email']}&gt;</p>
+        <p><strong>Category:</strong> {category}</p>
+        <p><strong>Priority:</strong> {priority}</p>
+        <p><strong>Subject:</strong> {subject}</p>
+        <hr>
+        <p>{description.replace(chr(10), '<br>')}</p>
+        """
 
-        if card:
-            status = "TRELLO_CREATED"
-        elif trello_is_configured():
-            status = "TRELLO_FAILED"
-        else:
-            status = "PENDING_TRELLO"
+        email_sent = send_email(
+            support_email,
+            f"[{priority}] Empty Chair support: {subject}",
+            email_html,
+        )
+
+        status = (
+            "EMAIL_SENT"
+            if email_sent
+            else "EMAIL_FAILED"
+        )
+        delivery_error = (
+            None
+            if email_sent
+            else "Support notification email could not be sent."
+        )
 
         conn = connect()
 
@@ -341,9 +361,9 @@ def register_support_routes(
             """,
             (
                 status,
-                card["id"] if card else None,
-                card["url"] if card else None,
-                trello_error,
+                None,
+                None,
+                delivery_error,
                 now_iso(),
                 ticket_id,
             ),
@@ -358,6 +378,6 @@ def register_support_routes(
             submitted={
                 "id": ticket_id,
                 "status": status,
-                "trello_card_url": card["url"] if card else None,
+                "trello_card_url": None,
             },
         )
