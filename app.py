@@ -1959,6 +1959,7 @@ def startup():
         "demo-reaper-match.webp",
         "demo-reaper-claim.webp",
         "demo-reaper-result.webp",
+        "empty-chair-auth-bg.webp",
     ):
         asset_path = os.path.join("static", asset_name)
         encoded_asset = os.path.join("static", f"{asset_name}.b64")
