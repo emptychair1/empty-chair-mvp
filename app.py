@@ -1960,10 +1960,13 @@ def startup():
         "demo-reaper-claim.webp",
         "demo-reaper-result.webp",
     ):
-        asset_path = ROOT / "static" / asset_name
-        encoded_asset = ROOT / "static" / f"{asset_name}.b64"
-        if not asset_path.exists() and encoded_asset.exists():
-            asset_path.write_bytes(base64.b64decode(encoded_asset.read_text().strip()))
+        asset_path = os.path.join("static", asset_name)
+        encoded_asset = os.path.join("static", f"{asset_name}.b64")
+        if os.path.exists(encoded_asset):
+            with open(encoded_asset, "r", encoding="utf-8") as source:
+                encoded_image = source.read().strip()
+            with open(asset_path, "wb") as target:
+                target.write(base64.b64decode(encoded_image))
 
     init_db()
 
