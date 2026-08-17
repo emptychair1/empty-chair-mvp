@@ -1,1 +1,116 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Customers · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">{% include '_table_style.html' %}<style>.hero{padding:22px;border:1px solid var(--line);border-radius:16px;background:#101010;margin-bottom:16px}.hero h2{margin:5px 0}.hero p,.sub{color:var(--muted);font-size:12px}.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}.stat{padding:16px;border:1px solid var(--line);border-radius:13px}.stat strong{font-size:28px;display:block}.label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.1em}@media(max-width:600px){.stats{grid-template-columns:1fr}}</style></head><body><div class="app-shell">{% set active_page='customers' %}{% include '_sidebar.html' %}<main class="main"><header class="topbar"><div><div class="page-title">Customers</div><div class="page-subtitle">The people Empty Chair can match to available appointment time.</div></div><div class="top-actions"><a class="button" href="/import/customers">Import Customers</a></div></header><div class="content"><section class="hero"><div class="label">Step 2 of the Empty Chair setup</div><h2>Give Empty Chair people to contact.</h2><p>Import existing customers once. Empty Chair uses their preferences and history to choose who should hear about available time.</p></section><section class="stats"><div class="stat"><div class="label">Customer audience</div><strong>{{ customers|length }}</strong><div class="sub">Imported customers</div></div><div class="stat"><div class="label">Ready to contact</div><strong>{{ consented }}</strong><div class="sub">Customers with communication permission</div></div></section><section class="panel"><div class="panel-head"><div><h2 class="panel-title">Customer roster</h2><div class="sub">You usually won't need to manage this list day to day.</div></div></div><div style="overflow:auto"><table><thead><tr><th>Customer</th><th>Artist / Style</th><th>Visits</th><th>Contact</th></tr></thead><tbody>{% for customer in customers %}<tr><td><strong>{{ customer.name }}</strong><br><span class="sub">{{ customer.phone }}{% if customer.email %} · {{ customer.email }}{% endif %}</span></td><td>{{ customer.preferred_artists or 'Any artist' }}<br><span class="sub">{{ customer.preferred_styles or 'Any style' }}</span></td><td>{{ customer.completed_count }}</td><td>{% if not customer.communication_consent %}Suppressed / no consent{% elif customer.deliverable %}Ready{% else %}Invalid contact{% endif %}<br>{% if customer.communication_consent %}<form method="post" action="/customers/{{ customer.id }}/suppress" style="margin-top:6px"><button class="button secondary compact" type="submit">Do not contact</button></form>{% endif %}</td></tr>{% else %}<tr><td colspan="4">No customers yet. Import a CSV to give Empty Chair an audience.</td></tr>{% endfor %}</tbody></table></div></section><div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div></div></main></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customers · Empty Chair</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+{% include '_table_style.html' %}
+<style>
+.hero{padding:22px;border:1px solid var(--line);border-radius:16px;background:#101010;margin-bottom:16px}
+.hero h2{margin:5px 0}.hero p,.sub{color:var(--muted);font-size:12px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.stat{padding:16px;border:1px solid var(--line);border-radius:13px}
+.stat strong{font-size:28px;display:block}
+.label{color:var(--gold-light);font-size:10px;text-transform:uppercase;letter-spacing:.1em}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:600px){.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app-shell">
+{% set active_page='customers' %}
+{% include '_sidebar.html' %}
+<main class="main">
+<header class="topbar">
+<div>
+<div class="page-title">Customers</div>
+<div class="page-subtitle">The people Empty Chair can match to available appointment time.</div>
+</div>
+<div class="top-actions">
+<a class="button secondary" href="/import/customers">Import CSV</a>
+<a class="button" href="/customers/new">Add Customer</a>
+</div>
+</header>
+<div class="content">
+<section class="hero">
+<div class="label">Step 2 of the Empty Chair setup</div>
+<h2>Give Empty Chair people to contact.</h2>
+<p>Add customers individually or import an existing customer list.</p>
+</section>
+<section class="stats">
+<div class="stat">
+<div class="label">Customer audience</div>
+<strong>{{ customers|length }}</strong>
+<div class="sub">Saved customers</div>
+</div>
+<div class="stat">
+<div class="label">Ready to contact</div>
+<strong>{{ consented }}</strong>
+<div class="sub">Customers with communication permission</div>
+</div>
+</section>
+<section class="panel">
+<div class="panel-head">
+<div>
+<h2 class="panel-title">Customer roster</h2>
+<div class="sub">Keep contact details and consent current.</div>
+</div>
+</div>
+<div style="overflow:auto">
+<table>
+<thead>
+<tr>
+<th>Customer</th>
+<th>Artist / Style</th>
+<th>Visits</th>
+<th>Contact</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody>
+{% for customer in customers %}
+<tr>
+<td>
+<strong>{{ customer.name }}</strong><br>
+<span class="sub">{{ customer.phone or 'No phone' }}{% if customer.email %} · {{ customer.email }}{% endif %}</span>
+</td>
+<td>
+{{ customer.preferred_artists or 'Any artist' }}<br>
+<span class="sub">{{ customer.preferred_styles or 'Any style' }}</span>
+</td>
+<td>{{ customer.completed_count }}</td>
+<td>
+{% if not customer.communication_consent %}
+Suppressed / no consent
+{% elif customer.phone or customer.email %}
+Ready
+{% else %}
+Invalid contact
+{% endif %}
+<br>
+{% if customer.communication_consent %}
+<form method="post" action="/customers/{{ customer.id }}/suppress" style="margin-top:6px">
+<button class="button secondary compact" type="submit">Do not contact</button>
+</form>
+{% endif %}
+</td>
+<td>
+<a class="button secondary compact" href="/customers/{{ customer.id }}/edit">Edit</a>
+</td>
+</tr>
+{% else %}
+<tr>
+<td colspan="5">No customers yet. Add your first customer to test the complete recovery flow.</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+</section>
+<div class="app-footer"><span class="skull">☠</span> Empty Chairs Don’t Pay the Bills</div>
+</div>
+</main>
+</div>
+</body>
+</html>
