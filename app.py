@@ -1951,6 +1951,12 @@ def startup():
             encoded_mascot = source.read().strip()
         with open(mascot_target, "wb") as target:
             target.write(base64.b64decode(encoded_mascot))
+    for asset_name in ("reaper-booking.webp", "reaper-matching.webp", "reaper-result.webp"):
+        asset_path = ROOT / "static" / asset_name
+        encoded_asset = ROOT / "static" / f"{asset_name}.b64"
+        if not asset_path.exists() and encoded_asset.exists():
+            asset_path.write_bytes(base64.b64decode(encoded_asset.read_text().strip()))
+
     init_db()
 
 
