@@ -211,7 +211,7 @@
     }
     .step-card p { margin:0 0 18px; color:var(--cream-dim); line-height:1.6; }
     .step-reaper-wrap {
-      height:112px;
+      height:150px;
       display:grid;
       place-items:center;
       margin:2px 0 14px;
@@ -219,8 +219,8 @@
       background:radial-gradient(circle,rgba(225,38,38,.12),transparent 68%);
     }
     .step-reaper {
-      width:118px;
-      height:108px;
+      width:138px;
+      height:142px;
       object-fit:contain;
       filter:drop-shadow(0 12px 18px rgba(0,0,0,.62));
       transition:transform .25s ease,filter .25s ease;
@@ -277,7 +277,7 @@
       <p class="hero-copy">Follow one opening from the studio dashboard to a customer claim, then watch it land on the calendar as recovered revenue.</p>
     </div>
     <div class="reaper-stage" aria-hidden="true">
-      <img class="demo-reaper" src="{{ url_for('static', path='/reaper-result.webp' if completed_demo else '/reaper-booking.webp' if booking else '/reaper-matching.webp' if offer and offer.status == 'SENT' else '/empty-chair-reaper-seated-v3.webp') }}" alt="">
+      <img class="demo-reaper" src="{{ url_for('static', path='/demo-reaper-result.webp' if completed_demo else '/demo-reaper-claim.webp' if booking else '/demo-reaper-match.webp' if offer and offer.status == 'SENT' else '/demo-reaper-opening.webp') }}" alt="">
     </div>
   </section>
 
@@ -292,7 +292,7 @@
   <section class="step-grid">
     <article class="step-card">
       <div class="step-top"><div class="number">1 · Owner</div><div class="step-icon">◈</div></div>
-      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/empty-chair-reaper-seated-v3.webp') }}" alt=""></div>
+      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/demo-reaper-opening.webp') }}" alt=""></div>
       <h2>See what Empty Chair is filling</h2>
       <p>Open the recovery workspace and show the active campaign, ranked customer, and opening that needs work.</p>
       <a class="button" href="/pilot">Open Fill Chairs</a>
@@ -300,7 +300,7 @@
 
     <article class="step-card">
       <div class="step-top"><div class="number">2 · Customer</div><div class="step-icon">✦</div></div>
-      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/reaper-matching.webp') }}" alt=""></div>
+      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/demo-reaper-match.webp') }}" alt=""></div>
       <h2>Claim the opening</h2>
       <p>Status: <strong>{{ offer.status.replace('_',' ') if offer else 'CLAIMED' }}</strong></p>
       {% if offer and offer.status == 'SENT' %}
@@ -314,7 +314,7 @@
 
     <article class="step-card">
       <div class="step-top"><div class="number">3 · Owner</div><div class="step-icon">✓</div></div>
-      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/reaper-booking.webp') }}" alt=""></div>
+      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/demo-reaper-claim.webp') }}" alt=""></div>
       <h2>Confirm the claim</h2>
       {% if booking %}
         <p>Booking status: <strong>{{ booking.status.replace('_',' ') }}</strong></p>
@@ -326,7 +326,7 @@
 
     <article class="step-card">
       <div class="step-top"><div class="number">4 · Result</div><div class="step-icon">↗</div></div>
-      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/reaper-result.webp') }}" alt=""></div>
+      <div class="step-reaper-wrap" aria-hidden="true"><img class="step-reaper" src="{{ url_for('static', path='/demo-reaper-result.webp') }}" alt=""></div>
       <h2>Watch the chair become filled</h2>
       <p>See the recovered appointment on the calendar and show the studio’s revenue update in the command center.</p>
       <a class="button secondary" href="/">Open Results</a>
