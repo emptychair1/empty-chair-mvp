@@ -1,3 +1,4 @@
+import html
 import json
 import os
 import urllib.error
@@ -316,16 +317,29 @@ def register_support_routes(
             "daniels.joshua100@gmail.com",
         ).strip()
 
+        safe_ticket_id = html.escape(ticket_id)
+        safe_shop_name = html.escape(str(shop["name"]))
+        safe_shop_id = html.escape(str(shop["id"]))
+        safe_user_name = html.escape(str(user["name"]))
+        safe_user_email = html.escape(str(user["email"]))
+        safe_category = html.escape(category)
+        safe_priority = html.escape(priority)
+        safe_subject = html.escape(subject)
+        safe_description = html.escape(description).replace(
+            "\n",
+            "<br>",
+        )
+
         email_html = f"""
         <h2>New Empty Chair support ticket</h2>
-        <p><strong>Ticket:</strong> {ticket_id}</p>
-        <p><strong>Studio:</strong> {shop['name']} ({shop['id']})</p>
-        <p><strong>Submitted by:</strong> {user['name']} &lt;{user['email']}&gt;</p>
-        <p><strong>Category:</strong> {category}</p>
-        <p><strong>Priority:</strong> {priority}</p>
-        <p><strong>Subject:</strong> {subject}</p>
+        <p><strong>Ticket:</strong> {safe_ticket_id}</p>
+        <p><strong>Studio:</strong> {safe_shop_name} ({safe_shop_id})</p>
+        <p><strong>Submitted by:</strong> {safe_user_name} &lt;{safe_user_email}&gt;</p>
+        <p><strong>Category:</strong> {safe_category}</p>
+        <p><strong>Priority:</strong> {safe_priority}</p>
+        <p><strong>Subject:</strong> {safe_subject}</p>
         <hr>
-        <p>{description.replace(chr(10), '<br>')}</p>
+        <p>{safe_description}</p>
         """
 
         email_sent = send_email(
