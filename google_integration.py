@@ -160,7 +160,7 @@ def connect_google_calendar(request: Request, artist_id: str = ""):
         finally: conn.close()
         if not artist: return RedirectResponse("/artists?calendar=invalid_artist", status_code=303)
         request.session["google_calendar_artist_id"] = artist_id
-    return RedirectResponse(_oauth_url(request, GOOGLE_CALENDAR_REDIRECT_URI, ["openid", "email", "https://www.googleapis.com/auth/calendar"], "calendar"), status_code=303)
+    return RedirectResponse(_oauth_url(request, GOOGLE_CALENDAR_REDIRECT_URI, ["openid", "email", "https://www.googleapis.com/auth/calendar.events", "https://www.googleapis.com/auth/calendar.freebusy"], "calendar"), status_code=303)
 
 
 @core.app.get("/integrations/google-calendar/callback")
