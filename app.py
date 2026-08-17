@@ -4824,6 +4824,7 @@ register_support_routes(
     get_current_user=get_current_user,
     login_required_redirect=login_required_redirect,
     now_iso=now_iso,
+    send_email=send_email,
 )
 
 
