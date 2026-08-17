@@ -228,6 +228,40 @@ def stripe_onboarding_return(request: Request):
     return RedirectResponse(f"/settings?stripe={state}", status_code=303)
 
 
+@core.app.post("/settings/stripe/disconnect")
+def disconnect_stripe_account(request: Request):
+    shop, redirect = _owner_shop(request)
+    if redirect:
+        return redirect
+
+    conn = core.connect()
+    try:
+        core.db_execute(
+            conn,
+            """
+            UPDATE shops
+            SET stripe_account_id=NULL,
+                stripe_details_submitted=0,
+                stripe_charges_enabled=0,
+                stripe_payouts_enabled=0,
+                deposits_enabled=0
+            WHERE id=?
+            """,
+            (shop["id"],),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    core.event(
+        "stripe.account_disconnected",
+        "shop",
+        shop["id"],
+        "Studio Stripe connection reset for reconnection.",
+    )
+    return RedirectResponse("/settings?stripe=disconnected", status_code=303)
+
+
 @core.app.post("/settings/stripe/dashboard")
 def open_stripe_dashboard(request: Request):
     shop, redirect = _owner_shop(request)
