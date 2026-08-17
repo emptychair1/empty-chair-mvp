@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=UnifrakturCook:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Pirata+One&display=swap');
 
 :root {
   --ink: #070707;
@@ -53,7 +53,7 @@ button, input, select { font: inherit; }
 .panel-title,
 .offer-title,
 .booking-title {
-  font-family: 'UnifrakturCook', Georgia, serif;
+  font-family: 'Pirata One', Georgia, serif;
   font-weight: 700;
 }
 .serif { font-family: 'Cinzel', Georgia, serif; }
@@ -472,7 +472,7 @@ input:focus, select:focus {
   box-shadow: var(--shadow-deep), var(--shadow-red);
 }
 .hero-kicker { color: var(--gold-light); text-transform: uppercase; letter-spacing: .16em; font-size: 10px; }
-.hero-heading { margin: 8px 0; font-family: 'UnifrakturCook', Georgia, serif; font-size: 39px; }
+.hero-heading { margin: 8px 0; font-family: 'Pirata One', Georgia, serif; font-size: 39px; }
 .hero-copy { color: var(--cream-dim); line-height: 1.6; }
 .hero-price { margin-top: 18px; font-family: 'Cinzel', Georgia, serif; font-size: 34px; }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
