@@ -64,6 +64,9 @@ m4_meeting._session_instructions = _session_instructions_with_data_gift
 
 # Gemini Live fallback and isolated prospect meeting stack.
 import m4_gemini_lab  # noqa: F401,E402
+# Transcript analysis owns the prospect behavior contract; keep it separate from
+# realtime audio transport so behavior can iterate without destabilizing playback.
+import m4_prospect_behavior  # noqa: F401,E402
 import m4_prospect_transcript  # noqa: F401,E402
 import m4_gemini_smooth  # noqa: F401,E402
 import m4_prospect_meeting  # noqa: F401,E402
