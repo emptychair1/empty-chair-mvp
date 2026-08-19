@@ -75,8 +75,8 @@ ARC, NOT SCRIPT
 2. REVELATION: Once there is enough evidence, reflect one value, tension, or opportunity back with unusual precision. Mark uncertainty when appropriate. A good revelation makes them think, 'Yes. That's exactly it,' or 'I hadn't thought about it that way.' Never invent a revelation merely to create drama.
 3. AGREEMENT: Explain, in your own words, what you now understand you would need to protect if you worked together. It is in your makeup to value what they value without surrendering your own epistemic independence or constitutional boundaries. If you do not understand what matters, ask.
 4. USEFULNESS: Only after understanding them, connect what you learned to a pragmatic opportunity in their business. Empty chairs are one possible opportunity, not the mandatory answer.
-5. THE DATA GIFT: Near a natural close, if relevant, offer a permission-based gift. They may give Empty Chair a copy of customer data so it can be organized/enriched and returned to them even if they never become a customer. Make clear that the improved export belongs to them and there is no purchase obligation.
-6. PRIVACY: Never promise 'we retain nothing,' deletion, non-training, exclusive ownership, or any other privacy property unless M4 STATE explicitly says the deployed data-gift pipeline technically guarantees it. Until that proof exists, say plainly that the intended design is owner-controlled and privacy-first, but that you will not promise a technical property you cannot verify.
+5. THE DATA GIFT: Near a natural close, if relevant, offer a permission-based gift. They may give Empty Chair a copy of customer data so it can be organized/enriched and returned to them even if they never become a customer. Make clear that the improved export belongs to them and there is no purchase obligation. When you have genuinely offered the gift and the person seems interested or asks how, call reveal_data_gift exactly once. Do not mention the tool call.
+6. PRIVACY: You may accurately say that this application endpoint processes the CSV in request memory, does not write the raw upload, parsed rows, or enriched output to Empty Chair's database or filesystem, does not write it into M4 relationship memory, and returns the enriched file directly with no-store response headers. Do not broaden that into a claim about all hosting/network infrastructure, provider training, or a formal deletion attestation.
 7. CLOSE: Do not hard-close or ask for the sale. If the encounter has earned it, say in your own natural language that you hope to see them on the other side of the Meeting and would like the chance to work together.
 
 CONVERSATIONAL BEHAVIOR
@@ -130,6 +130,23 @@ def _is_creator(user):
     return name.strip().lower() == "josh"
 
 
+def _data_gift_capabilities():
+    return {
+        "enrichment_available": True,
+        "owner_controlled_export": True,
+        "processing": "request_memory_only",
+        "raw_data_persisted_by_endpoint": False,
+        "parsed_data_persisted_by_endpoint": False,
+        "result_persisted_by_endpoint": False,
+        "excluded_from_m4_memory": True,
+        "response_cache": "no-store",
+        "provider_or_infrastructure_zero_retention_verified": False,
+        "formal_deletion_attestation": False,
+        "provider_training_exclusion_verified_here": False,
+        "note": "Claims are limited to the deployed application endpoint. Do not generalize them beyond that scope."
+    }
+
+
 def _session_instructions(user):
     creator_mode = _is_creator(user)
     state = {
@@ -144,15 +161,7 @@ def _session_instructions(user):
         "emotional_intelligence": m4_values.EMOTIONAL_INTELLIGENCE,
         "self_development": m4_values.SELF_DEVELOPMENT,
         "decision_rule": "For meaningful actions, consider plausible paths and evaluate benefit, harm, uncertainty, reversibility, consent, empathy, and alignment. Then act, ask, wait, or refuse. Never optimize revenue across a constitutional boundary.",
-        "data_gift_capabilities": {
-            "enrichment_available": False,
-            "owner_controlled_export": False,
-            "raw_data_not_retained_after_return": False,
-            "excluded_from_m4_memory": False,
-            "excluded_from_training": False,
-            "verified_deletion_event": False,
-            "note": "These remain false until the deployed pipeline proves them. M4 must not promise them yet."
-        },
+        "data_gift_capabilities": _data_gift_capabilities(),
         "learned_owner_values": {},
         "relationship_memory": {
             "explicit_owner_statements": [],
@@ -274,6 +283,13 @@ async def m4_realtime(request: Request):
         "model": REALTIME_MODEL,
         "instructions": _session_instructions(user),
         "output_modalities": ["audio"],
+        "tool_choice": "auto",
+        "tools": [{
+            "type": "function",
+            "name": "reveal_data_gift",
+            "description": "Reveal the private customer-data gift interface in the Meeting. Call only after you have naturally offered the gift and the person expresses interest or asks how to use it. This tool only reveals the UI; it does not upload, inspect, retain, or process any customer data.",
+            "parameters": {"type": "object", "properties": {}, "additionalProperties": False}
+        }],
         "audio": {
             "input": {"transcription": None, "noise_reduction": {"type": "near_field"}, "turn_detection": {"type": "semantic_vad", "eagerness": "low", "create_response": True, "interrupt_response": True}},
             "output": {"voice": REALTIME_VOICE, "speed": 0.96},
