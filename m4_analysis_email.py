@@ -116,3 +116,36 @@ async def export_analysis(request: Request):
         return JSONResponse({'ok':bool(ok),'detail':detail}, status_code=200 if ok else 500, headers={'Cache-Control':'no-store'})
     except Exception as exc:
         return JSONResponse({'error':str(exc)}, status_code=500, headers={'Cache-Control':'no-store'})
+
+
+def _install_finish_hook():
+    """Attach export to the already-registered authenticated finish route."""
+    for route in core.app.routes:
+        if getattr(route, 'path', None) != '/api/m4/prospect-session/finish':
+            continue
+        if 'POST' not in (getattr(route, 'methods', set()) or set()):
+            continue
+        dependant = getattr(route, 'dependant', None)
+        original = getattr(dependant, 'call', None)
+        if not original or getattr(original, '_m4_analysis_wrapped', False):
+            return
+
+        async def wrapped(request: Request, _original=original):
+            result = await _original(request)
+            try:
+                user = core.get_current_user(request)
+                data = await request.json()
+                sid = str(data.get('session_id') or '')
+                if user and sid:
+                    export_session(user, sid)
+            except Exception as exc:
+                print('M4 diagnostic export failed:', str(exc))
+            return result
+
+        wrapped._m4_analysis_wrapped = True
+        dependant.call = wrapped
+        route.endpoint = wrapped
+        return
+
+
+_install_finish_hook()
