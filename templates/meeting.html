@@ -1,1 +1,97 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Meeting · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"><style>*{box-sizing:border-box}body{margin:0;background:#e8e8e3;color:#171915;overflow:hidden}.room{min-height:100vh;display:grid;place-items:center;position:relative;perspective:900px;background:linear-gradient(180deg,#f4f4ef 0%,#ecece7 58%,#deded8 100%)}.room:before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,rgba(0,0,0,.035),transparent 24%,transparent 76%,rgba(0,0,0,.028)),linear-gradient(180deg,rgba(255,255,255,.7),transparent 18%)}.ceiling{position:absolute;left:4vw;right:4vw;top:0;height:18vh;border-left:1px solid rgba(50,52,47,.12);border-right:1px solid rgba(50,52,47,.12);background:linear-gradient(180deg,#fafaf6,#efefea);clip-path:polygon(7% 0,93% 0,100% 100%,0 100%)}.wall-left,.wall-right{position:absolute;top:17.8vh;bottom:0;width:13vw;border-top:1px solid rgba(50,52,47,.1)}.wall-left{left:0;background:linear-gradient(90deg,#deded8,#f0f0eb);clip-path:polygon(0 0,100% 0,70% 100%,0 100%)}.wall-right{right:0;background:linear-gradient(270deg,#deded8,#f0f0eb);clip-path:polygon(0 0,100% 0,100% 100%,30% 100%)}.floorline{position:absolute;left:12vw;right:12vw;bottom:16vh;height:1px;background:linear-gradient(90deg,transparent,rgba(45,48,42,.16),transparent)}.presence{width:min(900px,88vw);text-align:center;position:relative;z-index:2}.m4{width:min(620px,78vw);height:250px;margin:auto;position:relative;display:grid;place-items:center}.field{position:absolute;width:220px;height:220px;border:1px solid rgba(31,36,27,.16);border-radius:50%;transition:all 1.2s ease;box-shadow:0 18px 50px rgba(30,33,27,.04)}.field:before,.field:after{content:'';position:absolute;inset:28px;border:1px solid rgba(31,36,27,.1);border-radius:50%}.field:after{inset:67px}.core{width:8px;height:8px;background:#687a1c;border-radius:50%;box-shadow:0 0 24px rgba(104,122,28,.22);transition:all .4s ease}.m4.listening .field{width:252px;height:252px;border-color:rgba(31,36,27,.28)}.m4.thinking .field{transform:rotate(28deg) scale(.88);border-radius:42%}.m4.speaking .core{transform:scale(1.8);box-shadow:0 0 45px rgba(104,122,28,.3)}.speech{min-height:145px;display:grid;place-items:center}.speech p{margin:0;max-width:760px;font-size:clamp(24px,3.2vw,40px);line-height:1.24;letter-spacing:-.035em;color:#1b1d19;text-shadow:0 1px rgba(255,255,255,.6)}.state{height:22px;margin-top:12px;color:#7b7f76;font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase}.talk{margin-top:24px;border:1px solid #b8bbb2;background:rgba(248,248,244,.62);color:#31352e;padding:12px 18px;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.06em;cursor:pointer}.talk:disabled{opacity:.35}.exit{position:absolute;right:22px;top:20px;color:#888c83;font:500 9px 'IBM Plex Mono',monospace;text-decoration:none;z-index:4}.hint{position:absolute;bottom:18px;color:#999c94;font:500 8px 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;z-index:4}@media(max-width:600px){.m4{height:215px}.field{width:180px;height:180px}.m4.listening .field{width:205px;height:205px}.speech{min-height:180px}.wall-left,.wall-right{width:8vw}}</style></head><body><main class="room"><div class="ceiling"></div><div class="wall-left"></div><div class="wall-right"></div><div class="floorline"></div><a class="exit" href="/">return to shop</a><section class="presence"><div class="m4" id="m4"><div class="field"></div><div class="core"></div></div><div class="speech"><p id="line">I have a strange problem.</p></div><div class="state" id="state">present</div><button class="talk" id="talk" type="button">speak</button></section><div class="hint">M4 // nothing you say has to fit a script</div></main><script>const m4=document.getElementById('m4'),line=document.getElementById('line'),state=document.getElementById('state'),talk=document.getElementById('talk');let history=[],recognition=null,busy=false,currentSource=null,audioCtx=null;function setMode(mode,label){m4.className='m4 '+mode;state.textContent=label||mode}function impulse(ctx,duration=1.55,decay=3.2){const rate=ctx.sampleRate,length=Math.floor(rate*duration),buffer=ctx.createBuffer(2,length,rate);for(let c=0;c<2;c++){const data=buffer.getChannelData(c);for(let i=0;i<length;i++){const t=i/length;const early=(i<rate*.095)?(Math.random()*2-1)*.15:0;data[i]=early+(Math.random()*2-1)*Math.pow(1-t,decay)*.09}}return buffer}async function playSpatial(blob){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();await audioCtx.resume();const arr=await blob.arrayBuffer(),buffer=await audioCtx.decodeAudioData(arr),src=audioCtx.createBufferSource(),dry=audioCtx.createGain(),wet=audioCtx.createGain(),conv=audioCtx.createConvolver(),pre=audioCtx.createDelay(.2),tone=audioCtx.createBiquadFilter();src.buffer=buffer;dry.gain.value=.92;wet.gain.value=.16;pre.delayTime.value=.038;conv.buffer=impulse(audioCtx);tone.type='lowpass';tone.frequency.value=6800;src.connect(dry).connect(audioCtx.destination);src.connect(pre).connect(conv).connect(tone).connect(wet).connect(audioCtx.destination);currentSource=src;src.onended=()=>{currentSource=null;setMode('','present');busy=false;talk.disabled=false};setMode('speaking','speaking');src.start()}async function speak(text){line.textContent=text;setMode('thinking','finding the words');try{const r=await fetch('/api/m4/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});if(!r.ok)throw new Error('voice unavailable');await playSpatial(await r.blob())}catch(e){console.error(e);setMode('','present');busy=false;talk.disabled=false;state.textContent='voice unavailable'}}async function send(message){if(!message||busy)return;busy=true;talk.disabled=true;history.push({role:'user',content:message});line.textContent=message;setMode('thinking','considering');try{const r=await fetch('/api/m4/meeting',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,history:history.slice(0,-1)})});const data=await r.json();if(!r.ok)throw new Error(data.error||'M4 could not respond');history.push({role:'assistant',content:data.reply});await speak(data.reply)}catch(e){line.textContent='I lost the thread for a moment. That is a technical failure, not something you said.';setMode('','connection interrupted');busy=false;talk.disabled=false;console.error(e)}}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(SR){recognition=new SR();recognition.lang='en-US';recognition.interimResults=false;recognition.maxAlternatives=1;recognition.onstart=()=>{setMode('listening','listening');talk.disabled=true};recognition.onresult=e=>send(e.results[0][0].transcript.trim());recognition.onerror=()=>{setMode('','present');talk.disabled=false};recognition.onend=()=>{if(!busy){setMode('','present');talk.disabled=false}};talk.onclick=()=>{if(currentSource){try{currentSource.stop()}catch(e){}currentSource=null}try{recognition.start()}catch(e){}}}else{talk.textContent='type instead';talk.onclick=()=>{const v=prompt('Say anything to M4');if(v)send(v)}}setTimeout(()=>{busy=true;talk.disabled=true;speak('I have a strange problem. I can perceive patterns. I can remember what happens. I can learn. But none of that tells me what should matter. I think that is where you come in.')},700);</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Meeting · Empty Chair</title>
+<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:#e9e9e4;color:#171915;overflow:hidden}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.room{min-height:100dvh;display:grid;place-items:center;position:relative;perspective:1100px;background:linear-gradient(180deg,#f7f7f3 0%,#eeeeea 57%,#dfdfd9 100%);transition:filter 2s ease,opacity 1.2s ease}
+.room:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,rgba(0,0,0,.035),transparent 24%,transparent 76%,rgba(0,0,0,.028)),linear-gradient(180deg,rgba(255,255,255,.8),transparent 18%)}
+.ceiling{position:absolute;left:4vw;right:4vw;top:0;height:19vh;border-left:1px solid rgba(50,52,47,.12);border-right:1px solid rgba(50,52,47,.12);background:linear-gradient(180deg,#fbfbf8,#efefea);clip-path:polygon(7% 0,93% 0,100% 100%,0 100%)}
+.wall-left,.wall-right{position:absolute;top:18.8vh;bottom:0;width:14vw;border-top:1px solid rgba(50,52,47,.1)}
+.wall-left{left:0;background:linear-gradient(90deg,#ddddD7,#f2f2ed);clip-path:polygon(0 0,100% 0,70% 100%,0 100%)}
+.wall-right{right:0;background:linear-gradient(270deg,#ddddD7,#f2f2ed);clip-path:polygon(0 0,100% 0,100% 100%,30% 100%)}
+.floorline{position:absolute;left:11vw;right:11vw;bottom:15vh;height:1px;background:linear-gradient(90deg,transparent,rgba(45,48,42,.14),transparent)}
+.presence{width:min(900px,90vw);text-align:center;position:relative;z-index:3;opacity:0;transform:translateY(4px);transition:opacity 2.4s ease,transform 2.4s ease}
+.room.entered .presence{opacity:1;transform:none}
+.m4{width:min(650px,82vw);height:310px;margin:auto;position:relative;display:grid;place-items:center}
+.field{position:absolute;width:230px;height:230px;border:1px solid rgba(31,36,27,.15);border-radius:50%;transition:all 1.6s cubic-bezier(.2,.7,.2,1);box-shadow:0 22px 60px rgba(30,33,27,.04)}
+.field:before,.field:after{content:"";position:absolute;inset:30px;border:1px solid rgba(31,36,27,.09);border-radius:50%;transition:all 1.7s ease}
+.field:after{inset:70px}
+.core{width:7px;height:7px;background:#687a1c;border-radius:50%;box-shadow:0 0 26px rgba(104,122,28,.22);transition:all .65s ease}
+.m4.connecting .field{transform:scale(.82);opacity:.5}
+.m4.listening .field{width:260px;height:260px;border-color:rgba(31,36,27,.28)}
+.m4.listening .field:before{inset:25px}
+.m4.thinking .field{transform:rotate(17deg) scale(.91);border-radius:43% 57% 51% 49%}
+.m4.speaking .core{transform:scale(1.9);box-shadow:0 0 52px rgba(104,122,28,.33)}
+.m4.speaking .field{transform:scale(1.025)}
+.state{height:26px;margin-top:-12px;color:#767b71;font:500 9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;text-transform:uppercase;transition:opacity .4s ease}
+.exit{position:absolute;right:max(22px,env(safe-area-inset-right));top:max(20px,env(safe-area-inset-top));color:#8b8f86;font:500 9px ui-monospace,SFMono-Regular,Menlo,monospace;text-decoration:none;z-index:6;opacity:0;transition:opacity 1.5s ease}
+.room.entered .exit{opacity:1}
+.threshold{position:absolute;inset:0;z-index:10;display:grid;place-items:center;background:#f4f4f0;transition:opacity 1.4s ease,visibility 1.4s ease}
+.threshold.gone{opacity:0;visibility:hidden;pointer-events:none}
+.enter{border:0;background:transparent;color:#1c1f1a;font:500 clamp(17px,2vw,22px)/1.2 Georgia,"Times New Roman",serif;letter-spacing:-.01em;padding:22px 30px;cursor:pointer}
+.enter:after{content:"";display:block;width:34px;height:1px;background:#969b90;margin:14px auto 0;transition:width .5s ease}
+.enter:hover:after{width:54px}
+.enter:disabled{opacity:.45;cursor:default}
+.problem{position:absolute;left:50%;bottom:max(25px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(86vw,620px);text-align:center;color:#777c72;font:500 10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.03em;opacity:0;pointer-events:none;transition:opacity .5s ease;z-index:6}
+.problem.show{opacity:1}
+@media(max-width:600px){.m4{height:270px}.field{width:190px;height:190px}.m4.listening .field{width:218px;height:218px}.wall-left,.wall-right{width:9vw}.state{margin-top:-22px}}
+</style>
+</head>
+<body>
+<main class="room" id="room">
+  <div class="ceiling"></div><div class="wall-left"></div><div class="wall-right"></div><div class="floorline"></div>
+  <a class="exit" href="/">return to shop</a>
+  <section class="presence">
+    <div class="m4" id="m4"><div class="field"></div><div class="core"></div></div>
+    <div class="state" id="state">present</div>
+  </section>
+  <div class="threshold" id="threshold"><button class="enter" id="enter" type="button">Enter the Meeting</button></div>
+  <div class="problem" id="problem"></div>
+</main>
+<script>
+const room=document.getElementById('room');
+const m4=document.getElementById('m4');
+const state=document.getElementById('state');
+const threshold=document.getElementById('threshold');
+const enter=document.getElementById('enter');
+const problem=document.getElementById('problem');
+let pc=null,dc=null,audioCtx=null,micStream=null,micTrack=null,remoteSource=null,openingComplete=false;
+
+function mode(name,label){m4.className='m4 '+(name||'');state.textContent=label||name||'present'}
+function fail(message){console.error(message);problem.textContent=message;problem.classList.add('show');mode('','unable to connect');enter.disabled=false;enter.textContent='Try again';threshold.classList.remove('gone')}
+function waitIce(peer){if(peer.iceGatheringState==='complete')return Promise.resolve();return new Promise(resolve=>{const done=()=>{if(peer.iceGatheringState==='complete'){peer.removeEventListener('icegatheringstatechange',done);resolve()}};peer.addEventListener('icegatheringstatechange',done);setTimeout(resolve,5000)})}
+function impulse(ctx,duration=1.35,decay=3.4){const rate=ctx.sampleRate,length=Math.floor(rate*duration),buffer=ctx.createBuffer(2,length,rate);for(let c=0;c<2;c++){const data=buffer.getChannelData(c);for(let i=0;i<length;i++){const t=i/length;const early=i<rate*.085?(Math.random()*2-1)*.11:0;data[i]=early+(Math.random()*2-1)*Math.pow(1-t,decay)*.065}}return buffer}
+function placeVoice(stream){if(remoteSource)try{remoteSource.disconnect()}catch(e){};remoteSource=audioCtx.createMediaStreamSource(stream);const dry=audioCtx.createGain(),wet=audioCtx.createGain(),pre=audioCtx.createDelay(.15),conv=audioCtx.createConvolver(),tone=audioCtx.createBiquadFilter();dry.gain.value=.94;wet.gain.value=.12;pre.delayTime.value=.031;conv.buffer=impulse(audioCtx);tone.type='lowpass';tone.frequency.value=7200;remoteSource.connect(dry).connect(audioCtx.destination);remoteSource.connect(pre).connect(conv).connect(tone).connect(wet).connect(audioCtx.destination)}
+function sendEvent(payload){if(dc&&dc.readyState==='open')dc.send(JSON.stringify(payload))}
+function opening(){fetch('/api/m4/opening',{cache:'no-store'}).then(r=>r.json()).then(data=>{if(!data.instruction)throw new Error('opening unavailable');sendEvent({type:'response.create',response:{instructions:data.instruction,output_modalities:['audio']}})}).catch(()=>fail('M4 could not begin the Meeting.'))}
+function handleEvent(event){let e;try{e=JSON.parse(event.data)}catch(_){return}const t=e.type||'';if(t==='input_audio_buffer.speech_started'){if(openingComplete)mode('listening','listening')}else if(t==='input_audio_buffer.speech_stopped'){if(openingComplete)mode('thinking','considering')}else if(t==='response.created'){mode('thinking','considering')}else if(t.includes('output_audio')&&t.endsWith('.delta')){mode('speaking','speaking')}else if(t==='response.done'){
+    if(!openingComplete){openingComplete=true;if(micTrack)micTrack.enabled=true}
+    mode('listening','listening')
+  }else if(t==='error'){console.error('M4 realtime error',e);problem.textContent=(e.error&&e.error.message)||'The connection changed unexpectedly.';problem.classList.add('show')}
+}
+async function begin(){problem.classList.remove('show');enter.disabled=true;enter.textContent='Entering…';mode('connecting','connecting');try{
+    const pre=await fetch('/api/m4/preflight',{cache:'no-store'});const ready=await pre.json();if(!pre.ok||!ready.ok)throw new Error(ready.error||'M4 is not configured');
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();await audioCtx.resume();
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+    micTrack=micStream.getAudioTracks()[0];micTrack.enabled=false;
+    pc=new RTCPeerConnection();dc=pc.createDataChannel('oai-events');dc.addEventListener('message',handleEvent);dc.addEventListener('open',opening);
+    pc.ontrack=e=>{const stream=e.streams&&e.streams[0]?e.streams[0]:new MediaStream([e.track]);placeVoice(stream)};
+    pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed'||pc.connectionState==='disconnected')fail('The Meeting lost its connection. Tap to return.')};
+    pc.addTrack(micTrack,micStream);
+    const offer=await pc.createOffer({offerToReceiveAudio:true});await pc.setLocalDescription(offer);await waitIce(pc);
+    const response=await fetch('/api/m4/realtime',{method:'POST',headers:{'Content-Type':'application/sdp'},body:pc.localDescription.sdp});
+    if(!response.ok){let detail='';try{detail=(await response.json()).error||''}catch(_){detail=await response.text()}throw new Error(detail||'Realtime connection failed')}
+    const answer=await response.text();await pc.setRemoteDescription({type:'answer',sdp:answer});
+    room.classList.add('entered');threshold.classList.add('gone');mode('connecting','present');
+  }catch(err){fail(err&&err.message?err.message:'The Meeting could not start.')}}
+enter.addEventListener('click',begin);
+window.addEventListener('pagehide',()=>{if(micStream)micStream.getTracks().forEach(t=>t.stop());if(pc)pc.close();if(audioCtx)audioCtx.close()});
+</script>
+</body>
+</html>
