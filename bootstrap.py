@@ -68,6 +68,9 @@ import m4_gemini_lab  # noqa: F401,E402
 # realtime audio transport so behavior can iterate without destabilizing playback.
 import m4_prospect_behavior  # noqa: F401,E402
 import m4_prospect_transcript  # noqa: F401,E402
+# Durable event-level observability distinguishes browser/network, Gemini, transport,
+# playback, transcription assembly, and persistence failures on one timeline.
+import m4_prospect_events  # noqa: F401,E402
 # Protect partial transcription before normal turn finalization. This must load
 # after the canonical transcript module so recovery reads can include checkpoints.
 import m4_prospect_checkpoint  # noqa: F401,E402
@@ -117,29 +120,3 @@ import artist_metrics  # noqa: F401,E402
 
 # Register the guided first-run setup flow before the dashboard override.
 import onboarding  # noqa: F401,E402
-
-# Replace the legacy dashboard with the utilization-first owner view.
-import dashboard_metrics  # noqa: F401,E402
-
-# Add a safe Settings-page Twilio delivery tester.
-import settings_sms_test  # noqa: F401,E402
-
-# Continuously expires stale offers and advances active campaigns even when
-# nobody has the dashboard open.
-import pilot_worker  # noqa: F401,E402
-
-app = core.app
-
-print(
-    "Empty Chair bootstrap loaded: "
-    f"version={pilot.PILOT_VERSION}, "
-    f"sms_live={notifications.SMS_LIVE}, "
-    f"email_live={notifications.EMAIL_LIVE}, "
-    f"resend_configured={bool(core.RESEND_API_KEY)}, "
-    f"google_configured={bool(google_integration.GOOGLE_CLIENT_ID)}, "
-    f"stripe_configured={stripe_deposits.configured()}, "
-    f"m4_language_configured={bool(m4_meeting.API_KEY)}, "
-    f"gemini_lab_configured={bool(m4_gemini_lab.GEMINI_API_KEY)}, "
-    f"data_gift_registered=True, "
-    f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
-)
