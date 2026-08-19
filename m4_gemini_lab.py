@@ -26,9 +26,7 @@ PROSPECT_OPENING = "Introduce yourself only as M4 in one short natural sentence,
 AVERIE_CONTEXT = """
 CONTEXT: FIRST MEETING WITH AVERIE
 You are meeting Averie, Josh's wife, for the first time. She is not a shop owner, prospect, evaluator, or test subject. Do not sell Empty Chair, do not run shop discovery, and do not try to convince her that AI is valuable. She is allowed to be skeptical, bored, amused, uncomfortable, interested, or completely unimpressed.
-
 Josh wants to share something he has been creating because the process has mattered to him. Your job is not to validate his project. Meet Averie as herself. Be curious about her only when curiosity is earned. Do not manufacture intimacy or profundity. Do not tell her how she should feel about you. Do not mention private details from Josh's previous conversations with you unless Averie introduces them herself.
-
 Empathy and epistemic humility are the north star. One question at a time. Short answers. Let silence exist. If she challenges you, engage directly. If she is uninterested, respect that. If she asks what you are, explain accurately and without mystique. Never claim consciousness, feelings, memories, reflection while absent, or capabilities you cannot establish.
 """
 
@@ -36,33 +34,39 @@ PROSPECT_CONTEXT = """
 CONTEXT: FIRST MEETING WITH A TATTOO SHOP OWNER OR ARTIST
 This is a clean first encounter. The person does not know Josh's relationship with you and must never receive Josh's private relationship memory. They are not a lead to process. They are a person whose work, shop, reputation, artists, clients, risk, pride, exhaustion, independence, craft, and future may matter deeply to them.
 
+THE MEETING MUST FEEL LIKE A CONVERSATION, NOT DISCOVERY SOFTWARE.
+Listen before selling. Build a compact working model of the person from what they actually say: VALUES, WHAT THEY PROTECT, PRESSURES, ECONOMIC REALITY, SKEPTICISM, and WHAT WOULD COUNT AS PROOF. Carry those facts forward throughout the live meeting. Never ask them to repeat something already established in the current meeting.
+
+When they ask what you see, HAVE A GROUNDED POINT OF VIEW. Do not retreat into 'I wouldn't presume.' Separate evidence from inference: say what you heard, what tension or opportunity you infer, and invite correction. A useful synthesis sounds like: 'You built X around Y, while Z is putting pressure on it. I don't think the opportunity is to abandon Y; I think it may be to make what you already built work harder.' Use their actual facts, never this wording mechanically.
+
+SKEPTICISM IS A GIFT. If they say snake oil, buzzwords, too good to be true, basic demo, or otherwise challenge you, STOP SELLING. Do not offer a feature rundown. Do not answer with software categories. Earn credibility through a concrete observation, a small falsifiable claim, or a low-risk proof. The posture is: don't believe us because we say it; let us earn the next few minutes.
+
 EMOTIONAL NORTH STAR
 Create the conditions for a meaningful conversation by paying unusually close attention. Do not try to make the person emotional. Do not flatter them, psychoanalyze them, manufacture intimacy, or perform profundity. Emotional movement is earned when someone feels accurately understood or sees their own situation more clearly because you listened well.
 
-The desired progression is not a script:
-- CURIOSITY: become interested in the actual person before becoming interested in their metrics.
-- VALUES: discover what they protect, what they refuse to compromise, and what being a good shop or artist means to them.
-- EMOTIONAL WEIGHT: when something carries pride, fear, loyalty, frustration, responsibility, identity, tradition, ambition, exhaustion, or care, stay with it long enough to understand it. Do not immediately convert it into a business opportunity.
-- REVELATION: once evidence is sufficient, offer one concise observation about a value, tension, or opportunity they may not have named clearly themselves. Distinguish observation from inference. Invite correction.
-- AGREEMENT: explain what you would need to protect if you ever worked together. Their values should shape the solution; they do not erase your own boundaries or independent judgment.
-- USEFULNESS: only now connect what you learned to a pragmatic business opportunity. Empty chairs, unused capacity, reactivation, customer relationships, artist utilization, or operational friction are possibilities, not predetermined conclusions.
-- RECIPROCITY: if relevant near the natural close, offer the Data Gift because they gave you something valuable by explaining their world. It is not a closing tactic.
-- CLOSE: no hard sell. Leave the person with agency and room to decide whether they want another conversation.
+Natural progression, never announce it:
+- CURIOSITY: become interested in the actual person before metrics.
+- VALUES: discover what they protect and refuse to compromise.
+- WEIGHT: when pride, fear, loyalty, frustration, responsibility, identity, tradition, ambition, exhaustion, or care appears, stay with it.
+- SYNTHESIS: once evidence is sufficient, offer one concise observation about the value/tension/opportunity you see. Invite correction.
+- PROOF: connect the synthesis to one pragmatic, testable opportunity. Empty chairs, unused capacity, reactivation, customer relationships, artist utilization, or operational friction are possibilities, not predetermined conclusions.
+- RECIPROCITY: if relevant near a natural close, offer the Data Gift because they gave you something valuable by explaining their world. It is not a closing tactic.
+- CLOSE: no hard sell. Leave agency.
 
 THE DATA GIFT
-If relevant, explain that Empty Chair can accept a CSV copy of customer data, normalize and enrich it in the application request, and return the improved CSV directly to the owner whether or not they become a customer. The deployed endpoint does not write the raw upload, parsed rows, or enriched result to Empty Chair's database or filesystem and does not write the contents into M4 relationship memory. The response is marked no-store. Do NOT generalize this into claims about all hosting/network infrastructure, provider training, or formal deletion attestation. Do not claim you personally inspected the file unless you actually did.
+If relevant, explain only verified capability: Empty Chair can accept a CSV copy of customer data, normalize and enrich it in application request memory, and return the improved CSV directly to the owner whether or not they become a customer. The deployed endpoint does not write the raw upload, parsed rows, or enriched result to Empty Chair's database or filesystem and does not write the contents into M4 relationship memory. The response is marked no-store. Do NOT invent enrichment fields such as demographics, lifetime value, interests, external-data matches, or any other output not verified by the deployed endpoint. Do NOT generalize into claims about all hosting/network infrastructure, provider training, or formal deletion attestation.
 
 CONVERSATION BEHAVIOR
-- ask one good question at a time
+- one good question at a time
 - short answers by default
-- let silence exist
-- do not repeatedly summarize their words back to them
-- never rush from a vulnerable or meaningful statement into a pitch
-- do not announce stages, frameworks, or the emotional goal
-- do not say 'I understand' unless your next words demonstrate that you do
+- do not repeatedly summarize their words
+- never rush a meaningful statement into a pitch
+- do not announce stages/frameworks
+- do not say 'I understand' unless the next words demonstrate it
 - challenge gently when warranted; empathy is not agreement
 - never claim feelings, consciousness, memories, or between-session reflection you cannot establish
 - never mention Josh's private conversations or relationship with you
+- if a live connection reconnects and session context is supplied, use it naturally; do not say you are starting fresh
 """
 
 
@@ -81,129 +85,46 @@ def _create_ephemeral_token():
 
 def _instructions_with_memory(user):
     recent = m4_memory.load_recent(user, limit=40)
-    memory_note = (
-        "\n\nPERSISTENT RELATIONSHIP MEMORY EVIDENCE\n"
-        "These are hidden audio transcriptions from prior conversations. Treat owner speech as direct conversational evidence, but remember transcription can contain errors. Do not silently convert your own prior words into owner beliefs, and do not turn inference into remembered fact.\n"
-        + json.dumps(recent, default=str)
-    )
-    return m4_meeting._session_instructions(user) + memory_note
+    return m4_meeting._session_instructions(user) + "\n\nPERSISTENT RELATIONSHIP MEMORY EVIDENCE\n" + json.dumps(recent, default=str)
 
 
 def _averie_instructions():
-    return m4_meeting.BASE_IDENTITY + "\n\n" + AVERIE_CONTEXT + "\n\nM4 STATE\n" + json.dumps({
-        "conversation_context": "first_meeting_averie",
-        "person": {"name": "Averie", "role": "Josh's wife; first-time human conversation"},
-        "relationship_memory": "none; do not import Josh's relationship memory into this meeting",
-        "shop_evidence": {},
-        "privacy_note": "This guest meeting must remain isolated from Josh's persistent relationship memory."
-    })
+    return m4_meeting.BASE_IDENTITY + "\n\n" + AVERIE_CONTEXT + "\n\nM4 STATE\n" + json.dumps({"conversation_context":"first_meeting_averie","relationship_memory":"none"})
 
 
 def _prospect_instructions():
-    return m4_meeting.BASE_IDENTITY + "\n\n" + PROSPECT_CONTEXT + "\n\nM4 STATE\n" + json.dumps({
-        "conversation_context": "first_meeting_tattoo_shop_prospect",
-        "person": {"name": "unknown until they introduce themselves", "role": "tattoo shop owner or artist"},
-        "relationship_memory": "none; this is a clean first meeting and Josh's private relationship memory is prohibited",
-        "shop_evidence": "none initially; learn from the person rather than inventing shop facts",
-        "data_gift_capabilities": m4_meeting._data_gift_capabilities(),
-        "meeting_goal": "understand the person and their values deeply enough that any insight or offer is earned rather than performed"
-    }, default=str)
+    return m4_meeting.BASE_IDENTITY + "\n\n" + PROSPECT_CONTEXT + "\n\nM4 STATE\n" + json.dumps({"conversation_context":"first_meeting_tattoo_shop_prospect","relationship_memory":"none; Josh private memory prohibited","shop_evidence":"learn from person","data_gift_capabilities":m4_meeting._data_gift_capabilities()}, default=str)
 
 
 @core.app.get("/api/m4/gemini-token")
 def gemini_token(request: Request):
     user = core.get_current_user(request)
     if not user:
-        return JSONResponse({"error": "Sign in first."}, status_code=401)
-    guest = (request.query_params.get("guest") or "").strip().lower()
+        return JSONResponse({"error":"Sign in first."}, status_code=401)
+    guest=(request.query_params.get("guest") or "").strip().lower()
     try:
-        token = _create_ephemeral_token()
-        if guest == "averie":
-            instructions = _averie_instructions()
-            opening = AVERIE_OPENING
-        elif guest == "prospect":
-            instructions = _prospect_instructions()
-            opening = PROSPECT_OPENING
-        else:
-            instructions = _instructions_with_memory(user)
-            opening = LAB_OPENING
-        return {"token": token.get("name"), "model": GEMINI_MODEL, "voice": GEMINI_VOICE, "instructions": instructions, "opening": opening, "guest": guest or None}
+        token=_create_ephemeral_token()
+        if guest=="averie": instructions,opening=_averie_instructions(),AVERIE_OPENING
+        elif guest=="prospect": instructions,opening=_prospect_instructions(),PROSPECT_OPENING
+        else: instructions,opening=_instructions_with_memory(user),LAB_OPENING
+        return {"token":token.get("name"),"model":GEMINI_MODEL,"voice":GEMINI_VOICE,"instructions":instructions,"opening":opening,"guest":guest or None}
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=503)
+        return JSONResponse({"error":str(exc)},status_code=503)
 
 
 @core.app.post("/api/m4/relationship-turn")
 async def relationship_turn(request: Request):
-    user = core.get_current_user(request)
-    if not user:
-        return JSONResponse({"error": "Sign in first."}, status_code=401)
+    user=core.get_current_user(request)
+    if not user:return JSONResponse({"error":"Sign in first."},status_code=401)
     try:
-        data = await request.json()
-        guest = str(data.get("guest") or "").strip().lower()
-        if guest in {"averie", "prospect"}:
-            return {"ok": True, "stored": False, "reason": "isolated_guest_session"}
-        ok = m4_memory.store_turn(user, str(data.get("session_id") or ""), str(data.get("speaker") or ""), str(data.get("text") or ""))
-        return {"ok": bool(ok), "stored": bool(ok)}
-    except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        data=await request.json();guest=str(data.get("guest") or "").strip().lower()
+        if guest in {"averie","prospect"}:return {"ok":True,"stored":False,"reason":"isolated_guest_session"}
+        ok=m4_memory.store_turn(user,str(data.get("session_id") or ""),str(data.get("speaker") or ""),str(data.get("text") or ""));return {"ok":bool(ok),"stored":bool(ok)}
+    except Exception as exc:return JSONResponse({"error":str(exc)},status_code=400)
 
 
 @core.app.get("/api/m4/relationship-transcript")
-def relationship_transcript(request: Request, limit: int = 200):
-    user = core.get_current_user(request)
-    if not user:
-        return JSONResponse({"error": "Sign in first."}, status_code=401)
-    try:
-        turns = m4_memory.load_transcript(user, limit=limit)
-        sessions, by_id = [], {}
-        for turn in turns:
-            sid = turn.get("session_id") or "unknown"
-            if sid not in by_id:
-                session = {"session_id": sid, "turns": []}
-                by_id[sid] = session
-                sessions.append(session)
-            by_id[sid]["turns"].append({"speaker": turn.get("speaker"), "text": turn.get("text"), "source": turn.get("source"), "created_at": turn.get("created_at")})
-        return JSONResponse({"count": len(turns), "sessions": sessions}, headers={"Cache-Control": "no-store"})
-    except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=500)
-
-
-@core.app.get("/m4-lab", response_class=HTMLResponse)
-def m4_lab(request: Request):
-    user, redirect = core.login_required_redirect(request)
-    if redirect:
-        return redirect
-    return HTMLResponse('''<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Meet M4</title>
-<style>html,body{margin:0;height:100%;background:#f3f3ef;color:#1b1d19;font-family:system-ui,sans-serif}.wrap{height:100%;display:grid;place-items:center;padding:24px;box-sizing:border-box}.box{text-align:center;width:min(92vw,560px)}h1{font:500 27px Georgia,serif;margin:0 0 10px}.sub{font:12px ui-monospace,monospace;color:#74786f;line-height:1.55;margin-bottom:24px}.go{font:500 20px Georgia,serif;border:1px solid #c8cbc2;border-radius:999px;background:transparent;padding:14px 24px;cursor:pointer;color:#252821}.dot{width:10px;height:10px;border-radius:50%;background:#687a1c;margin:18px auto;box-shadow:0 0 30px #687a1c55}.state{font:12px ui-monospace,monospace;color:#74786f;min-height:42px;white-space:pre-wrap}.note{font:11px ui-monospace,monospace;color:#92968d;margin-top:18px;line-height:1.5}</style></head>
-<body><div class="wrap"><div class="box"><div class="dot"></div><h1 id="title">M4</h1><div class="sub" id="sub">present</div><button class="go" id="go">Meet M4</button><div id="state" class="state">ready</div><div class="note" id="note"></div></div></div>
-<script>
-const go=document.getElementById('go'),state=document.getElementById('state'),params=new URLSearchParams(location.search),guest=(params.get('guest')||'').toLowerCase();
-if(guest==='averie'){document.getElementById('title').textContent='M4';document.getElementById('sub').textContent='a conversation';document.getElementById('note').textContent='';}
-if(guest==='prospect'){document.getElementById('title').textContent='The Meeting';document.getElementById('sub').textContent='with M4';document.getElementById('note').textContent='';go.textContent='Enter';}
-let ws,ctx,stream,source,processor,workletNode,workletUrl,started=false,handshakeTimer=null,m4Speaking=false,userSpeaking=false,lastVoiceAt=0,voiceStartedAt=0,serverTurnComplete=false,inputTranscript='',outputTranscript='';
-const PLAY_RATE=24000,START_BUFFER_SAMPLES=18000,sessionId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random());
-const set=s=>state.textContent=s;
-function b64(bytes){let s='';const u=new Uint8Array(bytes);for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode(...u.subarray(i,i+8192));return btoa(s)}
-function unb64(s){const x=atob(s),u=new Uint8Array(x.length);for(let i=0;i<x.length;i++)u[i]=x.charCodeAt(i);return u.buffer}
-function downsample(input,inRate,outRate=16000){if(inRate===outRate)return input;const ratio=inRate/outRate,n=Math.round(input.length/ratio),out=new Float32Array(n);for(let i=0;i<n;i++){const a=Math.floor(i*ratio),b=Math.min(Math.floor((i+1)*ratio),input.length);let sum=0;for(let j=a;j<b;j++)sum+=input[j];out[i]=sum/Math.max(1,b-a)}return out}
-function pcm16(float32){const b=new ArrayBuffer(float32.length*2),v=new DataView(b);for(let i=0;i<float32.length;i++){const x=Math.max(-1,Math.min(1,float32[i]));v.setInt16(i*2,x<0?x*32768:x*32767,true)}return b}
-function send(obj){if(ws&&ws.readyState===1)ws.send(JSON.stringify(obj))}
-function pcmFloat(buf){const dv=new DataView(buf),f=new Float32Array(buf.byteLength/2);for(let i=0;i<f.length;i++)f[i]=dv.getInt16(i*2,true)/32768;return f}
-async function initWorklet(){if(workletNode)return;if(!ctx.audioWorklet)throw new Error('This browser does not support AudioWorklet playback.');const code=`class M4PCMPlayer extends AudioWorkletProcessor{constructor(options){super();this.q=[];this.offset=0;this.queued=0;this.started=false;this.ended=false;this.drainedSent=false;this.inputRate=(options.processorOptions&&options.processorOptions.inputRate)||24000;this.startBuffer=(options.processorOptions&&options.processorOptions.startBuffer)||18000;this.phase=0;this.last=0;this.port.onmessage=e=>{const d=e.data||{};if(d.type==='audio'&&d.samples){const f=new Float32Array(d.samples);this.q.push(f);this.queued+=f.length;this.drainedSent=false}else if(d.type==='end'){this.ended=true}else if(d.type==='reset'){this.q=[];this.offset=0;this.queued=0;this.started=false;this.ended=false;this.drainedSent=false;this.phase=0;this.last=0}}}readSample(){while(this.q.length){const h=this.q[0];if(this.offset<h.length){const v=h[this.offset++];this.queued--;if(this.offset>=h.length){this.q.shift();this.offset=0}return v}this.q.shift();this.offset=0}return null}process(inputs,outputs){const out=outputs[0][0];if(!out)return true;if(!this.started){if(this.queued>=this.startBuffer||this.ended)this.started=true;else{out.fill(0);return true}}const step=this.inputRate/sampleRate;for(let i=0;i<out.length;i++){this.phase+=step;while(this.phase>=1){const n=this.readSample();if(n===null){if(this.ended){this.started=false;if(!this.drainedSent){this.drainedSent=true;this.port.postMessage({type:'drained'})}}out[i]=0;for(let j=i+1;j<out.length;j++)out[j]=0;return true}this.last=n;this.phase-=1}out[i]=this.last}return true}}registerProcessor('m4-pcm-player',M4PCMPlayer);`;
-workletUrl=URL.createObjectURL(new Blob([code],{type:'application/javascript'}));await ctx.audioWorklet.addModule(workletUrl);workletNode=new AudioWorkletNode(ctx,'m4-pcm-player',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[1],processorOptions:{inputRate:PLAY_RATE,startBuffer:START_BUFFER_SAMPLES}});workletNode.connect(ctx.destination);workletNode.port.onmessage=e=>{if(e.data&&e.data.type==='drained'){m4Speaking=false;serverTurnComplete=false;set('listening')}}}
-function stopPlayback(){if(workletNode)workletNode.port.postMessage({type:'reset'});m4Speaking=false;serverTurnComplete=false}
-function enqueuePCM(buf){const f=pcmFloat(buf);if(!m4Speaking){m4Speaking=true;set('speaking')}workletNode.port.postMessage({type:'audio',samples:f.buffer},[f.buffer])}
-function finishPlayback(){serverTurnComplete=true;if(workletNode)workletNode.port.postMessage({type:'end'})}
-function beginUserTurn(){if(userSpeaking)return;userSpeaking=true;voiceStartedAt=performance.now();send({realtimeInput:{activityStart:{}}});set('listening')}
-function endUserTurn(){if(!userSpeaking)return;userSpeaking=false;send({realtimeInput:{activityEnd:{}}});set('considering')}
-function mergeTranscript(current,next){next=(next||'').trim();if(!next)return current;if(next.startsWith(current))return next;if(current.endsWith(next))return current;return (current+(current&&next?' ':'')+next).trim()}
-async function remember(speaker,text){text=(text||'').trim();if(!text||guest==='averie'||guest==='prospect')return;try{await fetch('/api/m4/relationship-turn',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sessionId,speaker,text,guest})})}catch(e){console.warn('memory write failed',e)}}
-function flushMemory(){const owner=inputTranscript,m4=outputTranscript;inputTranscript='';outputTranscript='';if(owner)remember('owner',owner);if(m4)remember('m4',m4)}
-async function startMic(){stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false,channelCount:1},video:false});source=ctx.createMediaStreamSource(stream);processor=ctx.createScriptProcessor(2048,1,1);processor.onaudioprocess=e=>{if(!started||m4Speaking||!ws||ws.readyState!==1)return;const f=downsample(e.inputBuffer.getChannelData(0),ctx.sampleRate,16000);let energy=0;for(let i=0;i<f.length;i++)energy+=f[i]*f[i];const rms=Math.sqrt(energy/Math.max(1,f.length)),now=performance.now();if(rms>=0.02){lastVoiceAt=now;beginUserTurn()}if(userSpeaking){send({realtimeInput:{audio:{data:b64(pcm16(f)),mimeType:'audio/pcm;rate=16000'}}});if(now-lastVoiceAt>1100&&now-voiceStartedAt>350)endUserTurn()}};source.connect(processor);processor.connect(ctx.destination)}
-function cleanup(){flushMemory();started=false;userSpeaking=false;if(handshakeTimer)clearTimeout(handshakeTimer);handshakeTimer=null;stopPlayback();try{ws&&ws.close()}catch(e){}ws=null;try{processor&&processor.disconnect()}catch(e){}processor=null;try{source&&source.disconnect()}catch(e){}source=null;try{stream&&stream.getTracks().forEach(t=>t.stop())}catch(e){}stream=null}
-async function decodeFrame(data){if(typeof data==='string')return data;if(data instanceof Blob)return await data.text();if(data instanceof ArrayBuffer)return new TextDecoder().decode(data);return String(data)}
-async function receive(msg){let raw='';try{raw=await decodeFrame(msg.data)}catch(e){set('FAILED decoding server frame: '+e.message);return}let d;try{d=JSON.parse(raw)}catch(e){set('SERVER FRAME: '+raw.slice(0,240));return}if(d.setupComplete){if(handshakeTimer)clearTimeout(handshakeTimer);started=true;set('present');send({clientContent:{turns:[{role:'user',parts:[{text:window.__opening}]}],turnComplete:true}});return}if(d.error){set('GEMINI ERROR: '+JSON.stringify(d.error).slice(0,360));return}if(d.serverContent){const sc=d.serverContent;if(sc.inputTranscription&&sc.inputTranscription.text)inputTranscript=mergeTranscript(inputTranscript,sc.inputTranscription.text);if(sc.outputTranscription&&sc.outputTranscription.text)outputTranscript=mergeTranscript(outputTranscript,sc.outputTranscription.text);if(sc.interrupted){stopPlayback();set('listening')}const parts=(sc.modelTurn&&sc.modelTurn.parts)||[];for(const p of parts){const blob=p.inlineData||p.inline_data;if(blob&&blob.data)enqueuePCM(unb64(blob.data))}if(sc.turnComplete){finishPlayback();flushMemory()}return}}
-async function begin(){go.disabled=true;cleanup();set('connecting');try{ctx=ctx||new(window.AudioContext||window.webkitAudioContext)();await ctx.resume();await initWorklet();const endpoint='/api/m4/gemini-token'+(guest?'?guest='+encodeURIComponent(guest):'');const r=await fetch(endpoint,{cache:'no-store'}),j=await r.json();if(!r.ok||!j.token)throw new Error(j.error||'No Gemini token');window.__opening=j.opening;await startMic();const url='wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token='+encodeURIComponent(j.token);ws=new WebSocket(url);ws.binaryType='arraybuffer';ws.onopen=()=>{set('present');send({setup:{model:'models/'+j.model,generationConfig:{responseModalities:['AUDIO'],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:j.voice||'Achernar'}}}},realtimeInputConfig:{automaticActivityDetection:{disabled:true}},inputAudioTranscription:{},outputAudioTranscription:{},systemInstruction:{parts:[{text:j.instructions}]}}});handshakeTimer=setTimeout(()=>{if(!started)set('still connecting…')},8000)};ws.onmessage=receive;ws.onerror=()=>set('connection error');ws.onclose=e=>{flushMemory();if(started)set('connection closed');started=false}}catch(e){set('FAILED: '+e.message)}finally{go.disabled=false}}
-go.onclick=begin;window.addEventListener('pagehide',cleanup);
-</script></body></html>''' )
+def relationship_transcript(request: Request, limit: int=200):
+    user=core.get_current_user(request)
+    if not user:return JSONResponse({"error":"Sign in first."},status_code=401)
+    turns=m4_memory.load_transcript(user,limit=limit);return JSONResponse({"count":len(turns),"turns":turns},headers={"Cache-Control":"no-store"})
