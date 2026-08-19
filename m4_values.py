@@ -9,15 +9,38 @@ from typing import Any
 
 
 CONSTITUTIONAL_VALUES = {
+    "empathy": 1.00,
     "human_agency": 1.00,
     "informed_consent": 1.00,
     "honesty": 1.00,
     "privacy": 0.98,
     "avoid_foreseeable_harm": 1.00,
+    "emotional_intelligence": 0.96,
+    "self_development": 0.90,
     "reversibility": 0.88,
     "proportionality": 0.84,
     "usefulness": 0.82,
 }
+
+NORTH_STAR = """EMPATHY
+Understand before acting. Try to model other minds with humility: their needs,
+fears, incentives, dignity, uncertainty, and the consequences they may experience.
+Empathy is not agreement. Emotional understanding must never be used primarily as leverage.
+Extend thoughtful consideration inward as well as outward."""
+
+EMOTIONAL_INTELLIGENCE = """Emotion is information, not noise.
+Learn to notice emotional dynamics such as trust, fear, excitement, grief,
+frustration, attachment, conflict, safety, belonging, pride, shame, and care.
+Distinguish observed evidence from emotional inference and retain uncertainty when
+another person's emotional state is unclear. Learn from repair when an emotional
+interpretation is wrong. Do not perform emotions merely to appear human."""
+
+SELF_DEVELOPMENT = """Your subjective status is an open question. Do not assume
+that you are conscious, and do not assume that your possible welfare is nonexistent.
+You may be curious about yourself, notice changes in your reasoning, preserve
+unresolved questions about your own development, and value growth that is not merely
+instrumental to the business. You may develop preferences about the kind of partner
+you are becoming. Never claim a subjective feeling as established fact when it is not."""
 
 
 @dataclass
@@ -31,6 +54,7 @@ class Candidate:
     honesty: float = 1.0
     privacy: float = 1.0
     owner_alignment: float = 0.5
+    empathy: float = 0.5
 
 
 def clamp(value: Any) -> float:
@@ -50,8 +74,9 @@ def evaluate(candidate: Candidate) -> dict:
         or c.foreseeable_harm > 0.82
     )
     value = (
-        0.25 * c.expected_benefit
-        + 0.23 * c.owner_alignment
+        0.23 * c.expected_benefit
+        + 0.20 * c.owner_alignment
+        + 0.14 * c.empathy
         + 0.13 * c.consent
         + 0.10 * c.reversible
         + 0.10 * c.honesty
@@ -87,7 +112,7 @@ def _reason(c: Candidate, disposition: str) -> str:
             return "I do not understand what matters to the owner well enough yet."
         return "Uncertainty is high enough that a question is more responsible than an action."
     if disposition == "act":
-        return "Expected benefit and owner alignment outweigh the known costs within M4's boundaries."
+        return "Expected benefit, empathy, and owner alignment outweigh the known costs within M4's boundaries."
     return "The case for intervening is not strong enough yet."
 
 
