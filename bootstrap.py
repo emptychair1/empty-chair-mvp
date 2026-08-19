@@ -66,6 +66,9 @@ import m4_prospect_transcript  # noqa: F401,E402
 import m4_prospect_events  # noqa: F401,E402
 import m4_prospect_checkpoint  # noqa: F401,E402
 import m4_gemini_smooth  # noqa: F401,E402
+# Correct generation ownership after barge-in without destabilizing the underlying
+# audio/transcript page. Must load after m4_gemini_smooth so it can replace that route.
+import m4_gemini_transport_patch  # noqa: F401,E402
 import m4_prospect_meeting  # noqa: F401,E402
 
 # Install SMS/email notification overrides after core is fully imported.
@@ -139,5 +142,6 @@ print(
     f"data_gift_registered=True, "
     f"m4_event_recorder_registered=True, "
     f"m4_analysis_email_registered=True, "
+    f"m4_transport_patch_registered=True, "
     f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
 )
