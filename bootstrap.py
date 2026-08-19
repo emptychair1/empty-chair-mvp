@@ -9,6 +9,12 @@ import app as core
 # Register additive pages/routes first.
 import features  # noqa: F401,E402
 
+# Register M4's values, conversational Meeting, and authored voice routes in the
+# production process. Language/voice remain replaceable faculties; M4 owns its
+# evidence and values.
+import m4_values  # noqa: F401,E402
+import m4_meeting  # noqa: F401,E402
+
 # Install SMS/email notification overrides after core is fully imported.
 import notifications  # noqa: F401,E402
 import delivery_safety  # noqa: F401,E402
@@ -73,5 +79,6 @@ print(
     f"resend_configured={bool(core.RESEND_API_KEY)}, "
     f"google_configured={bool(google_integration.GOOGLE_CLIENT_ID)}, "
     f"stripe_configured={stripe_deposits.configured()}, "
+    f"m4_language_configured={bool(m4_meeting.API_KEY)}, "
     f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
 )
