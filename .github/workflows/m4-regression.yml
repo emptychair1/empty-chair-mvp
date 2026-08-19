@@ -31,7 +31,10 @@ jobs:
   model-in-loop-regression:
     runs-on: ubuntu-latest
     needs: deterministic-regression
-    if: ${{ secrets.GEMINI_API_KEY != '' }}
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      M4_SYNTHETIC_MODEL: gemini-2.5-flash
+    if: ${{ env.GEMINI_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,8 +44,6 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - name: Run adversarial synthetic prospect against M4
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          M4_SYNTHETIC_MODEL: gemini-3.5-flash
           EMPTY_CHAIR_DB: test_empty_chair.db
           EMPTY_CHAIR_DEMO_MODE: "true"
           EMPTY_CHAIR_SESSION_SECRET: test-secret
