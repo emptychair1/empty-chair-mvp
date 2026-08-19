@@ -22,9 +22,6 @@ import m4_meeting  # noqa: F401,E402
 # customer data or write it into M4 relationship memory.
 import m4_data_gift  # noqa: F401,E402
 
-# Add deployed data-gift evidence to every M4 session without claiming anything
-# broader than this application's endpoint can verify. Both /meeting and the Gemini
-# lab call m4_meeting._session_instructions at runtime, so they receive the same facts.
 _base_session_instructions = m4_meeting._session_instructions
 
 
@@ -64,15 +61,9 @@ m4_meeting._session_instructions = _session_instructions_with_data_gift
 
 # Gemini Live fallback and isolated prospect meeting stack.
 import m4_gemini_lab  # noqa: F401,E402
-# Transcript analysis owns the prospect behavior contract; keep it separate from
-# realtime audio transport so behavior can iterate without destabilizing playback.
 import m4_prospect_behavior  # noqa: F401,E402
 import m4_prospect_transcript  # noqa: F401,E402
-# Durable event-level observability distinguishes browser/network, Gemini, transport,
-# playback, transcription assembly, and persistence failures on one timeline.
 import m4_prospect_events  # noqa: F401,E402
-# Protect partial transcription before normal turn finalization. This must load
-# after the canonical transcript module so recovery reads can include checkpoints.
 import m4_prospect_checkpoint  # noqa: F401,E402
 import m4_gemini_smooth  # noqa: F401,E402
 import m4_prospect_meeting  # noqa: F401,E402
@@ -99,11 +90,9 @@ import pilot_operations  # noqa: F401,E402
 import pilot  # noqa: F401,E402
 
 # Apply Pilot safety rules before the canonical Fill Chairs routes are registered.
-# This preserves the hard customer-contact cooldown and shop isolation.
 import pilot_safety  # noqa: F401,E402
 
-# Register the canonical Fill Chairs GET/POST flow. Page loads are database-only,
-# while Calendar checks and offer delivery run after START FILLING redirects.
+# Register the canonical Fill Chairs GET/POST flow.
 import fill_chairs_flow  # noqa: F401,E402
 
 # Optional isolated live-demo account. Disabled unless explicitly enabled.
@@ -120,3 +109,30 @@ import artist_metrics  # noqa: F401,E402
 
 # Register the guided first-run setup flow before the dashboard override.
 import onboarding  # noqa: F401,E402
+
+# Replace the legacy dashboard with the utilization-first owner view.
+import dashboard_metrics  # noqa: F401,E402
+
+# Add a safe Settings-page Twilio delivery tester.
+import settings_sms_test  # noqa: F401,E402
+
+# Continuously expires stale offers and advances active campaigns even when
+# nobody has the dashboard open.
+import pilot_worker  # noqa: F401,E402
+
+app = core.app
+
+print(
+    "Empty Chair bootstrap loaded: "
+    f"version={pilot.PILOT_VERSION}, "
+    f"sms_live={notifications.SMS_LIVE}, "
+    f"email_live={notifications.EMAIL_LIVE}, "
+    f"resend_configured={bool(core.RESEND_API_KEY)}, "
+    f"google_configured={bool(google_integration.GOOGLE_CLIENT_ID)}, "
+    f"stripe_configured={stripe_deposits.configured()}, "
+    f"m4_language_configured={bool(m4_meeting.API_KEY)}, "
+    f"gemini_lab_configured={bool(m4_gemini_lab.GEMINI_API_KEY)}, "
+    f"data_gift_registered=True, "
+    f"m4_event_recorder_registered=True, "
+    f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
+)
