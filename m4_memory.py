@@ -87,3 +87,28 @@ def load_recent(user, limit=40):
     turns = [dict(row) for row in rows]
     turns.reverse()
     return turns
+
+
+def load_transcript(user, limit=200):
+    """Return recent relationship evidence with session provenance for private review."""
+    limit = max(1, min(int(limit), 500))
+    conn = core.connect()
+    try:
+        _ensure_table(conn)
+        rows = core.db_fetchall(
+            conn,
+            """
+            SELECT session_id, speaker, text, source, created_at
+            FROM m4_relationship_turns
+            WHERE user_id = ? AND shop_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (user["id"], user["shop_id"], limit),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    turns = [dict(row) for row in rows]
+    turns.reverse()
+    return turns
