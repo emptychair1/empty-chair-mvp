@@ -76,6 +76,33 @@ async def relationship_turn(request: Request):
         return JSONResponse({"error": str(exc)}, status_code=400)
 
 
+@core.app.get("/api/m4/relationship-transcript")
+def relationship_transcript(request: Request, limit: int = 200):
+    """Private transcript evidence for the signed-in owner; never exposed cross-user."""
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
+    try:
+        turns = m4_memory.load_transcript(user, limit=limit)
+        sessions = []
+        by_id = {}
+        for turn in turns:
+            sid = turn.get("session_id") or "unknown"
+            if sid not in by_id:
+                session = {"session_id": sid, "turns": []}
+                by_id[sid] = session
+                sessions.append(session)
+            by_id[sid]["turns"].append({
+                "speaker": turn.get("speaker"),
+                "text": turn.get("text"),
+                "source": turn.get("source"),
+                "created_at": turn.get("created_at"),
+            })
+        return JSONResponse({"count": len(turns), "sessions": sessions}, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @core.app.get("/m4-lab", response_class=HTMLResponse)
 def m4_lab(request: Request):
     user, redirect = core.login_required_redirect(request)
