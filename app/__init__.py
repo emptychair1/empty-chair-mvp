@@ -21,5 +21,6 @@ import pwa  # noqa: E402,F401
 import m4_dashboard  # noqa: E402,F401
 import m4_integration  # noqa: E402,F401
 import concierge  # noqa: E402,F401
+import m4_meeting  # noqa: E402,F401
 
 app = legacy.app
