@@ -65,6 +65,7 @@ m4_meeting._session_instructions = _session_instructions_with_data_gift
 # Gemini Live fallback. The prospect route below is the dedicated first-meeting path
 # for shop owners when OpenAI Realtime is unavailable.
 import m4_gemini_lab  # noqa: F401,E402
+import m4_gemini_smooth  # noqa: F401,E402
 import m4_prospect_meeting  # noqa: F401,E402
 
 # Install SMS/email notification overrides after core is fully imported.
