@@ -20,7 +20,8 @@ Definition of done is determined only by transcript analysis from a fresh advers
 - [x] Behavioral adaptation instructions implemented in `m4_prospect_behavior.py`.
 - [x] Leadership/proof mode implemented in the prospect behavior policy.
 - [x] Thinking-presence policy implemented: sparse, varied, no spontaneous silence checks.
-- [ ] Transcript integrity verified in code path.
+- [x] Live transcript checkpoint infrastructure implemented for in-progress turns.
+- [ ] Transcript integrity verified by a fresh meeting transcript.
 - [ ] Fresh adversarial meeting completed.
 - [ ] Transcript analyzed against acceptance criteria.
 - [ ] Sprint accepted or next sprint defined.
@@ -29,6 +30,11 @@ Definition of done is determined only by transcript analysis from a fresh advers
 - `c7bdc0e` — start transcript-driven sprint log.
 - `1d62f68` — add transcript-driven prospect behavior policy.
 - `25ce435` — register behavior policy in production bootstrap without changing audio transport.
+- `5a296de` — add durable in-progress transcript checkpoint storage and recovery reads.
+- `31b42c5` — register checkpoint layer in production bootstrap.
+- `535126f` — continuously checkpoint prospect and M4 transcription during the live meeting.
 
 ### Notes
-The behavior layer is intentionally separate from Gemini realtime transport. Future transcript-driven behavior changes should land here first unless transcript evidence points to an audio/state-machine defect.
+The behavior layer is intentionally separate from Gemini realtime transport. Future transcript-driven behavior changes should land there first unless transcript evidence points to an audio/state-machine defect.
+
+The durability bug found in this sprint was that canonical turn rows were written only after M4's response playback completed. The new checkpoint path preserves partial input/output transcription throughout the turn and exposes surviving checkpoint text through normal transcript/recovery reads. This is implemented but will not be considered verified until a fresh transcript demonstrates recovery and completeness.
