@@ -1,42 +1,80 @@
 # M4 Sprint Log
 
-## Sprint: Adapt + Lead + Prove
+Definition of done is always determined by transcript analysis. When transport/connectivity is implicated, the transcript must be analyzed together with the event flight recorder.
 
-Definition of done is determined only by transcript analysis from a fresh adversarial meeting.
+## Sprint 1: Adapt + Lead + Prove — RESULT: FAILED BY TRANSCRIPT
 
-### Acceptance criteria
-- A behavioral correction changes M4's behavior for the rest of the meeting.
-- “Take over / show me / prove it / stop asking” switches M4 into leadership mode.
-- In leadership mode, M4 stops permission-seeking and demonstrates judgment.
-- M4 can use clearly labeled synthetic data to demonstrate reasoning without presenting synthetic output as real-shop evidence.
-- Thinking presence is natural, sparse, and varied; no canned repeated reassurance.
-- Mistakes produce brief recovery plus changed behavior, not an apology loop.
-- Reconnect resumes the unresolved intellectual thread with minimal ceremony.
-- M4 distinguishes known facts, inference, demonstration, and proof.
-- Transcript capture is complete and recoverable.
+The adversarial transcripts on 2026-08-19 established:
 
-### Progress
-- [x] Sprint created from recovered transcript analysis.
-- [x] Behavioral adaptation instructions implemented in `m4_prospect_behavior.py`.
-- [x] Leadership/proof mode implemented in the prospect behavior policy.
-- [x] Thinking-presence policy implemented: sparse, varied, no spontaneous silence checks.
-- [x] Live transcript checkpoint infrastructure implemented for in-progress turns.
-- [x] Checkpoint snapshot race fixed so interruption/reset cannot erase queued transcript text.
-- [ ] Transcript integrity verified by a fresh meeting transcript.
-- [ ] Fresh adversarial meeting completed.
-- [ ] Transcript analyzed against acceptance criteria.
-- [ ] Sprint accepted or next sprint defined.
+- Behavioral corrections did not persist; M4 returned to permission-seeking questions.
+- Lead mode was partial, not durable.
+- Synthetic proof described scenarios instead of doing credible quantitative work.
+- M4 used unsupported shop-specific claims such as implying website/calendar access.
+- Epistemic honesty improved when explicitly challenged about confidence.
+- Interruption yielding improved materially.
+- Reconnect continuity failed.
+- Prospect transcription was incomplete/corrupted in multiple turns.
+- Existing response-ms telemetry could not explain multi-minute experienced silence.
+- A very fast post-reconnect fragment looked like stale prior-generation output.
+
+Sprint 1 was therefore not accepted. Its transcript findings define Sprint 2.
+
+---
+
+## Sprint 2: Continuity + Observability + Control
+
+### Acceptance criteria — ONLY A FRESH TRANSCRIPT + EVENT TRACE MAY PASS THESE
+
+- Every abnormal silence can be classified from evidence as browser/network, Gemini upstream, Empty Chair transport, M4 behavior, or unknown.
+- Raw input transcription events are retained separately from assembled prospect utterances.
+- Canonical transcript can be traced back to raw transcription events.
+- New human speech invalidates old M4 playback/generation state; stale output never resumes as a new answer.
+- Reconnect restores the unresolved intellectual thread without asking the prospect to remind M4.
+- M4 never claims website/calendar/customer/system access unless that exact evidence exists in current context.
+- “Stop asking / take over / prove it” produces durable leadership behavior rather than one-turn compliance.
+- Synthetic proof contains assumptions, numbers, arithmetic, uncertainty, bounded conclusion, and an explicit statement of what was not proven.
+- Synthetic/hypothetical outcomes are never called guaranteed.
+- Confidence distinguishes general-principle confidence from shop-specific confidence.
+- Transcript survives interruption/reconnect and remains recoverable.
+
+### Implemented
+
+- [x] Durable in-progress transcript checkpoints.
+- [x] Checkpoint snapshot race fixed across interruption/reset.
+- [x] Evidence gate hardened in `m4_prospect_behavior.py`.
+- [x] Quantitative proof requirements hardened in behavior policy.
+- [x] Reconnect instruction explicitly restores fact, conversational, and behavioral state.
+- [x] Durable event flight recorder added in `m4_prospect_events.py`.
+- [x] Browser online/offline events recorded.
+- [x] WebSocket open/error/close code/reason recorded.
+- [x] Speech start/end recorded.
+- [x] Raw and assembled input transcription recorded separately.
+- [x] Raw and assembled output transcription recorded separately.
+- [x] Generation start/invalidation recorded.
+- [x] First model audio and measured latency recorded.
+- [x] Playback start/drain recorded.
+- [x] Gemini interruption acknowledgement recorded.
+- [x] Canonical transcript/checkpoint persistence recorded.
+- [x] Cancellation barrier added so a human barge-in waits briefly for Gemini interruption acknowledgement before beginning the next generation.
+- [x] Private combined diagnostics page added: `/m4-prospect-diagnostics`.
+- [x] Production bootstrap restored and event recorder registered.
 
 ### Commits
-- `c7bdc0e` — start transcript-driven sprint log.
-- `1d62f68` — add transcript-driven prospect behavior policy.
-- `25ce435` — register behavior policy in production bootstrap without changing audio transport.
-- `5a296de` — add durable in-progress transcript checkpoint storage and recovery reads.
-- `31b42c5` — register checkpoint layer in production bootstrap.
-- `535126f` — continuously checkpoint prospect and M4 transcription during the live meeting.
-- `71a7b6b` — snapshot transcript text before checkpoint debounce so interruptions cannot clear it first.
 
-### Notes
-The behavior layer is intentionally separate from Gemini realtime transport. Future transcript-driven behavior changes should land there first unless transcript evidence points to an audio/state-machine defect.
+- `09e7d9a` — add durable prospect meeting flight recorder.
+- `15266c3` — register flight recorder (superseded by bootstrap repair below).
+- `a85fc1a` — harden evidence truth, confidence, reconnect, and quantitative proof behavior.
+- `d5bb06d` — add client event instrumentation and stale-generation cancellation barrier.
+- `3ae2db6` — restore complete production bootstrap with event recorder registered.
+- `2c93a9f` — add private transcript + flight-recorder diagnostics page.
 
-The durability bug found in this sprint was that canonical turn rows were written only after M4's response playback completed. The new checkpoint path preserves partial input/output transcription throughout the turn and exposes surviving checkpoint text through normal transcript/recovery reads. The follow-up snapshot fix closes an interruption race where the debounced checkpoint could otherwise read already-cleared variables. This is implemented but will not be considered verified until a fresh transcript demonstrates recovery and completeness.
+### Not yet accepted
+
+- [ ] Fresh adversarial meeting completed on Sprint 2 build.
+- [ ] Transcript analyzed against every acceptance criterion.
+- [ ] Event trace used to classify any silence/chop/connectivity anomaly.
+- [ ] Sprint accepted or Sprint 3 defined from that analysis.
+
+### Testing instruction
+
+Do not help M4 pass. Correct a behavioral mistake once. Give her the floor. Require synthetic proof. Interrupt a substantive answer once. Reconnect once. If there is silence, do not immediately rescue it; note what you experienced so the event trace can be aligned with it.
