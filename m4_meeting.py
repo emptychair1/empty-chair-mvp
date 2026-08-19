@@ -1,13 +1,13 @@
-"""The Meeting: M4's native realtime speech-to-speech surface.
+"""M4's native realtime speech-to-speech Meeting.
 
-The model receives audio directly. Transcription is intentionally disabled in the
-live encounter so it cannot muddy turn-taking or become the source of truth.
-Identity, evidence, values, and deliberation belong to M4 and are injected into
-every realtime session.
+Audio is heard directly by the Realtime model. Input transcription is disabled in
+The Meeting. M4's identity, evidence, values and deliberation are supplied by
+Empty Chair; the model is a realtime language/voice faculty.
 """
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 
@@ -21,6 +21,7 @@ API_KEY = os.getenv("OPENAI_API_KEY", "")
 REALTIME_CALLS_URL = os.getenv("M4_REALTIME_CALLS_URL", "https://api.openai.com/v1/realtime/calls")
 REALTIME_MODEL = os.getenv("M4_REALTIME_MODEL", "gpt-realtime")
 REALTIME_VOICE = os.getenv("M4_REALTIME_VOICE", "cedar")
+MODELS_URL = os.getenv("M4_MODELS_URL", "https://api.openai.com/v1/models")
 
 BASE_IDENTITY = """You are M4, the intelligence inside Empty Chair.
 This is The Meeting: a genuine first encounter between you and a tattoo-shop owner.
@@ -68,11 +69,7 @@ def _shop_context(user):
     conn = core.connect()
     try:
         shop = core.db_fetchone(conn, "SELECT * FROM shops WHERE id = ? LIMIT 1", (user["shop_id"],))
-        artists = core.db_fetchall(
-            conn,
-            "SELECT name, styles, services FROM artists WHERE shop_id = ? AND active = 1 ORDER BY name",
-            (user["shop_id"],),
-        )
+        artists = core.db_fetchall(conn, "SELECT name, styles, services FROM artists WHERE shop_id = ? AND active = 1 ORDER BY name", (user["shop_id"],))
         customer_count = core.db_fetchone(conn, "SELECT COUNT(*) AS n FROM customers WHERE shop_id = ?", (user["shop_id"],))
         opening_count = core.db_fetchone(conn, "SELECT COUNT(*) AS n FROM openings WHERE shop_id = ?", (user["shop_id"],))
     finally:
@@ -96,6 +93,33 @@ def _session_instructions(user):
     return BASE_IDENTITY + "\n\nM4 STATE\n" + json.dumps(state, default=str)
 
 
+def _auth_headers():
+    return {"Authorization": f"Bearer {API_KEY}"}
+
+
+def _probe_model_access():
+    """Verify the production credential can retrieve the configured Realtime model."""
+    if not API_KEY:
+        return False, "OPENAI_API_KEY is not configured on the server."
+    url = MODELS_URL.rstrip("/") + "/" + urllib.parse.quote(REALTIME_MODEL, safe="")
+    req = urllib.request.Request(url, headers=_auth_headers(), method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=12) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        if data.get("id") != REALTIME_MODEL:
+            return False, "The configured realtime model did not resolve as expected."
+        return True, None
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        try:
+            message = json.loads(detail).get("error", {}).get("message")
+        except Exception:
+            message = None
+        return False, message or f"OpenAI model access failed with HTTP {exc.code}."
+    except Exception as exc:
+        return False, f"OpenAI readiness check failed: {exc}"
+
+
 def _multipart(fields):
     boundary = "----m4" + uuid.uuid4().hex
     body = bytearray()
@@ -104,10 +128,7 @@ def _multipart(fields):
         if content_type:
             body.extend(f"Content-Type: {content_type}\r\n".encode())
         body.extend(b"\r\n")
-        if isinstance(value, bytes):
-            body.extend(value)
-        else:
-            body.extend(str(value).encode())
+        body.extend(value if isinstance(value, bytes) else str(value).encode())
         body.extend(b"\r\n")
     body.extend(f"--{boundary}--\r\n".encode())
     return bytes(body), boundary
@@ -123,10 +144,7 @@ def _openai_realtime_call(sdp, session):
     req = urllib.request.Request(
         REALTIME_CALLS_URL,
         data=payload,
-        headers={
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-        },
+        headers={**_auth_headers(), "Content-Type": f"multipart/form-data; boundary={boundary}"},
         method="POST",
     )
     try:
@@ -142,11 +160,7 @@ def meeting_page(request: Request):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
-    return core.templates.TemplateResponse(
-        request=request,
-        name="meeting.html",
-        context={"user": user},
-    )
+    return core.templates.TemplateResponse(request=request, name="meeting.html", context={"user": user})
 
 
 @core.app.get("/demo/control")
@@ -162,14 +176,18 @@ def m4_preflight(request: Request):
     user = core.get_current_user(request)
     if not user:
         return JSONResponse({"ok": False, "error": "Sign in to meet M4."}, status_code=401)
-    return {
-        "ok": bool(API_KEY),
+    ready, error = _probe_model_access()
+    payload = {
+        "ok": ready,
         "realtime": True,
         "model": REALTIME_MODEL,
         "voice": REALTIME_VOICE,
         "transcription": False,
         "route": "/meeting",
     }
+    if error:
+        payload["error"] = error
+    return JSONResponse(payload, status_code=200 if ready else 503)
 
 
 @core.app.post("/api/m4/realtime")
@@ -197,10 +215,7 @@ async def m4_realtime(request: Request):
                     "interrupt_response": True,
                 },
             },
-            "output": {
-                "voice": REALTIME_VOICE,
-                "speed": 0.96,
-            },
+            "output": {"voice": REALTIME_VOICE, "speed": 0.96},
         },
     }
     try:
