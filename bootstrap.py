@@ -70,6 +70,10 @@ import m4_prospect_meeting  # noqa: F401,E402
 
 # Install SMS/email notification overrides after core is fully imported.
 import notifications  # noqa: F401,E402
+# Finished M4 prospect meetings export transcript + flight-recorder diagnostics to
+# the signed-in owner's own email, enabling connected-assistant analysis without
+# public transcript endpoints or manual copy/paste.
+import m4_analysis_email  # noqa: F401,E402
 import delivery_safety  # noqa: F401,E402
 import stripe_deposits  # noqa: F401,E402
 
@@ -134,5 +138,6 @@ print(
     f"gemini_lab_configured={bool(m4_gemini_lab.GEMINI_API_KEY)}, "
     f"data_gift_registered=True, "
     f"m4_event_recorder_registered=True, "
+    f"m4_analysis_email_registered=True, "
     f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}"
 )
