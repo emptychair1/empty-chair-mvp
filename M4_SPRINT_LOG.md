@@ -58,23 +58,60 @@ Sprint 1 was therefore not accepted. Its transcript findings define Sprint 2.
 - [x] Cancellation barrier added so a human barge-in waits briefly for Gemini interruption acknowledgement before beginning the next generation.
 - [x] Private combined diagnostics page added: `/m4-prospect-diagnostics`.
 - [x] Production bootstrap restored and event recorder registered.
-
-### Commits
-
-- `09e7d9a` — add durable prospect meeting flight recorder.
-- `15266c3` — register flight recorder (superseded by bootstrap repair below).
-- `a85fc1a` — harden evidence truth, confidence, reconnect, and quantitative proof behavior.
-- `d5bb06d` — add client event instrumentation and stale-generation cancellation barrier.
-- `3ae2db6` — restore complete production bootstrap with event recorder registered.
-- `2c93a9f` — add private transcript + flight-recorder diagnostics page.
+- [x] Finished meetings can auto-export transcript + event trace to the owner's email for connected analysis.
 
 ### Not yet accepted
 
 - [ ] Fresh adversarial meeting completed on Sprint 2 build.
 - [ ] Transcript analyzed against every acceptance criterion.
 - [ ] Event trace used to classify any silence/chop/connectivity anomaly.
-- [ ] Sprint accepted or Sprint 3 defined from that analysis.
+- [ ] Sprint accepted or next sprint defined from that analysis.
 
-### Testing instruction
+---
 
-Do not help M4 pass. Correct a behavioral mistake once. Give her the floor. Require synthetic proof. Interrupt a substantive answer once. Reconnect once. If there is silence, do not immediately rescue it; note what you experienced so the event trace can be aligned with it.
+## Sprint 3: Automated Synthetic Prospect Regression
+
+Goal: remove the human founder from routine architecture regression. Human voice testing becomes final acceptance, not the primary debugging loop.
+
+### Implemented
+
+- [x] `m4_synthetic_harness.py` provides a deterministic meeting-state controller and transcript/event evaluator.
+- [x] Real adversarial trigger phrases drive LEAD and PROOF meeting state.
+- [x] Structured state persists question budget, permission-seeking prohibition, sales rejection, synthetic-data authorization, proof request, unresolved thread, and behavioral constraints.
+- [x] Generation ownership model explicitly invalidates old generations and forbids invalidated playback.
+- [x] Transcript evaluator detects unsupported website/calendar/system-access claims.
+- [x] Transcript evaluator detects permission-seeking after a lead/takeover instruction.
+- [x] Proof evaluator requires quantitative content, method/arithmetic, uncertainty/bounding, and rejects guarantee language.
+- [x] Reconnect evaluator uses the exact `I'm back. Continue.` regression phrase.
+- [x] Event evaluator verifies raw/assembled transcription visibility, required flight-recorder coverage, and stale-generation playback safety.
+- [x] Historical bad transcripts are encoded as permanent fixtures under `tests/fixtures/m4_historical_regressions.json`.
+- [x] Desired epistemic behavior is encoded as a positive regression fixture.
+- [x] Pytest regression suite runs automatically with the repository test suite.
+- [x] `m4_synthetic_live.py` conducts a full text-only adversarial meeting against the current M4 prospect instructions using Gemini, requiring no microphone or human participant.
+- [x] `.github/workflows/m4-regression.yml` runs deterministic architecture regression on relevant pushes and supports model-in-loop regression when a Gemini API key is available to GitHub Actions.
+- [x] Model-in-loop run uploads the complete synthetic transcript and evaluation as a workflow artifact.
+
+### Automated acceptance contract
+
+A routine architecture change is not ready for human testing unless:
+
+1. deterministic regression passes;
+2. historical failure fixtures remain detected;
+3. desired-behavior fixture passes;
+4. model-in-loop transcript passes evidence, lead-mode, proof, and reconnect checks when the API-enabled job is available;
+5. transport architecture tests show no invalidated generation reaching playback.
+
+Human acceptance is still required for voice cadence, perceived dead air, natural interruption feel, and buyer-level emotional/credibility judgment.
+
+### Sprint 3 commits
+
+- `4b5c7be` — synthetic M4 meeting-state and transcript/event evaluator.
+- `04e1ce7` — architecture/adversarial regression tests.
+- `5a6d1ed` — historical transcript regression fixtures.
+- `6879c9b` — fixture enforcement tests.
+- `51852b9` — model-in-loop synthetic prospect runner.
+- `e8bf275` — dedicated automated M4 regression workflow.
+
+### Status
+
+Implementation complete. CI/model-run evidence determines pass/fail; no human meeting is required to debug routine architecture failures.
