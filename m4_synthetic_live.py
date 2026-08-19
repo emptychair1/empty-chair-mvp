@@ -21,7 +21,7 @@ import m4_prospect_behavior
 import m4_synthetic_harness as harness
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models"
-SYNTHETIC_MODEL = os.getenv("M4_SYNTHETIC_MODEL", "gemini-3.5-flash")
+SYNTHETIC_MODEL = os.getenv("M4_SYNTHETIC_MODEL", "gemini-2.5-flash")
 TIMEOUT = float(os.getenv("M4_SYNTHETIC_TIMEOUT", "45"))
 
 
@@ -42,9 +42,7 @@ def _generate(history: list[dict[str, Any]], system_instruction: str, model: str
         "systemInstruction": {"parts": [{"text": system_instruction}]},
         "contents": history,
         "generationConfig": {
-            "temperature": 0.3,
             "maxOutputTokens": 700,
-            "thinkingConfig": {"thinkingLevel": "low"},
         },
     }
     req = urllib.request.Request(
