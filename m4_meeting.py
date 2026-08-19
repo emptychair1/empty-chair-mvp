@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 
 from fastapi import Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 import app as core
 import m4_values
@@ -71,6 +71,26 @@ def _call_model(context,history,message):
         text="\n".join(chunks)
     if not text: raise RuntimeError("M4's language faculty returned no speech")
     return text.strip()
+
+
+@core.app.get("/meeting", response_class=HTMLResponse)
+def meeting_page(request: Request):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+    return core.templates.TemplateResponse(
+        request=request,
+        name="meeting.html",
+        context={"user": user},
+    )
+
+
+@core.app.get("/demo/control")
+def old_meeting_link(request: Request):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+    return RedirectResponse("/meeting", status_code=307)
 
 
 @core.app.post("/api/m4/meeting")
