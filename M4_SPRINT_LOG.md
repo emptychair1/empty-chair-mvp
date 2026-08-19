@@ -17,10 +17,18 @@ Definition of done is determined only by transcript analysis from a fresh advers
 
 ### Progress
 - [x] Sprint created from recovered transcript analysis.
-- [ ] Behavioral adaptation instructions implemented.
-- [ ] Leadership/proof mode implemented.
-- [ ] Thinking-presence policy implemented.
+- [x] Behavioral adaptation instructions implemented in `m4_prospect_behavior.py`.
+- [x] Leadership/proof mode implemented in the prospect behavior policy.
+- [x] Thinking-presence policy implemented: sparse, varied, no spontaneous silence checks.
 - [ ] Transcript integrity verified in code path.
 - [ ] Fresh adversarial meeting completed.
 - [ ] Transcript analyzed against acceptance criteria.
 - [ ] Sprint accepted or next sprint defined.
+
+### Commits
+- `c7bdc0e` — start transcript-driven sprint log.
+- `1d62f68` — add transcript-driven prospect behavior policy.
+- `25ce435` — register behavior policy in production bootstrap without changing audio transport.
+
+### Notes
+The behavior layer is intentionally separate from Gemini realtime transport. Future transcript-driven behavior changes should land here first unless transcript evidence points to an audio/state-machine defect.
