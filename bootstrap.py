@@ -68,6 +68,9 @@ import m4_gemini_lab  # noqa: F401,E402
 # realtime audio transport so behavior can iterate without destabilizing playback.
 import m4_prospect_behavior  # noqa: F401,E402
 import m4_prospect_transcript  # noqa: F401,E402
+# Protect partial transcription before normal turn finalization. This must load
+# after the canonical transcript module so recovery reads can include checkpoints.
+import m4_prospect_checkpoint  # noqa: F401,E402
 import m4_gemini_smooth  # noqa: F401,E402
 import m4_prospect_meeting  # noqa: F401,E402
 
