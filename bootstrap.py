@@ -4,6 +4,8 @@ Render launches this module so additive routes and notification integrations are
 always registered before the ASGI app starts serving requests.
 """
 
+import json
+
 import app as core
 
 # Register additive pages/routes first.
@@ -19,6 +21,46 @@ import m4_meeting  # noqa: F401,E402
 # memory and returned directly; this module does not persist raw, parsed, or output
 # customer data or write it into M4 relationship memory.
 import m4_data_gift  # noqa: F401,E402
+
+# Add deployed data-gift evidence to every M4 session without claiming anything
+# broader than this application's endpoint can verify. Both /meeting and the Gemini
+# lab call m4_meeting._session_instructions at runtime, so they receive the same facts.
+_base_session_instructions = m4_meeting._session_instructions
+
+
+def _session_instructions_with_data_gift(user):
+    instructions = _base_session_instructions(user)
+    verified = {
+        "enrichment_available": True,
+        "accepted_format": "csv",
+        "max_bytes": m4_data_gift.MAX_BYTES,
+        "max_rows": m4_data_gift.MAX_ROWS,
+        "processing": "request_memory_only",
+        "raw_data_persisted_by_endpoint": False,
+        "parsed_data_persisted_by_endpoint": False,
+        "result_persisted_by_endpoint": False,
+        "written_to_m4_relationship_memory": False,
+        "response_cache": "no-store",
+        "returned_as_owner_download": True,
+        "verified_scope": "Empty Chair application endpoint behavior",
+        "not_yet_verified": [
+            "hosting infrastructure transient retention",
+            "network/provider logging outside this endpoint",
+            "formal deletion attestation",
+            "provider-wide non-training guarantees",
+        ],
+        "speech_rule": (
+            "You may truthfully say this Empty Chair endpoint does not write the uploaded, "
+            "parsed, or enriched customer data to its database, filesystem, or M4 memory and "
+            "returns the result directly with no-store caching. Do not broaden that into 'not a "
+            "shred is retained anywhere' or a provider-wide non-training/deletion promise until "
+            "the not_yet_verified items are independently proven."
+        ),
+    }
+    return instructions + "\n\nVERIFIED DATA GIFT CAPABILITIES\n" + json.dumps(verified)
+
+
+m4_meeting._session_instructions = _session_instructions_with_data_gift
 
 # Isolated Gemini Live experiment. This does not replace /meeting; it exists so
 # we can rapidly prove or kill Gemini as a realtime voice faculty.
