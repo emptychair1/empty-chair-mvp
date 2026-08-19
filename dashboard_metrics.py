@@ -161,7 +161,7 @@ def dashboard_v2(request: Request):
 
     return core.templates.TemplateResponse(
         request=request,
-        name="dashboard_v2.html",
+        name="dashboard.html",
         context={
             "user": user,
             "shop": shop,
