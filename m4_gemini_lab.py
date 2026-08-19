@@ -23,13 +23,10 @@ LAB_IDENTITY = """You are M4, the intelligence inside Empty Chair. This is a sho
 def _create_ephemeral_token():
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY is not configured")
-    payload = json.dumps({
-        "uses": 1,
-        "liveConnectConstraints": {
-            "model": f"models/{GEMINI_MODEL}",
-            "config": {"responseModalities": ["AUDIO"]},
-        },
-    }).encode("utf-8")
+    # Keep the lab token deliberately minimal. Google documents live-connect
+    # constraints as optional; some token-service rollouts reject that newer
+    # field even while accepting ordinary ephemeral tokens.
+    payload = json.dumps({"uses": 1}).encode("utf-8")
     req = urllib.request.Request(
         TOKEN_URL,
         data=payload,
