@@ -8,6 +8,14 @@ def test_transport_patch_targets_expected_client_code():
     assert "resetAudio('gemini_interrupted_ack')" not in patch._NEW_ACK
 
 
+def test_transport_patch_enables_native_session_resumption():
+    assert "sessionResumption" in patch._SETUP_REPLACEMENT
+    assert "contextWindowCompression" in patch._SETUP_REPLACEMENT
+    assert "sessionResumptionUpdate" in patch._RECEIVE_REPLACEMENT
+    assert "sessionStorage.setItem" in patch._RECEIVE_REPLACEMENT
+    assert "history.length&&!resumptionHandle" in patch._HISTORY_REPLACEMENT
+
+
 def test_transport_patch_preserves_single_m4_smooth_route():
     import app as core
     matches = [
