@@ -21,6 +21,7 @@ Definition of done is determined only by transcript analysis from a fresh advers
 - [x] Leadership/proof mode implemented in the prospect behavior policy.
 - [x] Thinking-presence policy implemented: sparse, varied, no spontaneous silence checks.
 - [x] Live transcript checkpoint infrastructure implemented for in-progress turns.
+- [x] Checkpoint snapshot race fixed so interruption/reset cannot erase queued transcript text.
 - [ ] Transcript integrity verified by a fresh meeting transcript.
 - [ ] Fresh adversarial meeting completed.
 - [ ] Transcript analyzed against acceptance criteria.
@@ -33,8 +34,9 @@ Definition of done is determined only by transcript analysis from a fresh advers
 - `5a296de` — add durable in-progress transcript checkpoint storage and recovery reads.
 - `31b42c5` — register checkpoint layer in production bootstrap.
 - `535126f` — continuously checkpoint prospect and M4 transcription during the live meeting.
+- `71a7b6b` — snapshot transcript text before checkpoint debounce so interruptions cannot clear it first.
 
 ### Notes
 The behavior layer is intentionally separate from Gemini realtime transport. Future transcript-driven behavior changes should land there first unless transcript evidence points to an audio/state-machine defect.
 
-The durability bug found in this sprint was that canonical turn rows were written only after M4's response playback completed. The new checkpoint path preserves partial input/output transcription throughout the turn and exposes surviving checkpoint text through normal transcript/recovery reads. This is implemented but will not be considered verified until a fresh transcript demonstrates recovery and completeness.
+The durability bug found in this sprint was that canonical turn rows were written only after M4's response playback completed. The new checkpoint path preserves partial input/output transcription throughout the turn and exposes surviving checkpoint text through normal transcript/recovery reads. The follow-up snapshot fix closes an interruption race where the debounced checkpoint could otherwise read already-cleared variables. This is implemented but will not be considered verified until a fresh transcript demonstrates recovery and completeness.
