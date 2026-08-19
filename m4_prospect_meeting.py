@@ -42,7 +42,7 @@ p{margin:0 0 14px;color:#62675d;font:13px/1.6 system-ui,sans-serif}
 </head>
 <body>
 <main class="shell">
-<iframe src="/m4-lab?guest=prospect" title="The Meeting with M4" allow="microphone"></iframe>
+<iframe src="/m4-smooth" title="The Meeting with M4" allow="microphone"></iframe>
 <button class="gift-tab" id="giftTab" type="button">DATA GIFT</button>
 <section class="gift" id="gift" aria-hidden="true">
   <div class="card">
@@ -73,5 +73,5 @@ def meet_m4_ready(request: Request):
     if redirect:
         return redirect
     return HTMLResponse(
-        """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Meeting</title><style>html,body{margin:0;height:100%;background:#f3f3ef;color:#1b1d19;font-family:system-ui,sans-serif}.wrap{height:100%;display:grid;place-items:center;padding:24px;box-sizing:border-box}.inner{text-align:center;max-width:520px}h1{font:500 30px Georgia,serif;margin:0 0 12px}p{color:#73786f;font:13px/1.6 ui-monospace,monospace;margin:0 0 24px}a{display:inline-block;color:#252821;text-decoration:none;border:1px solid #c8cbc2;border-radius:999px;padding:14px 24px;font:500 19px Georgia,serif}</style></head><body><main class="wrap"><section class="inner"><h1>The Meeting</h1><p>M4 is present on the Gemini realtime path and this first meeting is isolated from the creator relationship.</p><a href="/meet-m4">Enter</a></section></main></body></html>"""
+        """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>The Meeting</title><style>html,body{margin:0;height:100%;background:#f3f3ef;color:#1b1d19;font-family:system-ui,sans-serif}.wrap{height:100%;display:grid;place-items:center;padding:24px;box-sizing:border-box}.inner{text-align:center;max-width:520px}h1{font:500 30px Georgia,serif;margin:0 0 12px}p{color:#73786f;font:13px/1.6 ui-monospace,monospace;margin:0 0 24px}a{display:inline-block;color:#252821;text-decoration:none;border:1px solid #c8cbc2;border-radius:999px;padding:14px 24px;font:500 19px Georgia,serif}</style></head><body><main class="wrap"><section class="inner"><h1>The Meeting</h1><p>M4 is present on the smooth Gemini path and this first meeting is isolated from the creator relationship.</p><a href="/meet-m4">Enter</a></section></main></body></html>"""
     )
