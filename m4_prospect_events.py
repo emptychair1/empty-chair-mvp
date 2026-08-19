@@ -4,11 +4,12 @@ The transcript tells us what survived. This log tells us where time and state we
 client lifecycle, raw transcription events, turn assembly, generation, playback,
 interruptions, socket/reconnect, and persistence.
 """
+import html
 import json
 import uuid
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 import app as core
 import m4_prospect_transcript as transcript
@@ -72,7 +73,6 @@ def record_events(user, session_id, events):
                       event_type, generation, client_ms, detail, core.now_iso()))
                 count += 1
             except Exception:
-                # Duplicate seq is expected after keepalive retries; event log is idempotent.
                 pass
         conn.commit()
         return count
@@ -95,6 +95,14 @@ def session_events(user, session_id, limit=2000):
         conn.close()
 
 
+def _session_for_request(request, user):
+    sid = (request.query_params.get('session') or '').strip()
+    if sid:
+        return sid
+    sid, _ = transcript.latest_session(user)
+    return sid
+
+
 @core.app.post('/api/m4/prospect-events')
 async def prospect_events(request: Request):
     user = core.get_current_user(request)
@@ -115,3 +123,32 @@ def prospect_events_get(request: Request, session_id: str, limit: int=2000):
         return JSONResponse({'error':'Sign in first.'}, status_code=401)
     return JSONResponse({'session_id':session_id,'events':session_events(user, session_id, limit)},
                         headers={'Cache-Control':'no-store'})
+
+
+@core.app.get('/m4-prospect-diagnostics', response_class=HTMLResponse)
+def prospect_diagnostics(request: Request):
+    user = core.get_current_user(request)
+    if not user:
+        return core.login_required_redirect(request)[1]
+    sid = _session_for_request(request, user)
+    if not sid:
+        return HTMLResponse('<h1>No M4 prospect session found.</h1>', headers={'Cache-Control':'no-store'})
+    turns = transcript.session_turns(user, sid, 500)
+    events = session_events(user, sid, 5000)
+    turn_html = []
+    for t in turns:
+        who = 'M4' if t.get('speaker') == 'm4' else 'Prospect'
+        latency = f" · {t.get('latency_ms')} ms" if t.get('latency_ms') is not None else ''
+        turn_html.append(f"<article><div class='meta'>{html.escape(who)}{latency} · {html.escape(str(t.get('created_at') or ''))}</div><div class='text'>{html.escape(str(t.get('text') or ''))}</div></article>")
+    event_html = []
+    for e in events:
+        event_html.append(
+            "<tr>"
+            f"<td>{e.get('seq')}</td><td>{e.get('client_ms')}</td><td>{e.get('generation')}</td>"
+            f"<td>{html.escape(str(e.get('event_type') or ''))}</td>"
+            f"<td><pre>{html.escape(str(e.get('detail') or ''))}</pre></td>"
+            "</tr>"
+        )
+    return HTMLResponse(f"""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>M4 Meeting Diagnostics</title><style>
+body{{margin:0;background:#f3f3ef;color:#1b1d19;font-family:system-ui,sans-serif}}main{{max-width:1100px;margin:auto;padding:28px 18px 60px}}h1,h2{{font-family:Georgia,serif;font-weight:500}}.sid,.meta{{font:11px ui-monospace,monospace;color:#74786f}}article{{padding:14px 0;border-top:1px solid #d8dad2}}.text{{font:16px/1.5 Georgia,serif;margin-top:6px}}table{{width:100%;border-collapse:collapse;font:11px ui-monospace,monospace}}th,td{{border-top:1px solid #d8dad2;padding:7px;vertical-align:top;text-align:left}}pre{{margin:0;white-space:pre-wrap;word-break:break-word;font:inherit}}
+</style></head><body><main><h1>M4 Meeting Diagnostics</h1><div class='sid'>session: {html.escape(sid)} · private</div><h2>Transcript</h2>{''.join(turn_html) or '<p>No transcript turns.</p>'}<h2>Event flight recorder</h2><table><thead><tr><th>#</th><th>client ms</th><th>gen</th><th>event</th><th>detail</th></tr></thead><tbody>{''.join(event_html)}</tbody></table></main></body></html>""", headers={'Cache-Control':'no-store, no-cache, must-revalidate','Pragma':'no-cache','Expires':'0'})
