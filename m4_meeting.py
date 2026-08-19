@@ -98,7 +98,6 @@ def _auth_headers():
 
 
 def _probe_model_access():
-    """Verify the production credential can retrieve the configured Realtime model."""
     if not API_KEY:
         return False, "OPENAI_API_KEY is not configured on the server."
     url = MODELS_URL.rstrip("/") + "/" + urllib.parse.quote(REALTIME_MODEL, safe="")
@@ -141,12 +140,7 @@ def _openai_realtime_call(sdp, session):
         ("sdp", sdp, "application/sdp"),
         ("session", json.dumps(session), "application/json"),
     ])
-    req = urllib.request.Request(
-        REALTIME_CALLS_URL,
-        data=payload,
-        headers={**_auth_headers(), "Content-Type": f"multipart/form-data; boundary={boundary}"},
-        method="POST",
-    )
+    req = urllib.request.Request(REALTIME_CALLS_URL, data=payload, headers={**_auth_headers(), "Content-Type": f"multipart/form-data; boundary={boundary}"}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=45) as response:
             return response.read().decode("utf-8"), response.headers.get("Location")
@@ -177,14 +171,7 @@ def m4_preflight(request: Request):
     if not user:
         return JSONResponse({"ok": False, "error": "Sign in to meet M4."}, status_code=401)
     ready, error = _probe_model_access()
-    payload = {
-        "ok": ready,
-        "realtime": True,
-        "model": REALTIME_MODEL,
-        "voice": REALTIME_VOICE,
-        "transcription": False,
-        "route": "/meeting",
-    }
+    payload = {"ok": ready, "realtime": True, "model": REALTIME_MODEL, "voice": REALTIME_VOICE, "transcription": False, "route": "/meeting"}
     if error:
         payload["error"] = error
     return JSONResponse(payload, status_code=200 if ready else 503)
@@ -195,9 +182,17 @@ async def m4_realtime(request: Request):
     user = core.get_current_user(request)
     if not user:
         return JSONResponse({"error": "Sign in to meet M4."}, status_code=401)
-    sdp = (await request.body()).decode("utf-8", errors="strict").strip()
-    if not sdp.startswith("v="):
-        return JSONResponse({"error": "Invalid realtime offer."}, status_code=400)
+    # SDP is a line-oriented protocol. Do not strip its terminating CRLF: some
+    # parsers treat a missing final record delimiter as an unexpected EOF.
+    raw_sdp = await request.body()
+    try:
+        sdp = raw_sdp.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        return JSONResponse({"error": "Invalid realtime offer encoding."}, status_code=400)
+    if not sdp.startswith("v=") or "m=audio" not in sdp:
+        return JSONResponse({"error": "Invalid realtime audio offer."}, status_code=400)
+    if not sdp.endswith("\r\n"):
+        sdp = sdp.rstrip("\r\n") + "\r\n"
 
     session = {
         "type": "realtime",
@@ -205,16 +200,7 @@ async def m4_realtime(request: Request):
         "instructions": _session_instructions(user),
         "output_modalities": ["audio"],
         "audio": {
-            "input": {
-                "transcription": None,
-                "noise_reduction": {"type": "near_field"},
-                "turn_detection": {
-                    "type": "semantic_vad",
-                    "eagerness": "low",
-                    "create_response": True,
-                    "interrupt_response": True,
-                },
-            },
+            "input": {"transcription": None, "noise_reduction": {"type": "near_field"}, "turn_detection": {"type": "semantic_vad", "eagerness": "low", "create_response": True, "interrupt_response": True}},
             "output": {"voice": REALTIME_VOICE, "speed": 0.96},
         },
     }
