@@ -36,12 +36,15 @@ import m4_dashboard  # noqa: F401,E402
 
 meeting_v2 = None
 meeting_import_error = None
+meeting_v2_visual_patch = None
 try:
     import meeting_v2 as _meeting_v2  # noqa: F401,E402
     meeting_v2 = _meeting_v2
     meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "DSPOFq7nD22sXYn8JKlb")
     meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     import meeting_v2_runtime_fix  # noqa: F401,E402
+    import meeting_v2_visual_patch as _meeting_v2_visual_patch  # noqa: F401,E402
+    meeting_v2_visual_patch = _meeting_v2_visual_patch
     import m4_analysis_email  # noqa: F401,E402
 except Exception as meeting_exc:  # pragma: no cover
     meeting_import_error = repr(meeting_exc)
@@ -125,6 +128,9 @@ def meet_m4_bootstrap(request: Request):
             old_turn_catch = "catch(e){visual('present','Connection interrupted. Tap Enter to continue.');hint.textContent=e.message||String(e);enter.classList.remove('hidden');started=false}"
             new_turn_catch = "catch(e){const msg=e.message||String(e);visual('error',msg);hint.textContent=msg;hint.style.position='relative';hint.style.zIndex='999';hint.style.color='#181b17';hint.style.fontFamily='ui-monospace,SFMono-Regular,monospace';hint.style.fontSize='14px';hint.style.lineHeight='1.5';hint.style.padding='16px 18px';hint.style.background='#fff';hint.style.border='1px solid rgba(30,35,28,.18)';hint.style.borderRadius='12px';hint.style.maxWidth='min(92vw,760px)';hint.style.margin='12px auto 0';setTimeout(()=>{if(started){hint.removeAttribute('style');visual('listening','Connection restored. Continue.');startRecording()}},1800)}"
             html = html.replace(old_turn_catch, new_turn_catch)
+
+            if meeting_v2_visual_patch is not None:
+                html = meeting_v2_visual_patch.enhance(html)
 
             return HTMLResponse(html, headers={"Cache-Control": "no-store"})
         return response
