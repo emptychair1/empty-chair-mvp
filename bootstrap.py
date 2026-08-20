@@ -64,7 +64,7 @@ def meeting_v2_opening(request: Request, session_id: str = Form(...)):
     sid = (session_id or "").strip()
     if not sid:
         return JSONResponse({"error": "session_id required"}, status_code=400)
-    answer = "I'm M4. Tell me what your shop is trying not to lose."
+    answer = "I'm M4. Josh gave me a simple job: find something economically useful in your business in about ten minutes. If I can't, you probably don't need him. Tell me a little about the shop."
     try:
         state, turns = meeting_v2._load_session(user, sid)
         if not turns:
