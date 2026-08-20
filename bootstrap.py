@@ -63,6 +63,7 @@ import m4_dashboard  # noqa: F401,E402
 # provider failure must never prevent the Empty Chair core app from starting.
 try:
     import meeting_v2  # noqa: F401,E402
+    import meeting_v2_alias  # noqa: F401,E402
 except Exception as meeting_exc:  # pragma: no cover - production safety guard
     print(f"Meeting v2 disabled: {meeting_exc}")
 
