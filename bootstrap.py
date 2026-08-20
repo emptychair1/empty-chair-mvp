@@ -4,8 +4,9 @@ Render launches this module so additive routes and notification integrations are
 always registered before the ASGI app starts serving requests.
 """
 
-from fastapi import Request
-from fastapi.responses import HTMLResponse
+import os
+from fastapi import Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 
 import app as core
 
@@ -69,16 +70,48 @@ meeting_import_error = None
 try:
     import meeting_v2 as _meeting_v2  # noqa: F401,E402
     meeting_v2 = _meeting_v2
+    # Lock the selected M4 identity defaults while still allowing Render env overrides.
+    meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "nersejR7R1Z5oU9HjCpV")
+    meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
 except Exception as meeting_exc:  # pragma: no cover - production safety guard
     meeting_import_error = repr(meeting_exc)
     print(f"Meeting v2 disabled: {meeting_exc}")
+
+# The opening is fixed by design, so it should not depend on Gemini. This removes
+# an unnecessary provider hop before the prospect has even spoken.
+@core.app.post("/api/meeting-v2/opening")
+def meeting_v2_opening(request: Request, session_id: str = Form(...)):
+    if meeting_v2 is None:
+        return JSONResponse({"error": meeting_import_error or "Meeting unavailable"}, status_code=503)
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
+    sid = (session_id or "").strip()
+    if not sid:
+        return JSONResponse({"error": "session_id required"}, status_code=400)
+    answer = "I'm M4. Tell me what your shop is trying not to lose."
+    try:
+        state, turns = meeting_v2._load_session(user, sid)
+        if not turns:
+            meeting_v2._save_session(user, sid, state, None, answer)
+        audio64 = meeting_v2._speak(answer)
+        return JSONResponse({"ok": True, "session_id": sid, "m4_text": answer, "audio_base64": audio64}, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
 
 # Always expose the public Meeting route. If the isolated subsystem cannot import,
 # show the exact failure instead of returning a misleading 404.
 @core.app.get("/meet-m4", response_class=HTMLResponse)
 def meet_m4_bootstrap(request: Request):
     if meeting_v2 is not None:
-        return meeting_v2.meeting_v2_page(request)
+        response = meeting_v2.meeting_v2_page(request)
+        if isinstance(response, HTMLResponse):
+            html = response.body.decode("utf-8")
+            old = "async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);form.append('opening','1');let r=await fetch('/api/meeting-v2/turn',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_base64)await play64(j.audio_base64);busy=false}"
+            new = "async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);let r=await fetch('/api/meeting-v2/opening',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_base64)await play64(j.audio_base64);busy=false}"
+            html = html.replace(old, new)
+            return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+        return response
     return HTMLResponse(
         f"<html><body style='font-family:system-ui;padding:32px'><h1>The Meeting is unavailable</h1><pre>{meeting_import_error}</pre></body></html>",
         status_code=503,
