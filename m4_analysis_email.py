@@ -4,6 +4,7 @@ Restores the prior automatic-analysis path without exposing transcript data publ
 """
 import html
 import json
+import threading
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -11,6 +12,9 @@ from fastapi.responses import JSONResponse
 import app as core
 import notifications
 import meeting_v2 as meeting
+
+_TIMERS = {}
+_TIMER_LOCK = threading.Lock()
 
 
 def _ensure_export_table(conn):
@@ -72,11 +76,21 @@ def export_session(user, session_id):
         _ensure_export_table(conn)
         existing = core.db_fetchone(
             conn,
-            "SELECT status FROM m4_analysis_exports WHERE session_id=? AND user_id=? AND shop_id=?",
+            "SELECT status,exported_at FROM m4_analysis_exports WHERE session_id=? AND user_id=? AND shop_id=?",
             (sid, user["id"], user["shop_id"]),
         )
-        if existing and existing["status"] == "sent":
-            return True, "already sent"
+        session = core.db_fetchone(
+            conn,
+            "SELECT updated_at FROM meeting_v2_sessions WHERE session_id=? AND user_id=? AND shop_id=? LIMIT 1",
+            (sid, user["id"], user["shop_id"]),
+        )
+        if (
+            existing
+            and existing["status"] == "sent"
+            and session
+            and str(existing["exported_at"] or "") >= str(session["updated_at"] or "")
+        ):
+            return True, "already current"
     finally:
         conn.close()
 
@@ -137,6 +151,30 @@ def export_latest_two(user):
     finally:
         conn.close()
     return [export_session(user, row["session_id"]) for row in rows]
+
+
+def schedule_latest_two(user, delay_seconds=45):
+    """Debounce private export until Meeting activity has gone quiet."""
+    key = f"{user['shop_id']}:{user['id']}"
+    snapshot = {"id": user["id"], "shop_id": user["shop_id"]}
+
+    def run():
+        try:
+            export_latest_two(snapshot)
+        except Exception as exc:
+            print(f"M4 delayed diagnostic export failed: {exc}", flush=True)
+        finally:
+            with _TIMER_LOCK:
+                _TIMERS.pop(key, None)
+
+    with _TIMER_LOCK:
+        prior = _TIMERS.get(key)
+        if prior:
+            prior.cancel()
+        timer = threading.Timer(max(5, int(delay_seconds)), run)
+        timer.daemon = True
+        _TIMERS[key] = timer
+        timer.start()
 
 
 @core.app.post("/api/m4/prospect-session/finish")
