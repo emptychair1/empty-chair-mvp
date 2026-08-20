@@ -179,9 +179,15 @@ async def meeting_v2_turn_fixed(
 
         state = meeting._absorb(state, spoken_user)
         model_turns = turns + [{"speaker": "prospect", "text": spoken_user}]
+
+        # Persist what M4 heard before any reasoning or voice provider call. A provider
+        # failure must never erase the prospect's last turn or reset the thread.
+        meeting._save_session(user, sid, state, spoken_user, None)
+
         answer = _gemini_with_fallback(model_turns, state)
         audio64 = meeting._speak(answer)
-        meeting._save_session(user, sid, state, spoken_user, answer)
+        # The prospect turn is already durable; save only M4's successful response.
+        meeting._save_session(user, sid, state, None, answer)
 
         return JSONResponse(
             {
