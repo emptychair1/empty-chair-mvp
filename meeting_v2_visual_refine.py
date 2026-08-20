@@ -1,5 +1,10 @@
 """Small current Meeting UI additions: real CSV data-gift upload."""
 
+# Imported here because this module is already loaded by the production Meeting bootstrap.
+# These imports register the upload endpoint and apply the latest prompt guardrails.
+import meeting_v2_guardrails  # noqa: F401
+import meeting_v2_data_gift  # noqa: F401
+
 REFINE = r'''
 <style id="m4-data-gift-ui-style">
 #m4DataGift{position:fixed;left:50%;bottom:max(62px,calc(env(safe-area-inset-bottom) + 54px));transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:8px;opacity:.86;transition:opacity .2s ease}
@@ -24,15 +29,15 @@ REFINE = r'''
    const file=input.files&&input.files[0]; if(!file)return;
    box.classList.add('busy'); status.textContent='analyzing '+file.name+'…';
    try{
-     if(typeof window.visual==='function')window.visual('thinking','Reading the sample and looking for useful structure.');
-     const fd=new FormData(); fd.append('session_id',window.sessionId||sessionId); fd.append('data_file',file);
+     if(typeof visual==='function')visual('thinking','Reading the sample and looking for useful structure.');
+     const fd=new FormData(); fd.append('session_id',sessionId); fd.append('data_file',file);
      const r=await fetch('/api/meeting-v2/data-gift',{method:'POST',body:fd,cache:'no-store'}); const j=await r.json();
      if(!r.ok)throw new Error(j.error||'Could not analyze CSV');
      status.textContent='data gift complete';
-     if(typeof window.visual==='function')window.visual('speaking','I found something useful in the data.');
-     if(j.audio_base64&&typeof window.play64==='function')await window.play64(j.audio_base64); else if(j.audio_base64&&typeof play64==='function')await play64(j.audio_base64);
-     setTimeout(()=>{if(typeof window.visual==='function')window.visual('listening','Josh has the room.');},800);
-   }catch(e){status.textContent=e.message||'upload failed';if(typeof window.visual==='function')window.visual('error',status.textContent)}
+     if(typeof visual==='function')visual('speaking','I found something useful in the data.');
+     if(j.audio_base64&&typeof play64==='function')await play64(j.audio_base64);
+     setTimeout(()=>{if(typeof visual==='function')visual('listening','Josh has the room.');},800);
+   }catch(e){status.textContent=e.message||'upload failed';if(typeof visual==='function')visual('error',status.textContent)}
    finally{box.classList.remove('busy');input.value='';}
  });
 })();
