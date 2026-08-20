@@ -42,6 +42,7 @@ try:
     meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "DSPOFq7nD22sXYn8JKlb")
     meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     import meeting_v2_runtime_fix  # noqa: F401,E402
+    import m4_analysis_email  # noqa: F401,E402
 except Exception as meeting_exc:  # pragma: no cover
     meeting_import_error = repr(meeting_exc)
     print(f"Meeting v2 disabled: {meeting_exc}")
