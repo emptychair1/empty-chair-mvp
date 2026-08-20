@@ -99,6 +99,7 @@ def meeting_v2_opening(request: Request, session_id: str = Form(...)):
         audio64 = meeting_v2._speak(answer)
         return JSONResponse({"ok": True, "session_id": sid, "m4_text": answer, "audio_base64": audio64}, headers={"Cache-Control": "no-store"})
     except Exception as exc:
+        print(f"Meeting v2 opening failed: {type(exc).__name__}: {exc}", flush=True)
         return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
 
 # Always expose the public Meeting route. If the isolated subsystem cannot import,
