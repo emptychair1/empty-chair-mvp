@@ -59,6 +59,13 @@ import dashboard_metrics  # noqa: F401,E402
 # Register the safe, read-only M4 intelligence page.
 import m4_dashboard  # noqa: F401,E402
 
+# The Meeting is deliberately non-critical. A Meeting-specific configuration or
+# provider failure must never prevent the Empty Chair core app from starting.
+try:
+    import meeting_v2  # noqa: F401,E402
+except Exception as meeting_exc:  # pragma: no cover - production safety guard
+    print(f"Meeting v2 disabled: {meeting_exc}")
+
 # Add a safe Settings-page Twilio delivery tester.
 import settings_sms_test  # noqa: F401,E402
 
