@@ -44,6 +44,18 @@ def _owner_email(user):
         conn.close()
 
 
+def _mask_email(value):
+    email = core.normalize_email(value)
+    if not email or "@" not in email:
+        return None
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        masked_local = (local[:1] or "*") + "*"
+    else:
+        masked_local = local[:2] + ("*" * max(2, len(local) - 2))
+    return f"{masked_local}@{domain}"
+
+
 def _session_payload(user, session_id):
     conn = core.connect()
     try:
@@ -191,6 +203,38 @@ def export_latest_two_now(request: Request):
         )
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500, headers={"Cache-Control": "no-store"})
+
+
+@core.app.get("/api/m4/export-debug")
+def export_debug(request: Request):
+    """Private delivery diagnostics without transcript content or secrets."""
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
+
+    email = _owner_email(user)
+    conn = core.connect()
+    try:
+        _ensure_export_table(conn)
+        rows = core.db_fetchall(
+            conn,
+            "SELECT session_id,exported_at,status,last_error FROM m4_analysis_exports WHERE user_id=? AND shop_id=? ORDER BY exported_at DESC LIMIT 2",
+            (user["id"], user["shop_id"]),
+        )
+    finally:
+        conn.close()
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "destination": _mask_email(email),
+            "email_live": bool(notifications.EMAIL_LIVE),
+            "resend_configured": bool(core.RESEND_API_KEY),
+            "email_from": core.EMAIL_FROM,
+            "latest_exports": [dict(row) for row in rows],
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @core.app.post("/api/m4/prospect-session/finish")
