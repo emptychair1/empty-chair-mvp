@@ -21,8 +21,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import app as core
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
-ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_flash_v2_5")
+ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "DSPOFq7nD22sXYn8JKlb")
+ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 MEETING_MODEL = os.getenv("M4_MEETING_MODEL", "gemini-2.5-flash")
 
