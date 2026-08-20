@@ -33,16 +33,26 @@ print(
 
 
 def _gemini_with_fallback(messages, state):
-    """Use 3.6 Flash normally; fall back once when Google returns capacity 503."""
+    """Use 3.6 Flash normally; fall back once on transient capacity or quota errors."""
     primary = meeting.MEETING_MODEL
     try:
         return meeting._gemini(messages, state)
     except RuntimeError as exc:
         text = str(exc)
-        if "HTTP 503" not in text and "UNAVAILABLE" not in text and "high demand" not in text.lower():
+        lowered = text.lower()
+        should_fallback = (
+            "HTTP 503" in text
+            or "UNAVAILABLE" in text
+            or "high demand" in lowered
+            or "HTTP 429" in text
+            or "RESOURCE_EXHAUSTED" in text
+            or "quota exceeded" in lowered
+            or "exceeded your current quota" in lowered
+        )
+        if not should_fallback:
             raise
         print(
-            f"Meeting v2 reasoning overload on {primary}; falling back to {FALLBACK_REASONING_MODEL}",
+            f"Meeting v2 reasoning unavailable on {primary}; falling back to {FALLBACK_REASONING_MODEL}: {text[:240]}",
             flush=True,
         )
         meeting.MEETING_MODEL = FALLBACK_REASONING_MODEL
