@@ -14,15 +14,18 @@ from fastapi.responses import JSONResponse
 import app as core
 import meeting_v2 as meeting
 
-# M4's custom ElevenLabs Voice Design identity.
+# M4's active production identities.
 meeting.ELEVENLABS_VOICE_ID = "DSPOFq7nD22sXYn8JKlb"
 meeting.ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
+meeting.MEETING_MODEL = "gemini-3.6-flash"
 
 OPENING_TEXT = "I'm M4. Tell me what your shop is trying not to lose."
 
 print(
-    "Meeting v2 voice runtime: "
-    f"voice_id={meeting.ELEVENLABS_VOICE_ID}, model={meeting.ELEVENLABS_MODEL_ID}",
+    "Meeting v2 runtime: "
+    f"voice_id={meeting.ELEVENLABS_VOICE_ID}, "
+    f"voice_model={meeting.ELEVENLABS_MODEL_ID}, "
+    f"reasoning_model={meeting.MEETING_MODEL}",
     flush=True,
 )
 
@@ -64,6 +67,7 @@ def meeting_v2_voice_debug(request: Request):
             {
                 "active_voice_id": meeting.ELEVENLABS_VOICE_ID,
                 "active_model": meeting.ELEVENLABS_MODEL_ID,
+                "reasoning_model": meeting.MEETING_MODEL,
                 "elevenlabs_voice": _voice_identity(),
             },
             headers={"Cache-Control": "no-store"},
@@ -73,6 +77,7 @@ def meeting_v2_voice_debug(request: Request):
             {
                 "active_voice_id": meeting.ELEVENLABS_VOICE_ID,
                 "active_model": meeting.ELEVENLABS_MODEL_ID,
+                "reasoning_model": meeting.MEETING_MODEL,
                 "error": str(exc),
             },
             status_code=503,
@@ -156,6 +161,7 @@ async def meeting_v2_turn_fixed(
             headers={"Cache-Control": "no-store"},
         )
     except Exception as exc:
+        print(f"Meeting v2 turn failed: {type(exc).__name__}: {exc}", flush=True)
         return JSONResponse(
             {"error": str(exc)},
             status_code=503,
