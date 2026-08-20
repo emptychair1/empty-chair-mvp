@@ -177,6 +177,22 @@ def schedule_latest_two(user, delay_seconds=45):
         timer.start()
 
 
+@core.app.get("/api/m4/export-latest-two")
+def export_latest_two_now(request: Request):
+    """Signed-in owner trigger for exporting only their two latest Meeting v2 sessions."""
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
+    try:
+        results = export_latest_two(user)
+        return JSONResponse(
+            {"ok": True, "count": len(results), "results": results},
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500, headers={"Cache-Control": "no-store"})
+
+
 @core.app.post("/api/m4/prospect-session/finish")
 async def finish_and_export(request: Request):
     user = core.get_current_user(request)
