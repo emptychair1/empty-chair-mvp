@@ -3,6 +3,11 @@
 Keeps the isolated Meeting module intact while fixing the first-turn handshake and
 using M4's custom ElevenLabs Voice Design identity.
 """
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
+
 from fastapi import File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -14,6 +19,66 @@ meeting.ELEVENLABS_VOICE_ID = "DSPOFq7nD22sXYn8JKlb"
 meeting.ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 
 OPENING_TEXT = "I'm M4. Tell me what your shop is trying not to lose."
+
+print(
+    "Meeting v2 voice runtime: "
+    f"voice_id={meeting.ELEVENLABS_VOICE_ID}, model={meeting.ELEVENLABS_MODEL_ID}",
+    flush=True,
+)
+
+
+def _voice_identity():
+    """Return non-secret ElevenLabs metadata for the active voice."""
+    if not meeting.ELEVENLABS_API_KEY:
+        raise RuntimeError("ELEVENLABS_API_KEY is not configured")
+    voice_id = urllib.parse.quote(meeting.ELEVENLABS_VOICE_ID)
+    req = urllib.request.Request(
+        f"https://api.elevenlabs.io/v1/voices/{voice_id}",
+        headers={"xi-api-key": meeting.ELEVENLABS_API_KEY},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"ElevenLabs voice lookup failed: HTTP {exc.code} {detail[:500]}") from exc
+
+    return {
+        "voice_id": payload.get("voice_id"),
+        "name": payload.get("name"),
+        "category": payload.get("category"),
+        "labels": payload.get("labels") or {},
+        "description": payload.get("description"),
+        "fine_tuning": payload.get("fine_tuning"),
+    }
+
+
+@core.app.get("/api/meeting-v2/voice-debug")
+def meeting_v2_voice_debug(request: Request):
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
+    try:
+        return JSONResponse(
+            {
+                "active_voice_id": meeting.ELEVENLABS_VOICE_ID,
+                "active_model": meeting.ELEVENLABS_MODEL_ID,
+                "elevenlabs_voice": _voice_identity(),
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {
+                "active_voice_id": meeting.ELEVENLABS_VOICE_ID,
+                "active_model": meeting.ELEVENLABS_MODEL_ID,
+                "error": str(exc),
+            },
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
+        )
+
 
 # Remove the original handler so FastAPI cannot select it before this corrected one.
 core.app.router.routes[:] = [
@@ -43,8 +108,6 @@ async def meeting_v2_turn_fixed(
     try:
         state, turns = meeting._load_session(user, sid)
 
-        # The opening is deterministic. Do not involve Gemini before the prospect
-        # has said anything; just speak M4's fixed first line through ElevenLabs.
         if opening == "1" and not turns:
             answer = OPENING_TEXT
             audio64 = meeting._speak(answer)
