@@ -4,6 +4,9 @@ Render launches this module so additive routes and notification integrations are
 always registered before the ASGI app starts serving requests.
 """
 
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+
 import app as core
 
 # Register additive pages/routes first.
@@ -61,11 +64,26 @@ import m4_dashboard  # noqa: F401,E402
 
 # The Meeting is deliberately non-critical. A Meeting-specific configuration or
 # provider failure must never prevent the Empty Chair core app from starting.
+meeting_v2 = None
+meeting_import_error = None
 try:
-    import meeting_v2  # noqa: F401,E402
-    import meeting_v2_alias  # noqa: F401,E402
+    import meeting_v2 as _meeting_v2  # noqa: F401,E402
+    meeting_v2 = _meeting_v2
 except Exception as meeting_exc:  # pragma: no cover - production safety guard
+    meeting_import_error = repr(meeting_exc)
     print(f"Meeting v2 disabled: {meeting_exc}")
+
+# Always expose the public Meeting route. If the isolated subsystem cannot import,
+# show the exact failure instead of returning a misleading 404.
+@core.app.get("/meet-m4", response_class=HTMLResponse)
+def meet_m4_bootstrap(request: Request):
+    if meeting_v2 is not None:
+        return meeting_v2.meeting_v2_page(request)
+    return HTMLResponse(
+        f"<html><body style='font-family:system-ui;padding:32px'><h1>The Meeting is unavailable</h1><pre>{meeting_import_error}</pre></body></html>",
+        status_code=503,
+        headers={"Cache-Control": "no-store"},
+    )
 
 # Add a safe Settings-page Twilio delivery tester.
 import settings_sms_test  # noqa: F401,E402
