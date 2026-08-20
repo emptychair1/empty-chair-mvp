@@ -37,6 +37,7 @@ import m4_dashboard  # noqa: F401,E402
 meeting_v2 = None
 meeting_import_error = None
 meeting_v2_visual_patch = None
+meeting_v2_visual_refine = None
 try:
     import meeting_v2 as _meeting_v2  # noqa: F401,E402
     meeting_v2 = _meeting_v2
@@ -45,6 +46,8 @@ try:
     import meeting_v2_runtime_fix  # noqa: F401,E402
     import meeting_v2_visual_patch as _meeting_v2_visual_patch  # noqa: F401,E402
     meeting_v2_visual_patch = _meeting_v2_visual_patch
+    import meeting_v2_visual_refine as _meeting_v2_visual_refine  # noqa: F401,E402
+    meeting_v2_visual_refine = _meeting_v2_visual_refine
     import m4_analysis_email  # noqa: F401,E402
 except Exception as meeting_exc:  # pragma: no cover
     meeting_import_error = repr(meeting_exc)
@@ -131,6 +134,8 @@ def meet_m4_bootstrap(request: Request):
 
             if meeting_v2_visual_patch is not None:
                 html = meeting_v2_visual_patch.enhance(html)
+            if meeting_v2_visual_refine is not None:
+                html = meeting_v2_visual_refine.enhance(html)
 
             return HTMLResponse(html, headers={"Cache-Control": "no-store"})
         return response
