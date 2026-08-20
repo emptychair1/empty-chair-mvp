@@ -1,1 +1,14 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bring in customer experience · Empty Chair</title><link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}"><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"><style>.import-shell{max-width:780px;margin:auto;padding:70px 24px}.import-card{padding:28px;border:1px solid var(--line);background:linear-gradient(145deg,#111410,#090b09)}.eyebrow{color:var(--signal);font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.13em;text-transform:uppercase}.import-card h1{margin:10px 0 10px;font-size:clamp(38px,5vw,54px);letter-spacing:-.05em}.sub{color:var(--muted);line-height:1.6}.requirements{margin:22px 0;padding:16px;border-left:2px solid var(--signal);background:#10130e;color:var(--cream-dim);font-size:12px;line-height:1.65}.file{display:block;height:auto;padding:13px;margin:18px 0;background:#090b09}.actions{display:flex;gap:8px;flex-wrap:wrap}</style></head><body><main class="import-shell"><section class="import-card"><div class="eyebrow">EXPERIENCE</div><h1>Bring in what the shop already knows.</h1><p class="sub">Customer history gives M4 somewhere honest to begin. Importing a person does not grant permission to contact them.</p><div class="requirements"><strong>CSV needs:</strong> name and phone.<br><strong>Useful when known:</strong> email, communication consent, artist/style/service preferences, appointment history, cancellations, no-shows and average spend.</div><form method="post" action="/import/customers" enctype="multipart/form-data"><input class="file" type="file" name="file" accept=".csv,text/csv" required><div class="actions"><button class="button" type="submit">Bring in experience</button><a class="button secondary" href="/customers">Cancel</a></div></form></section></main></body></html>
+<!doctype html>
+<html lang="en"><head><link
+    rel="icon"
+    type="image/png"
+    href="{{ url_for('static', path='/favicon.png') }}"
+><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Import Customers · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"></head>
+<body><main class="content" style="max-width:760px"><p><a href="/">← Dashboard</a></p><div class="panel">
+<h1>Import Customers</h1><p>Database: {{ database_type }}</p>
+<p>CSV requires <strong>name</strong> and <strong>phone</strong>. Optional columns include email, communication_consent, preferred_artists, preferred_styles, preferred_services, appointment_count, completed_count, cancellation_count, no_show_count, and average_spend.</p>
+<form method="post" action="/import/customers" enctype="multipart/form-data">
+<input type="file" name="file" accept=".csv,text/csv" required style="margin-bottom:14px">
+<button class="button" type="submit">Import Customers</button></form>
+</div></main></body></html>

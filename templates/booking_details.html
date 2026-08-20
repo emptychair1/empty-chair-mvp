@@ -1,1 +1,47 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Appointment · Empty Chair</title><link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}"><style>.detail-card{max-width:820px;padding:24px;border:1px solid var(--line);background:#0d0f0d}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:22px 0;background:var(--line);border:1px solid var(--line)}.detail-item{padding:16px;background:#090b09}.detail-label{color:var(--muted);font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase}.detail-value{margin-top:7px;font-size:16px}.detail-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.state{color:var(--signal);font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase}@media(max-width:650px){.detail-grid{grid-template-columns:1fr}}</style></head><body><div class="app-shell">{% set active_page='calendar' %}{% include '_sidebar.html' %}<main class="main"><header class="topbar"><div><div class="page-title">Appointment</div><div class="page-subtitle">One observed state. Confirm only what is actually true.</div></div><div class="top-actions"><a class="button secondary" href="/bookings">← Calendar</a></div></header><div class="content"><section class="detail-card"><div class="detail-label">CURRENT STATE</div><div class="detail-value state">{% if booking.status == 'PENDING' %}AWAITING CONFIRMATION{% else %}{{ booking.status.replace('_',' ') }}{% endif %}</div><div class="detail-grid"><div class="detail-item"><div class="detail-label">Customer</div><div class="detail-value">{{ booking.customer_name }}</div>{% if booking.customer_phone %}<div class="page-subtitle">{{ booking.customer_phone }}</div>{% endif %}{% if booking.customer_email %}<div class="page-subtitle">{{ booking.customer_email }}</div>{% endif %}</div><div class="detail-item"><div class="detail-label">Artist</div><div class="detail-value">{{ booking.artist_name }}</div></div><div class="detail-item"><div class="detail-label">Time</div><div class="detail-value">{{ booking.date }} · {{ booking.start_time }}{% if booking.end_time %}–{{ booking.end_time }}{% endif %}</div></div><div class="detail-item"><div class="detail-label">Work</div><div class="detail-value">{{ booking.style or booking.service or 'Appointment' }}</div></div><div class="detail-item"><div class="detail-label">Observed value</div><div class="detail-value">${{ '%.0f'|format(booking.amount or booking.price or 0) }}</div></div><div class="detail-item"><div class="detail-label">Deposit</div><div class="detail-value">{% if booking.deposit_status == 'PAID' %}${{ '%.0f'|format(booking.deposit_amount or 0) }} paid{% elif booking.deposit_status in ['REQUIRED','PENDING'] %}${{ '%.0f'|format(booking.deposit_amount or 0) }} due{% else %}Not required{% endif %}</div></div></div>{% if booking.status in ['AWAITING_CONFIRMATION','PENDING'] %}<p class="page-subtitle">A customer expressed interest. The calendar does not become true until you confirm it.</p>{% endif %}<div class="detail-actions">{% if booking.status in ['AWAITING_CONFIRMATION','PENDING'] %}<form method="post" action="/bookings/{{ booking.id }}/confirm"><button class="button" type="submit">Confirm outcome</button></form><form method="post" action="/bookings/{{ booking.id }}/reject"><button class="button secondary" type="submit">Not confirmed</button></form>{% endif %}<a class="button secondary" href="/bookings">Back to calendar</a></div></section></div></main></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Appointment · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .detail-card{max-width:760px;padding:24px;border:1px solid var(--line);border-radius:16px;background:#0d0d0d}
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:22px 0}.detail-item{padding:15px;border:1px solid var(--line-soft);border-radius:10px;background:#090909}.detail-label{color:var(--gold-light);font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.1em}.detail-value{margin-top:5px;font-size:16px}.detail-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.status{color:var(--gold-light);font-weight:850;text-transform:uppercase}.status.confirmed,.status.completed{color:var(--green)}
+    @media(max-width:650px){.detail-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page='calendar' %}{% include '_sidebar.html' %}
+  <main class="main">
+    <header class="topbar">
+      <div><div class="page-title">Appointment Details</div><div class="page-subtitle">Review the claim and confirm the chair.</div></div>
+      <div class="top-actions"><a class="button secondary" href="/bookings">← Calendar</a></div>
+    </header>
+    <div class="content">
+      <section class="detail-card">
+        <div class="detail-label">Status</div>
+        <div class="detail-value status {{ booking.status.lower() }}">{% if booking.status == 'PENDING' %}Awaiting confirmation{% else %}{{ booking.status.replace('_',' ') }}{% endif %}</div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">Customer</div><div class="detail-value">{{ booking.customer_name }}</div>{% if booking.customer_phone %}<div class="page-subtitle">{{ booking.customer_phone }}</div>{% endif %}{% if booking.customer_email %}<div class="page-subtitle">{{ booking.customer_email }}</div>{% endif %}</div>
+          <div class="detail-item"><div class="detail-label">Artist</div><div class="detail-value">{{ booking.artist_name }}</div></div>
+          <div class="detail-item"><div class="detail-label">Date & time</div><div class="detail-value">{{ booking.date }} · {{ booking.start_time }}{% if booking.end_time %}–{{ booking.end_time }}{% endif %}</div></div>
+          <div class="detail-item"><div class="detail-label">Work</div><div class="detail-value">{{ booking.style or booking.service or 'Appointment' }}</div></div>
+          <div class="detail-item"><div class="detail-label">Value</div><div class="detail-value">${{ '%.0f'|format(booking.amount or booking.price or 0) }}</div></div>
+          <div class="detail-item"><div class="detail-label">Deposit</div><div class="detail-value">{% if booking.deposit_status == 'PAID' %}${{ '%.0f'|format(booking.deposit_amount or 0) }} paid{% elif booking.deposit_status in ['REQUIRED','PENDING'] %}${{ '%.0f'|format(booking.deposit_amount or 0) }} due{% else %}Not required{% endif %}</div></div>
+        </div>
+        <div class="detail-actions">
+          {% if booking.status in ['AWAITING_CONFIRMATION','PENDING'] %}
+          <form method="post" action="/bookings/{{ booking.id }}/confirm"><button class="button" type="submit">Confirm Booking</button></form>
+          <form method="post" action="/bookings/{{ booking.id }}/reject"><button class="button secondary" type="submit">Reject Claim</button></form>
+          {% endif %}
+          <a class="button secondary" href="/bookings">Back to Calendar</a>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</body>
+</html>

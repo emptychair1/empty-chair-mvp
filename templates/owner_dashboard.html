@@ -1,36 +1,56 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Platform Reality · Empty Chair</title>
-<link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
-<link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
-<style>
-.network-hero{padding:30px;border:1px solid var(--line);background:linear-gradient(145deg,#111410,#090b09)}
-.network-hero h1{max-width:760px;margin:10px 0 9px;font-size:clamp(40px,5vw,62px);line-height:.98;letter-spacing:-.055em}
-.network-hero p{max-width:780px;margin:0;color:var(--cream-dim);line-height:1.65}
-.eyebrow{color:var(--signal);font:600 9px 'IBM Plex Mono',monospace;letter-spacing:.13em;text-transform:uppercase}
-.network-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;margin:1px 0 18px;background:var(--line);border:1px solid var(--line)}
-.network-metric{padding:19px;background:#0d0f0d}.network-metric span,.studio-number span{color:var(--muted);font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase}.network-metric strong{display:block;margin-top:8px;font-size:30px;letter-spacing:-.04em}.network-metric strong.good{color:var(--green)}
-.studio-list{display:grid;gap:1px;background:var(--line);border:1px solid var(--line)}.studio-row{padding:22px;background:#0d0f0d}.studio-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.studio-title{margin:0;font-size:23px;letter-spacing:-.03em}.studio-owner{margin-top:6px;color:var(--muted);font-size:11px;line-height:1.5}.pilot-badge{padding:6px 9px;border:1px solid var(--line);color:var(--muted);font:500 9px 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase}.pilot-badge.paid{border-color:var(--signal);color:var(--signal)}
-.onboarding-line{display:grid;grid-template-columns:150px minmax(160px,1fr) auto;gap:13px;align-items:center;margin:20px 0 16px}.onboarding-label,.onboarding-state{font:500 10px 'IBM Plex Mono',monospace;color:var(--muted)}.progress{height:3px;background:#252922;overflow:hidden}.progress span{display:block;height:100%;background:var(--signal)}.onboarding-state{color:var(--green)}
-.steps{display:flex;flex-wrap:wrap;gap:6px}.step{padding:6px 8px;border:1px solid var(--line-soft);color:var(--muted);font:500 9px 'IBM Plex Mono',monospace}.step.done{border-color:#426c2d;color:var(--green)}
-.studio-numbers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;margin-top:18px;background:var(--line);border:1px solid var(--line)}.studio-number{padding:12px;background:#090b09}.studio-number strong{display:block;margin-top:6px;font-size:19px}.studio-number strong.money{color:var(--green)}.empty-state{padding:42px;border:1px dashed var(--line);text-align:center;color:var(--cream-dim)}
-@media(max-width:1050px){.network-metrics{grid-template-columns:repeat(2,1fr)}.studio-numbers{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.network-metrics{grid-template-columns:1fr}.studio-head{display:grid}.onboarding-line{grid-template-columns:1fr}.studio-numbers{grid-template-columns:1fr 1fr}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Owner Control Room · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .owner-hero{padding:28px;border:1px solid rgba(225,38,38,.62);border-radius:16px;background:radial-gradient(circle at 12% 0,rgba(225,38,38,.2),transparent 36%),linear-gradient(135deg,#171010,#090909 68%);box-shadow:var(--shadow-deep),var(--shadow-red)}
+    .owner-kicker{color:var(--red-bright);font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}.owner-hero h1{margin:10px 0 8px;font-family:'Pirata One',Georgia,serif;font-size:52px;line-height:.95}.owner-hero p{max-width:760px;margin:0;color:var(--cream-dim);line-height:1.6}
+    .owner-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.owner-metric{padding:19px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,#151313,#0b0b0b)}.owner-metric span{color:var(--gold-light);font-size:10px;letter-spacing:.09em;text-transform:uppercase}.owner-metric strong{display:block;margin-top:7px;font-family:'Cinzel',Georgia,serif;font-size:30px}.owner-metric strong.good{color:var(--green)}
+    .studio-list{display:grid;gap:16px}.studio-row{padding:22px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#151313,#0b0b0b);box-shadow:0 18px 45px rgba(0,0,0,.28)}.studio-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.studio-title{margin:0;font-family:'Cinzel',Georgia,serif;font-size:23px}.studio-owner{margin-top:6px;color:var(--muted);font-size:12px}.pilot-badge{padding:6px 9px;border:1px solid var(--red-bright);border-radius:5px;color:var(--red-bright);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.pilot-badge.organic{border-color:var(--line);color:var(--gold-light)}
+    .onboarding-line{display:grid;grid-template-columns:150px minmax(160px,1fr) auto;gap:13px;align-items:center;margin:20px 0 16px}.onboarding-label{font-size:12px;color:var(--cream-dim)}.progress{height:9px;border-radius:999px;background:#080808;border:1px solid var(--line-soft);overflow:hidden}.progress span{display:block;height:100%;background:linear-gradient(90deg,var(--red-dark),var(--red-bright));box-shadow:0 0 16px rgba(225,38,38,.35)}.onboarding-state{color:var(--green);font-size:11px;font-weight:700}
+    .steps{display:flex;flex-wrap:wrap;gap:7px}.step{padding:6px 8px;border:1px solid #572226;border-radius:5px;color:#b88789;font-size:10px}.step.done{border-color:#426c2d;color:var(--green);background:rgba(117,203,69,.06)}
+    .studio-numbers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:18px}.studio-number{padding:12px;border:1px solid var(--line-soft);border-radius:8px;background:rgba(0,0,0,.22)}.studio-number span{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.07em}.studio-number strong{display:block;margin-top:5px;font-family:'Cinzel',Georgia,serif;font-size:19px}.studio-number strong.money{color:var(--green)}.empty-state{padding:42px;border:1px dashed var(--line);border-radius:14px;text-align:center;color:var(--cream-dim)}
+    @media(max-width:1050px){.owner-metrics{grid-template-columns:repeat(2,1fr)}.studio-numbers{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.owner-hero h1{font-size:40px}.owner-metrics{grid-template-columns:1fr}.studio-head{display:grid}.onboarding-line{grid-template-columns:1fr}.studio-numbers{grid-template-columns:1fr 1fr}}
+  </style>
 </head>
-<body><div class="app-shell">{% set active_page='owner' %}{% include '_sidebar.html' %}<main class="main">
-<header class="topbar"><div><div class="page-title">Platform Reality</div><div class="page-subtitle">Private view of what Empty Chair can actually observe across studios.</div></div><div class="top-actions"><form method="post" action="/logout"><button class="button secondary" type="submit">Log out</button></form></div></header>
-<div class="content">
-<section class="network-hero"><div class="eyebrow">WORLD // OBSERVED NETWORK</div><h1>See the system without flattering it.</h1><p>Studios, readiness, live opportunity and measured outcomes. Missing evidence stays missing; revenue is only counted where the product can support the claim.</p></section>
-<section class="network-metrics">
-<div class="network-metric"><span>STUDIOS</span><strong>{{ metrics.paid_studios }} / 3</strong></div>
-<div class="network-metric"><span>LIVE OPPORTUNITY</span><strong>{{ metrics.chairs_filling }}</strong></div>
-<div class="network-metric"><span>CHANGED OUTCOMES</span><strong>{{ metrics.chairs_filled }}</strong></div>
-<div class="network-metric"><span>MRR</span><strong class="good">${{ '%.0f'|format(metrics.your_mrr) }}</strong></div>
-<div class="network-metric"><span>COLLECTED</span><strong class="good">${{ '%.0f'|format(metrics.your_revenue) }}</strong></div>
-<div class="network-metric"><span>STUDIO OUTCOMES</span><strong class="good">${{ '%.0f'|format(metrics.studio_revenue) }}</strong></div>
-<div class="network-metric"><span>READY STUDIOS</span><strong>{{ metrics.ready_studios }} / {{ metrics.studios }}</strong></div>
-</section>
-<section class="studio-list">{% for studio in studios %}<article class="studio-row"><div class="studio-head"><div><h2 class="studio-title">{{ studio.name }}</h2><div class="studio-owner">{{ studio.owner_name }} · {{ studio.email }} · observed since {{ studio.joined_at[:10] if studio.joined_at else 'recently' }}</div></div><div class="pilot-badge {{ 'paid' if studio.is_paid_pilot else '' }}">{{ 'FOUNDING PILOT' if studio.is_paid_pilot else 'EXISTING ACCOUNT' }}</div></div><div class="onboarding-line"><div class="onboarding-label">PERCEPTION · {{ studio.completed_steps }}/5</div><div class="progress"><span style="width:{{ studio.onboarding_percent }}%"></span></div><div class="onboarding-state">{{ studio.onboarding_status }}</div></div><div class="steps">{% for step in studio.steps %}<span class="step {{ 'done' if step.done else '' }}">{{ '✓' if step.done else '○' }} {{ step.label }}</span>{% endfor %}</div><div class="studio-numbers"><div class="studio-number"><span>ARTISTS</span><strong>{{ studio.artist_count }}</strong></div><div class="studio-number"><span>CUSTOMERS</span><strong>{{ studio.customer_count }}</strong></div><div class="studio-number"><span>LIVE</span><strong>{{ studio.chairs_filling }}</strong></div><div class="studio-number"><span>OUTCOMES</span><strong>{{ studio.chairs_filled }}</strong></div><div class="studio-number"><span>STUDIO VALUE</span><strong class="money">${{ '%.0f'|format(studio.recovered_revenue) }}</strong></div><div class="studio-number"><span>MRR</span><strong class="money">${{ '%.0f'|format(studio.your_mrr) }}</strong></div><div class="studio-number"><span>COLLECTED</span><strong class="money">${{ '%.0f'|format(studio.your_revenue) }}</strong></div></div></article>{% else %}<div class="empty-state"><strong>No studio experience yet.</strong><br>The first real studio becomes visible when it exists.</div>{% endfor %}</section>
-</div></main></div></body></html>
+<body><div class="app-shell">
+{% set active_page='owner' %}{% include '_sidebar.html' %}
+<main class="main">
+  <header class="topbar"><div><div class="page-title">Owner Control Room</div><div class="page-subtitle">Private platform view · visible only to you</div></div><div class="top-actions"><form method="post" action="/logout"><button class="button secondary" type="submit">Log out</button></form></div></header>
+  <div class="content">
+    <section class="owner-hero"><div class="owner-kicker">Empty Chair Pilot Network</div><h1>Every Studio. Every Chair.</h1><p>Track who joined, where onboarding is stuck, what is being filled, and the revenue Empty Chair is creating for both sides of the marketplace.</p></section>
+    <section class="owner-metrics">
+      <div class="owner-metric"><span>Studios Joined</span><strong>{{ metrics.paid_studios }} / 3</strong></div>
+      <div class="owner-metric"><span>Chairs Filling Now</span><strong>{{ metrics.chairs_filling }}</strong></div>
+      <div class="owner-metric"><span>Chairs Filled</span><strong>{{ metrics.chairs_filled }}</strong></div>
+      <div class="owner-metric"><span>Your Pilot MRR</span><strong class="good">${{ '%.0f'|format(metrics.your_mrr) }}</strong></div>
+      <div class="owner-metric"><span>Your Revenue Collected</span><strong class="good">${{ '%.0f'|format(metrics.your_revenue) }}</strong></div>
+      <div class="owner-metric"><span>Studio Revenue Recovered</span><strong class="good">${{ '%.0f'|format(metrics.studio_revenue) }}</strong></div>
+      <div class="owner-metric"><span>Onboarding Complete</span><strong>{{ metrics.ready_studios }} / {{ metrics.studios }}</strong></div>
+    </section>
+
+    <section class="studio-list">
+      {% for studio in studios %}
+      <article class="studio-row">
+        <div class="studio-head"><div><h2 class="studio-title">{{ studio.name }}</h2><div class="studio-owner">{{ studio.owner_name }} · {{ studio.email }} · Joined {{ studio.joined_at[:10] if studio.joined_at else 'recently' }}</div></div><div class="pilot-badge {{ '' if studio.is_paid_pilot else 'organic' }}">{{ 'Paid founding pilot' if studio.is_paid_pilot else 'Existing account' }}</div></div>
+        <div class="onboarding-line"><div class="onboarding-label">Onboarding · {{ studio.completed_steps }}/5</div><div class="progress"><span style="width:{{ studio.onboarding_percent }}%"></span></div><div class="onboarding-state">{{ studio.onboarding_status }}</div></div>
+        <div class="steps">{% for step in studio.steps %}<span class="step {{ 'done' if step.done else '' }}">{{ '✓' if step.done else '○' }} {{ step.label }}</span>{% endfor %}</div>
+        <div class="studio-numbers">
+          <div class="studio-number"><span>Artists</span><strong>{{ studio.artist_count }}</strong></div>
+          <div class="studio-number"><span>Customers</span><strong>{{ studio.customer_count }}</strong></div>
+          <div class="studio-number"><span>Filling now</span><strong>{{ studio.chairs_filling }}</strong></div>
+          <div class="studio-number"><span>Chairs filled</span><strong>{{ studio.chairs_filled }}</strong></div>
+          <div class="studio-number"><span>Studio revenue</span><strong class="money">${{ '%.0f'|format(studio.recovered_revenue) }}</strong></div>
+          <div class="studio-number"><span>Your MRR</span><strong class="money">${{ '%.0f'|format(studio.your_mrr) }}</strong></div>
+          <div class="studio-number"><span>Your revenue</span><strong class="money">${{ '%.0f'|format(studio.your_revenue) }}</strong></div>
+        </div>
+      </article>
+      {% else %}<div class="empty-state">No studios have joined yet. The first paid signup will appear here automatically.</div>{% endfor %}
+    </section>
+    <div class="app-footer"><span class="skull">☠</span> Private Empty Chair Owner View</div>
+  </div>
+</main></div></body></html>
