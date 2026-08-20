@@ -18,6 +18,7 @@ import meeting_v2 as meeting
 meeting.ELEVENLABS_VOICE_ID = "DSPOFq7nD22sXYn8JKlb"
 meeting.ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 meeting.MEETING_MODEL = "gemini-3.6-flash"
+FALLBACK_REASONING_MODEL = "gemini-3.1-flash-lite"
 
 OPENING_TEXT = "I'm M4. Tell me what your shop is trying not to lose."
 
@@ -25,9 +26,30 @@ print(
     "Meeting v2 runtime: "
     f"voice_id={meeting.ELEVENLABS_VOICE_ID}, "
     f"voice_model={meeting.ELEVENLABS_MODEL_ID}, "
-    f"reasoning_model={meeting.MEETING_MODEL}",
+    f"reasoning_model={meeting.MEETING_MODEL}, "
+    f"fallback_model={FALLBACK_REASONING_MODEL}",
     flush=True,
 )
+
+
+def _gemini_with_fallback(messages, state):
+    """Use 3.6 Flash normally; fall back once when Google returns capacity 503."""
+    primary = meeting.MEETING_MODEL
+    try:
+        return meeting._gemini(messages, state)
+    except RuntimeError as exc:
+        text = str(exc)
+        if "HTTP 503" not in text and "UNAVAILABLE" not in text and "high demand" not in text.lower():
+            raise
+        print(
+            f"Meeting v2 reasoning overload on {primary}; falling back to {FALLBACK_REASONING_MODEL}",
+            flush=True,
+        )
+        meeting.MEETING_MODEL = FALLBACK_REASONING_MODEL
+        try:
+            return meeting._gemini(messages, state)
+        finally:
+            meeting.MEETING_MODEL = primary
 
 
 def _voice_identity():
@@ -68,6 +90,7 @@ def meeting_v2_voice_debug(request: Request):
                 "active_voice_id": meeting.ELEVENLABS_VOICE_ID,
                 "active_model": meeting.ELEVENLABS_MODEL_ID,
                 "reasoning_model": meeting.MEETING_MODEL,
+                "fallback_reasoning_model": FALLBACK_REASONING_MODEL,
                 "elevenlabs_voice": _voice_identity(),
             },
             headers={"Cache-Control": "no-store"},
@@ -78,6 +101,7 @@ def meeting_v2_voice_debug(request: Request):
                 "active_voice_id": meeting.ELEVENLABS_VOICE_ID,
                 "active_model": meeting.ELEVENLABS_MODEL_ID,
                 "reasoning_model": meeting.MEETING_MODEL,
+                "fallback_reasoning_model": FALLBACK_REASONING_MODEL,
                 "error": str(exc),
             },
             status_code=503,
@@ -145,7 +169,7 @@ async def meeting_v2_turn_fixed(
 
         state = meeting._absorb(state, spoken_user)
         model_turns = turns + [{"speaker": "prospect", "text": spoken_user}]
-        answer = meeting._gemini(model_turns, state)
+        answer = _gemini_with_fallback(model_turns, state)
         audio64 = meeting._speak(answer)
         meeting._save_session(user, sid, state, spoken_user, answer)
 
