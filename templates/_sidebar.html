@@ -1,52 +1,7 @@
 <link rel="stylesheet" href="{{ url_for('static', path='/mobile-nav.css') }}">
-<style>
-.nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--gold-light);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.setup-mobile-art{width:44px;height:52px;overflow:hidden;border-radius:8px;background:#080808}.setup-mobile-art img{width:100%;height:100%;object-fit:cover;object-position:63% 60%;transform:scale(1.45)}
-.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid rgba(194,39,45,.5);border-radius:8px;background:rgba(194,39,45,.12);color:#f0d7d7;cursor:pointer;font:inherit;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}.logout-button:hover,.logout-button:focus-visible{background:#8f151a;border-color:#c2272d;color:#fff}
-</style>
-
-<aside class="sidebar">
-  <div class="brand-wrap">
-    <img class="brand-logo" src="{{ url_for('static', path='/empty-chair-logo.png') }}" alt="Empty Chair — Fill More Chairs">
-  </div>
-
-  <nav class="sidebar-nav" aria-label="Primary navigation">
-    <a class="nav-link {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon">⌂</span><span>Results</span></a>
-    {% if is_platform_admin(user) %}<a class="nav-link {{ 'active' if active_page == 'owner' else '' }}" href="/owner"><span class="nav-icon">♛</span><span>Owner Control Room</span></a>{% endif %}
-    <a class="nav-link {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon">◈</span><span>Fill Chairs</span></a>
-    <a class="nav-link {{ 'active' if active_page in ['bookings','calendar'] else '' }}" href="/bookings"><span class="nav-icon">▣</span><span>Calendar</span></a>
-
-    <details class="nav-group mobile-overflow" {{ 'open' if active_page in ['artists','customers','operations','settings','setup','support'] else '' }}>
-      <summary>Manage &amp; setup</summary>
-      <div class="nav-group-links">
-        <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a>
-        <a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">♙</span><span>Customers</span></a>
-        <a class="nav-link {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon">◎</span><span>Operations</span></a>
-        <a class="nav-link {{ 'active' if active_page == 'setup' else '' }}" href="/setup"><span class="nav-icon">☠</span><span>Setup Guide</span></a>
-        <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a>
-        <a class="nav-link {{ 'active' if active_page == 'support' else '' }}" href="/support"><span class="nav-icon">?</span><span>Support</span></a>
-      </div>
-    </details>
-
-    {% if user and user.id == 'user_live_demo' %}<a class="nav-link" href="/demo"><span class="nav-icon">▶</span><span>Demo Guide</span></a>{% endif %}
-
-    <details class="mobile-more {{ 'active' if active_page in ['artists','customers','operations','settings','setup'] else '' }}">
-      <summary><span class="nav-icon">•••</span><span>More</span></summary>
-      <div class="mobile-more-sheet">
-        <a href="/artists"><span>✦</span><strong>Artists</strong></a>
-        <a href="/customers"><span>♙</span><strong>Customers</strong></a>
-        <a href="/operations"><span>◎</span><strong>Operations</strong></a>
-        <a href="/setup"><span class="setup-mobile-art"><img src="{{ url_for('static', path='/empty-chair-reaper-v2.png') }}" alt="Empty Chair Grim Reaper mascot"></span><strong>Setup Guide</strong></a>
-        <a href="/settings"><span>⚙</span><strong>Settings</strong></a>
-        <a href="/support"><span>?</span><strong>Support</strong></a>
-      </div>
-    </details>
-  </nav>
-
-  <div class="sidebar-footer">
-    <div class="studio-card"><div class="kicker">Studio</div><div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div><div class="online">● Empty Chair Active</div></div>
-    <div class="owner-card"><div class="kicker">Owner</div><div class="owner-name">{{ user["name"] if user else "Owner" }}</div></div>
-    <form class="logout-form" method="post" action="/logout">
-      <button class="logout-button" type="submit">Log out</button>
-    </form>
-  </div>
-</aside>
+<style>.nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--gold-light);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid var(--line-soft);border-radius:2px;background:transparent;color:var(--cream-dim);cursor:pointer;font:inherit;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.ec-brand{display:grid;grid-template-columns:82px 1fr;gap:13px;align-items:center;padding:9px 3px}.ec-brand svg{width:82px;height:45px}.ec-wordmark strong{display:block;font-size:18px;letter-spacing:.18em}.ec-wordmark span{display:block;margin-top:5px;color:var(--muted);font-size:8px;letter-spacing:.09em;text-transform:uppercase}</style>
+<aside class="sidebar"><div class="brand-wrap"><a class="ec-brand" href="/" aria-label="Empty Chair home"><svg viewBox="0 0 120 60" aria-hidden="true"><path d="M2 30H50" stroke="#f0eadf" stroke-width="5"/><circle cx="53" cy="30" r="5" fill="#d8ff45"/><path d="M58 30H116" stroke="#f0eadf" stroke-width="5"/><path d="M56 33L110 55" stroke="#70756b" stroke-width="3" stroke-dasharray="6 6"/><circle cx="114" cy="56" r="4" fill="none" stroke="#70756b" stroke-width="2"/></svg><span class="ec-wordmark"><strong>EMPTY CHAIR</strong><span>Know what is. Change what happens next.</span></span></a></div>
+<nav class="sidebar-nav" aria-label="Primary navigation"><a class="nav-link {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon">⌂</span><span>Shop Intelligence</span></a><a class="nav-link {{ 'active' if active_page == 'm4' else '' }}" href="/m4"><span class="nav-icon">◉</span><span>M4 Intelligence</span></a>{% if is_platform_admin(user) %}<a class="nav-link {{ 'active' if active_page == 'owner' else '' }}" href="/owner"><span class="nav-icon">◇</span><span>Platform Intelligence</span></a>{% endif %}<a class="nav-link {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon">↗</span><span>Openings</span></a><a class="nav-link {{ 'active' if active_page in ['bookings','calendar'] else '' }}" href="/bookings"><span class="nav-icon">□</span><span>Calendar</span></a>
+<details class="nav-group mobile-overflow" {{ 'open' if active_page in ['artists','customers','operations','settings','setup','support'] else '' }}><summary>Shop data &amp; controls</summary><div class="nav-group-links"><a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon">✦</span><span>Artists</span></a><a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon">○</span><span>Customer Intelligence</span></a><a class="nav-link {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon">◎</span><span>Operations</span></a><a class="nav-link {{ 'active' if active_page == 'setup' else '' }}" href="/setup"><span class="nav-icon">+</span><span>Setup</span></a><a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon">⚙</span><span>Settings</span></a><a class="nav-link {{ 'active' if active_page == 'support' else '' }}" href="/support"><span class="nav-icon">?</span><span>Support</span></a></div></details>
+{% if user and user.id == 'user_live_demo' %}<a class="nav-link" href="/demo"><span class="nav-icon">▶</span><span>Demo Guide</span></a>{% endif %}<details class="mobile-more {{ 'active' if active_page in ['artists','customers','operations','settings','setup'] else '' }}"><summary><span class="nav-icon">•••</span><span>More</span></summary><div class="mobile-more-sheet"><a href="/m4"><span>◉</span><strong>M4 Intelligence</strong></a><a href="/artists"><span>✦</span><strong>Artists</strong></a><a href="/customers"><span>○</span><strong>Customer Intelligence</strong></a><a href="/operations"><span>◎</span><strong>Operations</strong></a><a href="/setup"><span>+</span><strong>Setup</strong></a><a href="/settings"><span>⚙</span><strong>Settings</strong></a><a href="/support"><span>?</span><strong>Support</strong></a></div></details></nav>
+<div class="sidebar-footer"><div class="studio-card"><div class="kicker">Studio</div><div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div><div class="online">● System active</div></div><div class="owner-card"><div class="kicker">Signed in</div><div class="owner-name">{{ user["name"] if user else "Owner" }}</div></div><form class="logout-form" method="post" action="/logout"><button class="logout-button" type="submit">Log out</button></form></div></aside>

@@ -1,0 +1,13 @@
+{
+  "model_version":"m4-synth-logit-v1",
+  "trained_at":"2026-08-19",
+  "synthetic":true,
+  "training_rows":80000,
+  "features":["latent_readiness","contact_fatigue","recency_720","prior_bookings_20","log_budget","travel_90","sms_preference","preferred_hour_24","timing_today","timing_week","timing_month"],
+  "models":{
+    "control_booking":{"intercept":-4.0051307141,"coefficients":[1.5130080587,-0.0554397945,0.0240719993,1.1327060815,-0.2001801409,0.0453857788,-0.0371749603,0.3665492593,0.1018242675,0.0572519476,0.1212837328]},
+    "treated_booking":{"intercept":-2.8019756457,"coefficients":[2.1230873116,-1.0487888581,0.0957061045,0.3428677136,0.1092257011,0.011725555,-0.0126924103,0.0001838237,-0.0855819821,-0.0595963595,0.0079452653]},
+    "response":{"intercept":-2.1252403114,"coefficients":[1.5436571665,-1.2144895958,-0.0756400904,0.0098280353,0.1430230189,-0.0172587946,0.0260853781,0.0283901158,-0.0359741939,-0.0008407079,-0.013764199]}
+  },
+  "warning":"Synthetic-seeded development model; real randomized shop outcomes must recalibrate it before external performance claims."
+}
