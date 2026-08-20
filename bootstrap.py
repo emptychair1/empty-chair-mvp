@@ -73,6 +73,8 @@ try:
     # Lock the selected M4 identity defaults while still allowing Render env overrides.
     meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "nersejR7R1Z5oU9HjCpV")
     meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
+    # Replace only the Meeting turn handler with the corrected production-safe path.
+    import meeting_v2_runtime_fix  # noqa: F401,E402
 except Exception as meeting_exc:  # pragma: no cover - production safety guard
     meeting_import_error = repr(meeting_exc)
     print(f"Meeting v2 disabled: {meeting_exc}")
