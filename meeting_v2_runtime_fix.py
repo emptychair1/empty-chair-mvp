@@ -1,7 +1,7 @@
 """Small production override for The Meeting v2 turn endpoint.
 
 Keeps the isolated Meeting module intact while fixing the first-turn handshake and
-using a known API-compatible ElevenLabs test voice while we validate the full loop.
+using M4's custom ElevenLabs Voice Design identity.
 """
 from fastapi import File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -9,10 +9,9 @@ from fastapi.responses import JSONResponse
 import app as core
 import meeting_v2 as meeting
 
-# Temporary known API-compatible ElevenLabs test voice.
-# Once the full Meeting loop is verified, swap this back to M4's custom voice.
-meeting.ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
-meeting.ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"
+# M4's custom ElevenLabs Voice Design identity.
+meeting.ELEVENLABS_VOICE_ID = "DSPOFq7nD22sXYn8JKlb"
+meeting.ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 
 OPENING_TEXT = "I'm M4. Tell me what your shop is trying not to lose."
 
