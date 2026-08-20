@@ -4,6 +4,7 @@ Keeps the isolated Meeting module intact while fixing the first-turn handshake a
 using M4's custom ElevenLabs Voice Design identity.
 """
 import json
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -82,9 +83,27 @@ print(
     f"reasoning_model={meeting.MEETING_MODEL}, "
     f"fallback_model={FALLBACK_REASONING_MODEL}, "
     "diagnostic_export=automatic, "
-    "prospect_contract=ten_minute_handoff",
+    "prospect_contract=ten_minute_handoff, "
+    "stt_retry=enabled",
     flush=True,
 )
+
+
+def _transcribe_with_retry(raw, mime):
+    """Retry one transient ElevenLabs STT auth/provider failure and preserve detail."""
+    last_exc = None
+    for attempt in (1, 2):
+        try:
+            return meeting._transcribe(raw, mime)
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            if attempt == 1 and exc.code in (401, 429, 500, 502, 503, 504):
+                print(f"Meeting v2 transcription transient HTTP {exc.code}; retrying once", flush=True)
+                time.sleep(0.45)
+                continue
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"M4 transcription failed: HTTP {exc.code} {detail[:500]}") from exc
+    raise RuntimeError(f"M4 transcription failed: {last_exc}")
 
 
 def _gemini_with_fallback(messages, state):
@@ -158,6 +177,7 @@ def meeting_v2_voice_debug(request: Request):
                 "fallback_reasoning_model": FALLBACK_REASONING_MODEL,
                 "diagnostic_export": "automatic",
                 "prospect_contract": "ten_minute_handoff",
+                "stt_retry": "enabled",
                 "elevenlabs_voice": _voice_identity(),
             },
             headers={"Cache-Control": "no-store"},
@@ -171,6 +191,7 @@ def meeting_v2_voice_debug(request: Request):
                 "fallback_reasoning_model": FALLBACK_REASONING_MODEL,
                 "diagnostic_export": "automatic",
                 "prospect_contract": "ten_minute_handoff",
+                "stt_retry": "enabled",
                 "error": str(exc),
             },
             status_code=503,
@@ -230,7 +251,7 @@ async def meeting_v2_turn_fixed(
         if not raw:
             return JSONResponse({"error": "empty audio"}, status_code=400)
 
-        spoken_user = meeting._transcribe(raw, audio.content_type or "audio/webm")
+        spoken_user = _transcribe_with_retry(raw, audio.content_type or "audio/webm")
         if not spoken_user:
             return JSONResponse(
                 {"error": "I could not hear enough speech to respond."},
