@@ -114,4 +114,16 @@ def test_transport_patch_contains_completed_turn_behavior_injection():
     import m4_gemini_transport_patch as patch
     assert '/api/m4/prospect-behavior' in patch._BEHAVIOR_FUNCTION_REPLACEMENT
     assert 'turnComplete:false' in patch._BEHAVIOR_FUNCTION_REPLACEMENT
-    assert 'await updateBehavior(userText)' in patch._SAVE_PROSPECT_REPLACEMENT
+    assert 'await updateBehavior(a)' in patch._SAVE_PROSPECT_REPLACEMENT
+
+
+def test_transport_patch_anchors_match_live_smooth_source():
+    from pathlib import Path
+    import m4_gemini_transport_patch as patch
+
+    source = Path('m4_gemini_smooth.py').read_text()
+    assert patch._BEHAVIOR_FUNCTION_TARGET in source
+    assert patch._SAVE_PROSPECT_TARGET in source
+    assert patch._FINALIZE_TARGET in source
+    assert patch._ENQUEUE_TARGET in source
+    assert patch._FINISH_TARGET in source
