@@ -28,7 +28,7 @@ _RECEIVE_REPLACEMENT = "if(d.sessionResumptionUpdate){let u=d.sessionResumptionU
 _HISTORY_TARGET = "if(history.length){let recap="
 _HISTORY_REPLACEMENT = "if(history.length&&!resumptionHandle){let recap="
 
-_BEHAVIOR_FUNCTION_TARGET = "async function saveTurn(speaker,text,latency){"
+_BEHAVIOR_FUNCTION_TARGET = "async function save(speaker,text,latency_ms=null){"
 _BEHAVIOR_FUNCTION_REPLACEMENT = """async function updateBehavior(text){
   try{
     let r=await fetch('/api/m4/prospect-behavior',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sessionId,text}),cache:'no-store'});
@@ -40,10 +40,10 @@ _BEHAVIOR_FUNCTION_REPLACEMENT = """async function updateBehavior(text){
     }
   }catch(e){evt('behavior_state_error',{message:String(e&&e.message||e)});}
 }
-async function saveTurn(speaker,text,latency){"""
+async function save(speaker,text,latency_ms=null){"""
 
-_SAVE_PROSPECT_TARGET = "await saveTurn('prospect',userText,null);"
-_SAVE_PROSPECT_REPLACEMENT = "await saveTurn('prospect',userText,null);await updateBehavior(userText);"
+_SAVE_PROSPECT_TARGET = "if(a&&!(await save('prospect',a)))return false;"
+_SAVE_PROSPECT_REPLACEMENT = "if(a){await updateBehavior(a);if(!(await save('prospect',a)))return false;}"
 
 _FINALIZE_TARGET = "function finalizeUserTurn(){clearTimeout(cancelAckTimer);bargeInPending=false;pendingUserEnd=false;lastUserEndAt=performance.now();generation++;responseGeneration=generation;pcmQueue=[];queuedSamples=0;serverTurnComplete=false;playbackStarted=false;nextPlayTime=0;phase='responding';evt('generation_started',{input_so_far:inputTranscript},responseGeneration);send({realtimeInput:{activityEnd:{}}});queueCheckpoint();set('with you')}"
 _FINALIZE_REPLACEMENT = "function clearPresenceCue(){clearTimeout(presenceTimer);presenceTimer=null;presenceStage=0;presenceGeneration=-1}function armPresenceCue(g){clearPresenceCue();presenceGeneration=g;presenceTimer=setTimeout(()=>{if(g!==responseGeneration||phase!=='responding'||firstModelAudioAt)return;presenceStage=1;set('considering');evt('presence_soft',{elapsed_ms:Math.round(performance.now()-lastUserEndAt)},g);presenceTimer=setTimeout(()=>{if(g!==responseGeneration||phase!=='responding'||firstModelAudioAt)return;presenceStage=2;set('working through that');evt('presence_hard',{elapsed_ms:Math.round(performance.now()-lastUserEndAt)},g)},PRESENCE_HARD_MS-PRESENCE_SOFT_MS)},PRESENCE_SOFT_MS)}function finalizeUserTurn(){clearTimeout(cancelAckTimer);bargeInPending=false;pendingUserEnd=false;lastUserEndAt=performance.now();generation++;responseGeneration=generation;pcmQueue=[];queuedSamples=0;serverTurnComplete=false;playbackStarted=false;nextPlayTime=0;phase='responding';evt('generation_started',{input_so_far:inputTranscript},responseGeneration);armPresenceCue(responseGeneration);send({realtimeInput:{activityEnd:{}}});queueCheckpoint();set('with you')}"
