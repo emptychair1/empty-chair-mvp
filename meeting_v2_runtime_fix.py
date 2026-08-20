@@ -1,7 +1,7 @@
 """Small production override for The Meeting v2 turn endpoint.
 
 Keeps the isolated Meeting module intact while fixing the first-turn handshake and
-locking the intended Anjura voice/model. Only the Meeting API route is replaced.
+using a known API-compatible ElevenLabs test voice while we validate the full loop.
 """
 from fastapi import File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -9,9 +9,10 @@ from fastapi.responses import JSONResponse
 import app as core
 import meeting_v2 as meeting
 
-# M4's selected ElevenLabs identity.
-meeting.ELEVENLABS_VOICE_ID = "nersejR7R1Z5oU9HjCpV"
-meeting.ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
+# Temporary known API-compatible ElevenLabs test voice.
+# Once the full Meeting loop is verified, swap this back to M4's custom voice.
+meeting.ELEVENLABS_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
+meeting.ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"
 
 OPENING_TEXT = "I'm M4. Tell me what your shop is trying not to lose."
 
@@ -44,7 +45,7 @@ async def meeting_v2_turn_fixed(
         state, turns = meeting._load_session(user, sid)
 
         # The opening is deterministic. Do not involve Gemini before the prospect
-        # has said anything; just speak M4's fixed first line through Anjura.
+        # has said anything; just speak M4's fixed first line through ElevenLabs.
         if opening == "1" and not turns:
             answer = OPENING_TEXT
             audio64 = meeting._speak(answer)
