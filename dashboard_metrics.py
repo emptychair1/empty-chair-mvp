@@ -1,7 +1,7 @@
 """Utilization-first dashboard for Empty Chair.
 
-Compatibility bridge for the final Dark Intelligence dashboard while preserving
-stable recovery, claim, notification, booking, and Autopilot behavior.
+This replaces the legacy dashboard route without changing recovery, claim,
+notification, booking, or Autopilot behavior.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -87,7 +87,7 @@ def dashboard_v2(request: Request):
             )
             artists.append(artist)
 
-        openings = core.db_fetchall(
+        recent_openings = core.db_fetchall(
             conn,
             """
             SELECT o.*, a.name AS artist_name
@@ -95,13 +95,23 @@ def dashboard_v2(request: Request):
             JOIN artists a ON a.id = o.artist_id
             WHERE o.shop_id = ?
             ORDER BY o.created_at DESC
+            LIMIT 8
             """,
             (user["shop_id"],),
         )
 
-        live_recovery = next(
-            (row for row in openings if row["status"] == "RECOVERY_ACTIVE"),
-            None,
+        live_recovery = core.db_fetchone(
+            conn,
+            """
+            SELECT o.*, a.name AS artist_name
+            FROM openings o
+            JOIN artists a ON a.id = o.artist_id
+            WHERE o.shop_id = ?
+              AND o.status = 'RECOVERY_ACTIVE'
+            ORDER BY o.created_at DESC
+            LIMIT 1
+            """,
+            (user["shop_id"],),
         )
 
         customer_row = core.db_fetchone(
@@ -148,28 +158,23 @@ def dashboard_v2(request: Request):
     recovered_revenue = float(_row_value(revenue_row, "total", 0) or 0)
     customer_count = int(_row_value(customer_row, "n", 0) or 0)
     active_campaigns = int(_row_value(active_campaign_row, "n", 0) or 0)
-    completed = sum(1 for opening in openings if opening["status"] in ("BOOKED", "COMPLETED"))
 
     return core.templates.TemplateResponse(
         request=request,
-        name="dashboard.html",
+        name="dashboard_v2.html",
         context={
             "user": user,
             "shop": shop,
             "artists": artists,
-            "openings": openings,
-            "recovered": recovered_revenue,
-            "total_openings": len(openings),
-            "completed": completed,
-            "customer_count": customer_count,
             "needs_fill": needs_fill,
             "shop_utilization": shop_utilization,
             "total_slots": total_slots,
             "booked_slots": booked_slots,
             "open_slots": open_slots,
             "recovered_revenue": recovered_revenue,
+            "customer_count": customer_count,
             "active_campaigns": active_campaigns,
-            "recent_openings": openings[:8],
+            "recent_openings": recent_openings,
             "live_recovery": live_recovery,
             "utilization_window": "Next 30 days",
         },
