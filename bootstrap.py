@@ -56,6 +56,9 @@ import onboarding  # noqa: F401,E402
 # Replace the legacy dashboard with the utilization-first owner view.
 import dashboard_metrics  # noqa: F401,E402
 
+# Register the safe, read-only M4 intelligence page.
+import m4_dashboard  # noqa: F401,E402
+
 # Add a safe Settings-page Twilio delivery tester.
 import settings_sms_test  # noqa: F401,E402
 
