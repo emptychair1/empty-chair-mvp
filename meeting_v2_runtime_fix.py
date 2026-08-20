@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 import app as core
 import meeting_v2 as meeting
+import m4_analysis_email
 
 # M4's active production identities.
 meeting.ELEVENLABS_VOICE_ID = "DSPOFq7nD22sXYn8JKlb"
@@ -27,7 +28,8 @@ print(
     f"voice_id={meeting.ELEVENLABS_VOICE_ID}, "
     f"voice_model={meeting.ELEVENLABS_MODEL_ID}, "
     f"reasoning_model={meeting.MEETING_MODEL}, "
-    f"fallback_model={FALLBACK_REASONING_MODEL}",
+    f"fallback_model={FALLBACK_REASONING_MODEL}, "
+    "diagnostic_export=automatic",
     flush=True,
 )
 
@@ -101,6 +103,7 @@ def meeting_v2_voice_debug(request: Request):
                 "active_model": meeting.ELEVENLABS_MODEL_ID,
                 "reasoning_model": meeting.MEETING_MODEL,
                 "fallback_reasoning_model": FALLBACK_REASONING_MODEL,
+                "diagnostic_export": "automatic",
                 "elevenlabs_voice": _voice_identity(),
             },
             headers={"Cache-Control": "no-store"},
@@ -112,6 +115,7 @@ def meeting_v2_voice_debug(request: Request):
                 "active_model": meeting.ELEVENLABS_MODEL_ID,
                 "reasoning_model": meeting.MEETING_MODEL,
                 "fallback_reasoning_model": FALLBACK_REASONING_MODEL,
+                "diagnostic_export": "automatic",
                 "error": str(exc),
             },
             status_code=503,
@@ -151,6 +155,7 @@ async def meeting_v2_turn_fixed(
             answer = OPENING_TEXT
             audio64 = meeting._speak(answer)
             meeting._save_session(user, sid, state, None, answer)
+            m4_analysis_email.schedule_latest_two(user)
             return JSONResponse(
                 {
                     "ok": True,
@@ -183,11 +188,13 @@ async def meeting_v2_turn_fixed(
         # Persist what M4 heard before any reasoning or voice provider call. A provider
         # failure must never erase the prospect's last turn or reset the thread.
         meeting._save_session(user, sid, state, spoken_user, None)
+        m4_analysis_email.schedule_latest_two(user)
 
         answer = _gemini_with_fallback(model_turns, state)
         audio64 = meeting._speak(answer)
         # The prospect turn is already durable; save only M4's successful response.
         meeting._save_session(user, sid, state, None, answer)
+        m4_analysis_email.schedule_latest_two(user)
 
         return JSONResponse(
             {
@@ -201,6 +208,10 @@ async def meeting_v2_turn_fixed(
             headers={"Cache-Control": "no-store"},
         )
     except Exception as exc:
+        try:
+            m4_analysis_email.schedule_latest_two(user, delay_seconds=10)
+        except Exception:
+            pass
         print(f"Meeting v2 turn failed: {type(exc).__name__}: {exc}", flush=True)
         return JSONResponse(
             {"error": str(exc)},
