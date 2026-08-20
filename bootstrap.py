@@ -112,6 +112,9 @@ def meet_m4_bootstrap(request: Request):
             old = "async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);form.append('opening','1');let r=await fetch('/api/meeting-v2/turn',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_base64)await play64(j.audio_base64);busy=false}"
             new = "async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);let r=await fetch('/api/meeting-v2/opening',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_base64)await play64(j.audio_base64);busy=false}"
             html = html.replace(old, new)
+            old_catch = "catch(e){started=false;enter.classList.remove('hidden');visual('present',e.message||'Microphone or voice service unavailable.')}"
+            new_catch = "catch(e){started=false;visual('error',e.message||'Microphone or voice service unavailable.');enter.classList.remove('hidden');enter.style.background='transparent';enter.style.backdropFilter='none';enter.style.pointerEvents='none';enterButton.style.display='none';hint.style.position='relative';hint.style.zIndex='20';hint.style.color='#383b35';hint.style.fontFamily='ui-monospace,SFMono-Regular,monospace';hint.style.fontSize='13px';hint.style.padding='14px 18px';hint.style.background='rgba(255,255,255,.92)';hint.style.border='1px solid rgba(30,35,28,.14)';hint.style.borderRadius='12px';}"
+            html = html.replace(old_catch, new_catch)
             return HTMLResponse(html, headers={"Cache-Control": "no-store"})
         return response
     return HTMLResponse(
