@@ -26,7 +26,7 @@ jobs:
           EMPTY_CHAIR_DB: test_empty_chair.db
           EMPTY_CHAIR_DEMO_MODE: "true"
           EMPTY_CHAIR_SESSION_SECRET: test-secret
-        run: pytest -q tests/test_m4_synthetic_harness.py tests/test_m4_historical_regressions.py
+        run: pytest -q tests/test_m4_synthetic_harness.py tests/test_m4_historical_regressions.py tests/test_m4_transport_patch.py tests/test_m4_behavior_state.py
 
   model-in-loop-regression:
     runs-on: ubuntu-latest
