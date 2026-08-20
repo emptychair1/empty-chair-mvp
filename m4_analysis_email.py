@@ -1,9 +1,10 @@
-"""Private M4 Meeting v2 diagnostic export to the signed-in owner's email.
+"""Private M4 Meeting v2 diagnostic export to a configured analysis inbox.
 
 Restores the prior automatic-analysis path without exposing transcript data publicly.
 """
 import html
 import json
+import os
 import threading
 
 from fastapi import Request
@@ -32,6 +33,9 @@ def _ensure_export_table(conn):
 
 
 def _owner_email(user):
+    configured = core.normalize_email(os.getenv("M4_ANALYSIS_EMAIL"))
+    if configured:
+        return configured
     conn = core.connect()
     try:
         row = core.db_fetchone(
@@ -78,7 +82,7 @@ def _session_payload(user, session_id):
         conn.close()
 
 
-def export_session(user, session_id):
+def export_session(user, session_id, force=False):
     sid = (session_id or "").strip()
     if not sid:
         return False, "missing session id"
@@ -97,7 +101,8 @@ def export_session(user, session_id):
             (sid, user["id"], user["shop_id"]),
         )
         if (
-            existing
+            not force
+            and existing
             and existing["status"] == "sent"
             and session
             and str(existing["exported_at"] or "") >= str(session["updated_at"] or "")
@@ -108,7 +113,7 @@ def export_session(user, session_id):
 
     email = _owner_email(user)
     if not email:
-        return False, "owner email unavailable"
+        return False, "analysis email unavailable"
 
     payload = _session_payload(user, sid)
     data = json.dumps(payload, ensure_ascii=False, default=str, indent=2)
@@ -151,7 +156,7 @@ def export_session(user, session_id):
     return ok, error
 
 
-def export_latest_two(user):
+def export_latest_two(user, force=False):
     conn = core.connect()
     try:
         meeting._ensure_tables(conn)
@@ -162,7 +167,7 @@ def export_latest_two(user):
         )
     finally:
         conn.close()
-    return [export_session(user, row["session_id"]) for row in rows]
+    return [export_session(user, row["session_id"], force=force) for row in rows]
 
 
 def schedule_latest_two(user, delay_seconds=45):
@@ -191,12 +196,12 @@ def schedule_latest_two(user, delay_seconds=45):
 
 @core.app.get("/api/m4/export-latest-two")
 def export_latest_two_now(request: Request):
-    """Signed-in owner trigger for exporting only their two latest Meeting v2 sessions."""
+    """Signed-in owner trigger for re-exporting their two latest Meeting v2 sessions."""
     user = core.get_current_user(request)
     if not user:
         return JSONResponse({"error": "Sign in first."}, status_code=401)
     try:
-        results = export_latest_two(user)
+        results = export_latest_two(user, force=True)
         return JSONResponse(
             {"ok": True, "count": len(results), "results": results},
             headers={"Cache-Control": "no-store"},
@@ -244,7 +249,7 @@ async def finish_and_export(request: Request):
         return JSONResponse({"error": "Sign in first."}, status_code=401)
     try:
         data = await request.json()
-        ok, detail = export_session(user, str(data.get("session_id") or ""))
+        ok, detail = export_session(user, str(data.get("session_id") or ""), force=True)
         return JSONResponse({"ok": bool(ok), "detail": detail}, status_code=200 if ok else 500, headers={"Cache-Control": "no-store"})
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500, headers={"Cache-Control": "no-store"})
