@@ -4,7 +4,10 @@ Render launches this module so additive routes and notification integrations are
 always registered before the ASGI app starts serving requests.
 """
 
+import json
 import os
+import urllib.error
+import urllib.request
 from fastapi import Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -71,7 +74,7 @@ try:
     import meeting_v2 as _meeting_v2  # noqa: F401,E402
     meeting_v2 = _meeting_v2
     # Lock the selected M4 identity defaults while still allowing Render env overrides.
-    meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "nersejR7R1Z5oU9HjCpV")
+    meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "DSPOFq7nD22sXYn8JKlb")
     meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     # Replace only the Meeting turn handler with the corrected production-safe path.
     import meeting_v2_runtime_fix  # noqa: F401,E402
@@ -101,6 +104,56 @@ def meeting_v2_opening(request: Request, session_id: str = Form(...)):
     except Exception as exc:
         print(f"Meeting v2 opening failed: {type(exc).__name__}: {exc}", flush=True)
         return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
+
+
+@core.app.get("/api/meeting-v2/voice-debug")
+def meeting_v2_voice_debug(request: Request):
+    if meeting_v2 is None:
+        return JSONResponse({"error": meeting_import_error or "Meeting unavailable"}, status_code=503)
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
+
+    voice_id = meeting_v2.ELEVENLABS_VOICE_ID
+    model_id = meeting_v2.ELEVENLABS_MODEL_ID
+    if not meeting_v2.ELEVENLABS_API_KEY:
+        return JSONResponse({
+            "active_voice_id": voice_id,
+            "active_model_id": model_id,
+            "error": "ELEVENLABS_API_KEY is not configured",
+        }, status_code=503)
+
+    req = urllib.request.Request(
+        f"https://api.elevenlabs.io/v1/voices/{voice_id}",
+        headers={"xi-api-key": meeting_v2.ELEVENLABS_API_KEY},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        return JSONResponse({
+            "active_voice_id": voice_id,
+            "active_model_id": model_id,
+            "elevenlabs_voice_id": payload.get("voice_id"),
+            "name": payload.get("name"),
+            "category": payload.get("category"),
+            "labels": payload.get("labels"),
+            "fine_tuning": payload.get("fine_tuning"),
+        }, headers={"Cache-Control": "no-store"})
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        return JSONResponse({
+            "active_voice_id": voice_id,
+            "active_model_id": model_id,
+            "error": f"ElevenLabs HTTP {exc.code}",
+            "detail": detail[:1000],
+        }, status_code=exc.code, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        return JSONResponse({
+            "active_voice_id": voice_id,
+            "active_model_id": model_id,
+            "error": str(exc),
+        }, status_code=503, headers={"Cache-Control": "no-store"})
 
 # Always expose the public Meeting route. If the isolated subsystem cannot import,
 # show the exact failure instead of returning a misleading 404.
