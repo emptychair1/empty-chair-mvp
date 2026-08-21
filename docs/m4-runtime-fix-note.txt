@@ -1,0 +1,1 @@
+M4 operator full recovery no longer blocks UI progression on slow narration requests. Runtime errors are surfaced in the operator log.
