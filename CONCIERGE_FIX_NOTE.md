@@ -1,0 +1,1 @@
+Concierge public UI now renders from a dedicated Jinja template instead of a large Python f-string. This removes brace/interpolation hazards and keeps the public conversational experience isolated from route logic.
