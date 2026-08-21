@@ -2,8 +2,22 @@ from fastapi import Form, Request
 from fastapi.responses import RedirectResponse
 
 import app as core
+from demand_engine import register_demand_engine
 
 app = core.app
+
+# Demand Graph is registered here because this module is imported by the explicit
+# production bootstrap after core.app and its database/auth helpers are ready.
+register_demand_engine(
+    app=app,
+    templates=core.templates,
+    connect=core.connect,
+    db_execute=core.db_execute,
+    db_fetchone=core.db_fetchone,
+    db_fetchall=core.db_fetchall,
+    login_required_redirect=core.login_required_redirect,
+    now_iso=core.now_iso,
+)
 
 
 @app.post("/settings/test-sms")
