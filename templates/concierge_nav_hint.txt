@@ -1,2 +1,0 @@
-Concierge leads screen: /concierge-leads
-Customer-facing Concierge: /concierge?shop_id=<shop_id>
