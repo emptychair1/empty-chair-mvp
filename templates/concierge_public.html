@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Empty Chair Concierge</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root{--bg:#080908;--ink:#f0eadf;--muted:#9e9b91;--line:#292c27;--panel:#0e100e;--signal:#d8ff45;--warm:#d6a46e;--green:#9bd76a}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 76% 0,rgba(216,255,69,.06),transparent 26%),var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif}.shell{max-width:1100px;margin:auto;min-height:100vh;padding:24px}.brand{display:grid;grid-template-columns:72px auto;gap:12px;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--line)}.brand svg{width:72px}.brand strong{display:block;font-size:15px;letter-spacing:.18em}.brand small{display:block;margin-top:4px;color:#71766d;font:500 7px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase}.hero{padding:62px 0 28px;max-width:800px}.ey{font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.13em;text-transform:uppercase;color:var(--signal)}h1{font-size:clamp(46px,7vw,84px);line-height:.95;letter-spacing:-.06em;margin:15px 0 18px}.hero p{color:#aaa;line-height:1.7;font-size:17px}.layout{display:grid;grid-template-columns:1.2fr .8fr;gap:1px;background:var(--line);border:1px solid var(--line)}.chat,.intel{background:#0b0c0b;min-height:520px}.chat{display:grid;grid-template-rows:1fr auto}.messages{padding:24px;overflow:auto;max-height:600px}.bubble{max-width:82%;padding:14px 16px;margin:0 0 12px;border:1px solid var(--line);line-height:1.55;font-size:14px}.bubble.bot{border-color:rgba(214,164,110,.35);color:#e6d7c5}.bubble.user{margin-left:auto;background:#151713}.inputbar{padding:16px;border-top:1px solid var(--line);display:flex;gap:9px}.inputbar input{flex:1;padding:14px;background:#080908;border:1px solid #353832;color:var(--ink);font:inherit}.inputbar button,.choice{border:1px solid var(--signal);background:var(--signal);color:#090a09;font-weight:900;cursor:pointer;padding:12px 14px}.choices{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 18px}.choice{background:transparent;color:var(--ink);border-color:#42473d;font-size:11px}.intel{padding:24px}.cell{width:58px;height:58px;border-radius:48% 52% 43% 57%;background:rgba(216,255,69,.12);box-shadow:0 0 36px rgba(216,255,69,.32);animation:b 3s ease-in-out infinite;margin-bottom:24px}@keyframes b{50%{transform:scale(1.12) rotate(6deg)}}.meter{height:4px;background:#292d27;margin:10px 0 6px}.meter i{display:block;width:31%;height:100%;background:var(--signal);transition:.5s}.score{font:600 28px 'IBM Plex Mono',monospace;color:var(--signal)}.signals{margin-top:20px;border-top:1px solid var(--line)}.sig{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-bottom:1px solid var(--line);font:500 11px 'IBM Plex Mono',monospace}.sig span{color:#777b72}.sig b{color:var(--ink);text-align:right}.status{margin-top:18px;padding:14px;border-left:2px solid var(--warm);background:#10110f;color:#b8b3aa;font-size:12px;line-height:1.6}@media(max-width:800px){.layout{grid-template-columns:1fr}.intel{min-height:auto}.shell{padding:16px}.hero{padding-top:42px}}
+</style>
+</head>
+<body>
+<div class="shell">
+<a class="brand" href="https://tryemptychair.com" aria-label="Empty Chair">
+<svg viewBox="0 0 120 60"><path d="M2 30H50" stroke="#f0eadf" stroke-width="5"/><circle cx="53" cy="30" r="5" fill="#d8ff45"/><path d="M58 30H116" stroke="#f0eadf" stroke-width="5"/><path d="M56 33L110 55" stroke="#70756b" stroke-width="3" stroke-dasharray="6 6"/><circle cx="114" cy="56" r="4" fill="none" stroke="#70756b" stroke-width="2"/></svg>
+<span><strong>EMPTY CHAIR</strong><small>Know what is. Change what happens next.</small></span>
+</a>
+<section class="hero"><div class="ey">Concierge // Customer value</div><h1>Tell me what you'd actually say yes to.</h1><p>I’ll help shape your next tattoo idea, remember what matters to you, and—only if you choose—let the shop contact you when something unusually relevant opens up.</p></section>
+<section class="layout">
+<div class="chat"><div class="messages" id="messages"></div><form class="inputbar" id="chatForm"><input id="chatInput" autocomplete="off" placeholder="Type your answer…"><button>Send</button></form></div>
+<aside class="intel"><div class="cell"></div><div class="ey">M4 customer model</div><div class="score" id="score">31%</div><div class="meter"><i id="meter"></i></div><div class="signals" id="signals"></div><div class="status" id="status">Concierge is learning only from what the customer deliberately shares.</div></aside>
+</section>
+</div>
+<script>
+const shopId={{ shop_id|tojson }};
+const questions=[
+ {key:'name',text:"First—what should I call you?"},
+ {key:'project',text:"What are you thinking about getting? Rough idea is fine."},
+ {key:'styles',text:"What styles do you actually like?",choices:['American traditional','Blackwork','Fine line','Black & gray','Realism','Not sure yet']},
+ {key:'placement',text:"Where are you thinking about putting it?"},
+ {key:'budget',text:"What budget feels comfortable?",choices:['$150–300','$300–600','$600–1,000','$1,000+','Flexible']},
+ {key:'timing',text:"How soon would you move on the right tattoo?",choices:['Today','This week','This month','Next 3 months','Just exploring']},
+ {key:'short_notice',text:"If a strong artist had a cancellation tomorrow, would you want to know?",choices:['Yes — I can move fast','Maybe, with 2–3 days notice','I need to plan ahead']},
+ {key:'artist_vibe',text:"What matters most to you in the artist?"},
+ {key:'travel',text:"How far would you travel for the right artist?",choices:['15 miles','30 miles','60 miles','Worth traveling for']},
+ {key:'phone',text:"What mobile number should we attach to your profile?"},
+ {key:'email',text:"Email too? You can say skip."},
+ {key:'contact_preference',text:"If you opt in, how would you rather hear about a great opening?",choices:['Text','Email','Either']},
+ {key:'offer_consent',text:"Last thing: may Empty Chair contact you about tattoo openings that match this profile?",choices:['Yes — send relevant openings','No — save my profile only']}
+];
+const state={}; let step=0; const messages=document.getElementById('messages'), input=document.getElementById('chatInput'), form=document.getElementById('chatForm');
+function bubble(t,c='bot'){const d=document.createElement('div');d.className='bubble '+c;d.textContent=t;messages.appendChild(d);messages.scrollTop=messages.scrollHeight}
+function confidence(){const useful=['project','styles','placement','budget','timing','short_notice','artist_vibe','travel'];const n=useful.filter(k=>state[k]).length;return Math.round(25+70*n/useful.length)}
+function renderIntel(){const score=confidence();document.getElementById('score').textContent=score+'%';document.getElementById('meter').style.width=score+'%';const box=document.getElementById('signals');box.innerHTML='';[['Style','styles'],['Budget','budget'],['Timing','timing'],['Short notice','short_notice'],['Placement','placement']].forEach(([label,key])=>{if(state[key]){const d=document.createElement('div');d.className='sig';d.innerHTML=`<span>${label}</span><b>${state[key]}</b>`;box.appendChild(d)}})}
+function ask(){document.querySelectorAll('.choices').forEach(x=>x.remove());if(step>=questions.length)return save();const q=questions[step];bubble(q.text);if(q.choices){const wrap=document.createElement('div');wrap.className='choices';q.choices.forEach(v=>{const b=document.createElement('button');b.type='button';b.className='choice';b.textContent=v;b.onclick=()=>answer(v);wrap.appendChild(b)});messages.appendChild(wrap)}input.placeholder='Type your answer…';input.focus()}
+function answer(v){const q=questions[step];state[q.key]=(q.key==='email'&&v.toLowerCase()==='skip')?'':v;bubble(v,'user');step++;renderIntel();ask()}
+form.addEventListener('submit',e=>{e.preventDefault();const v=input.value.trim();if(!v)return;input.value='';answer(v)});
+async function save(){bubble('I have enough to build your profile. Saving it now…');const fd=new FormData();fd.append('shop_id',shopId);fd.append('name',state.name||'');fd.append('phone',state.phone||'');fd.append('email',state.email||'');fd.append('contact_preference',state.contact_preference||'');fd.append('offer_consent',(state.offer_consent||'').startsWith('Yes')?'yes':'no');['project','styles','placement','budget','timing','short_notice','artist_vibe','travel'].forEach(k=>fd.append(k,state[k]||''));try{const r=await fetch('/api/concierge/profile',{method:'POST',body:fd,cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Could not save profile');bubble(`Done. Your customer profile is created. M4 now understands this profile at ${j.m4_confidence_after}%.`);document.getElementById('status').textContent=`Profile created · ${j.communication_consent?'Contact permission granted':'No outreach permission'} · Customer ${j.customer_id}`;form.style.display='none'}catch(e){bubble('I hit a save error: '+e.message);document.getElementById('status').textContent=e.message}}
+bubble("I’m Concierge. I’m here to make your next tattoo easier to find—not to interrogate you.");setTimeout(ask,350);
+</script>
+</body>
+</html>
