@@ -17,15 +17,23 @@ def _profile_score(p):
     return round(25 + 70 * known / len(fields))
 
 
-def _resolve_shop(request: Request, requested_shop: str = "") -> str:
-    """Use an explicit shop link first; otherwise bind signed-in testing to that user's shop."""
-    explicit = (requested_shop or "").strip().replace('"', "")
-    if explicit:
-        return explicit
+def _signed_in_shop(request: Request):
     user = core.get_current_user(request)
-    if user and user.get("shop_id"):
+    if not user:
+        return None
+    try:
         return str(user["shop_id"])
-    return DEMO_SHOP_ID
+    except Exception:
+        return None
+
+
+def _resolve_shop(request: Request, requested_shop: str = "") -> str:
+    """Authenticated shop is authoritative; public links may explicitly bind a shop."""
+    signed_in = _signed_in_shop(request)
+    if signed_in:
+        return signed_in
+    explicit = (requested_shop or "").strip().replace('"', "")
+    return explicit or DEMO_SHOP_ID
 
 
 @core.app.post("/api/concierge/profile")
@@ -79,6 +87,14 @@ def concierge_profile(
     after = _profile_score(p)
     try:
         customer_id, lead_id = concierge_leads.save_concierge_profile(target_shop, p, after)
+        verify = core.connect()
+        try:
+            customer = core.db_fetchone(verify, "SELECT id,shop_id,name,communication_consent FROM customers WHERE id=? AND shop_id=?", (customer_id, target_shop))
+            lead = core.db_fetchone(verify, "SELECT id,shop_id,customer_id FROM concierge_leads WHERE id=? AND shop_id=?", (lead_id, target_shop))
+        finally:
+            verify.close()
+        if not customer or not lead:
+            return JSONResponse({"error": "Profile save did not verify. Nothing was queued for outreach."}, status_code=500)
     except Exception as exc:
         return JSONResponse({"error": f"Could not save customer profile: {exc}"}, status_code=500)
 
@@ -89,6 +105,8 @@ def concierge_profile(
         "customer_id": customer_id,
         "lead_id": lead_id,
         "profile_created": True,
+        "verified_customer": True,
+        "verified_lead": True,
         "communication_consent": p["offer_opt_in"],
         "m4_confidence_before": before,
         "m4_confidence_after": after,
