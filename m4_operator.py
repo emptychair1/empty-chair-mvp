@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 import app as core
 import m4_runtime
 import m4_integration
+import m4_synthetic_demo  # noqa: F401  # registers reset + augments isolated demo seed
 
 DEMO_SHOP_ID = "shop_live_demo"
 
