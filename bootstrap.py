@@ -39,6 +39,7 @@ import m4_integration  # noqa: F401,E402
 import m4_operator  # noqa: F401,E402
 import m4_operator_demo  # noqa: F401,E402
 import m4_operator_observable  # noqa: F401,E402
+import m4_operator_desktop_fix  # noqa: F401,E402
 import concierge  # noqa: F401,E402
 
 meeting_v2 = None
