@@ -35,6 +35,7 @@ import dashboard_metrics  # noqa: F401,E402
 import m4_dashboard  # noqa: F401,E402
 import m4_integration  # noqa: F401,E402
 import m4_operator  # noqa: F401,E402
+import m4_operator_demo  # noqa: F401,E402
 
 meeting_v2 = None
 meeting_import_error = None
@@ -131,7 +132,7 @@ def meet_m4_bootstrap(request: Request):
             html = html.replace(old_opening_catch, new_opening_catch)
 
             old_turn_catch = "catch(e){visual('present','Connection interrupted. Tap Enter to continue.');hint.textContent=e.message||String(e);enter.classList.remove('hidden');started=false}"
-            new_turn_catch = "catch(e){const msg=e.message||String(e);visual('error',msg);hint.textContent=msg;hint.style.position='relative';hint.style.zIndex='999';hint.style.color='#181b17';hint.style.fontFamily='ui-monospace,SFMono-Regular,monospace';hint.style.fontSize='14px';hint.style.lineHeight='1.5';hint.style.padding='16px 18px';hint.style.background='#fff';hint.style.border='1px solid rgba(30,35,28,.18)';hint.style.borderRadius='12px';hint.style.maxWidth='min(92vw,760px)';hint.style.margin='12px auto 0';setTimeout(()=>{if(started){hint.removeAttribute('style');visual('listening','Connection restored. Continue.');startRecording()}},1800)}"
+            new_turn_catch = "catch(e){const msg=e.message||String(e);visual('error',msg);hint.textContent=msg;hint.style.position='relative';hint.style.zIndex='999';hint.style.color='#181b17';hint.style.fontFamily='ui-monospace,SFMono-Regular,Menlo,monospace';hint.style.fontSize='14px';hint.style.lineHeight='1.5';hint.style.padding='16px 18px';hint.style.background='#fff';hint.style.border='1px solid rgba(30,35,28,.18)';hint.style.borderRadius='12px';hint.style.maxWidth='min(92vw,760px)';hint.style.margin='12px auto 0';setTimeout(()=>{if(started){hint.removeAttribute('style');visual('listening','Connection restored. Continue.');startRecording()}},1800)}"
             html = html.replace(old_turn_catch, new_turn_catch)
 
             if meeting_v2_visual_patch is not None:
