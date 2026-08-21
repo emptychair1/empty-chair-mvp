@@ -113,10 +113,8 @@ def meet_m4_bootstrap(request: Request):
             old="async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);form.append('opening','1');let r=await fetch('/api/meeting-v2/turn',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_base64)await play64(j.audio_base64);busy=false}"
             new="async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);let r=await fetch('/api/meeting-v2/opening',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_url)await playUrl(j.audio_url);else if(j.audio_base64)await play64(j.audio_base64);busy=false}"
             html=html.replace(old,new)
-            # Normal turns used to wait for a complete base64 MP3 in the JSON response.
-            # Prefer the new same-origin streaming URL while retaining the old path as fallback.
             html=html.replace("if(j.audio_base64)await play64(j.audio_base64);", "if(j.audio_url)await playUrl(j.audio_url);else if(j.audio_base64)await play64(j.audio_base64);")
-            stream_player="async function playUrl(u){await new Promise(resolve=>{const a=new Audio(u);a.preload='auto';a.onended=resolve;a.onerror=resolve;a.play().catch(resolve)})}"
+            stream_player="async function playUrl(u){return new Promise(resolve=>{let done=false;const finish=(msg)=>{if(done)return;done=true;presence.style.transform='';visual('listening',msg||'Speak when you are ready.');resolve()};const a=new Audio();a.preload='auto';a.src=u;a.onplaying=()=>visual('speaking','M4 is speaking.');a.onended=()=>finish();a.onerror=()=>finish('Voice stream interrupted. Continue when ready.');const timer=setTimeout(()=>finish('Voice took too long. Continue when ready.'),12000);a.addEventListener('ended',()=>clearTimeout(timer),{once:true});a.addEventListener('error',()=>clearTimeout(timer),{once:true});a.play().catch(()=>finish('Voice playback was blocked. Tap once and continue.'))})}"
             if "function playUrl(" not in html:
                 pos=html.rfind("</script>")
                 if pos!=-1:
