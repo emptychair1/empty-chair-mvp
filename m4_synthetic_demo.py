@@ -28,8 +28,6 @@ STYLES = ["Blackwork", "Traditional", "American Traditional", "Neo Traditional",
 
 
 def _synthetic_phone(number: int) -> str:
-    # Required by the production customer schema. These are reserved fictional
-    # 555 values and are never used for external delivery in the synthetic demo.
     return f"+1555{number:07d}"
 
 
@@ -38,7 +36,6 @@ def _seed_synthetic_operator_data():
     try:
         now = core.now_iso()
         today = date.today()
-
         existing = {r["id"] for r in core.db_fetchall(conn, "SELECT id FROM artists WHERE shop_id=?", (DEMO_SHOP_ID,))}
         for aid, name, styles in ARTISTS:
             if aid in existing:
@@ -50,8 +47,6 @@ def _seed_synthetic_operator_data():
         current_n = len(current_customers)
         target = 1200
         artist_ids = [a[0] for a in ARTISTS]
-
-        # Deterministic broad population. No real phone/email values are created.
         for i in range(current_n + 1, target + 1):
             cid = f"demo_customer_{i:04d}"
             artist = _rng.choice(artist_ids)
@@ -66,8 +61,6 @@ def _seed_synthetic_operator_data():
             core.db_execute(conn, "INSERT INTO customers(id,shop_id,name,phone,email,communication_consent,preferred_artists,preferred_styles,preferred_services,appointment_count,completed_count,cancellation_count,no_show_count,average_spend,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             (cid, DEMO_SHOP_ID, f"Synthetic Customer {i:04d}", _synthetic_phone(i), None, consent, artist, style, "Tattoo", appointments, completed, cancellations, no_shows, avg, now, now))
 
-        # Known high-signal examples for benchmark scenarios. These are synthetic
-        # ground-truth fixtures, not claims about real customers.
         fixtures = [
             ("demo_signal_blackwork", "Blackwork Benchmark", "demo_artist_alex", "Blackwork", 9, 9, 0, 0, 650),
             ("demo_signal_fine", "Fine Line Benchmark", "demo_artist_ivy", "Fine line", 7, 7, 0, 0, 420),
@@ -84,8 +77,6 @@ def _seed_synthetic_operator_data():
                 core.db_execute(conn, "INSERT INTO customers(id,shop_id,name,phone,email,communication_consent,preferred_artists,preferred_styles,preferred_services,appointment_count,completed_count,cancellation_count,no_show_count,average_spend,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?)",
                                 (cid, DEMO_SHOP_ID, name, _synthetic_phone(fixture_index), None, artist, style, "Tattoo", appts, completed, cancels, no_shows, avg, now, now))
 
-        # Add four additional open gaps; the existing demo reset already provides
-        # one Fine-line OPEN gap, producing five current operator scenarios.
         gaps = [
             ("demo_m4_gap_blackwork", "demo_artist_alex", 1, "15:00", "19:00", "Blackwork", 650),
             ("demo_m4_gap_trad", "demo_artist_nico", 2, "12:00", "16:00", "American Traditional", 575),
@@ -107,8 +98,44 @@ def _seed_synthetic_operator_data():
 _original_reset = demo_mode._reset_data
 
 
+def _snapshot_concierge_customers():
+    """Keep customer-created Concierge profiles alive when demo inventory resets."""
+    conn = core.connect()
+    try:
+        try:
+            rows = core.db_fetchall(conn, """
+                SELECT c.*
+                FROM customers c
+                JOIN concierge_leads l ON l.customer_id=c.id
+                WHERE l.shop_id=? AND c.shop_id=?
+            """, (DEMO_SHOP_ID, DEMO_SHOP_ID))
+            return [dict(row) for row in rows]
+        except Exception:
+            return []
+    finally:
+        conn.close()
+
+
+def _restore_concierge_customers(rows):
+    if not rows:
+        return
+    conn = core.connect()
+    try:
+        for row in rows:
+            if core.db_fetchone(conn, "SELECT id FROM customers WHERE id=?", (row["id"],)):
+                continue
+            cols = list(row.keys())
+            marks = ",".join("?" for _ in cols)
+            core.db_execute(conn, f"INSERT INTO customers({','.join(cols)}) VALUES ({marks})", tuple(row[c] for c in cols))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _synthetic_reset():
+    concierge_customers = _snapshot_concierge_customers()
     _original_reset()
+    _restore_concierge_customers(concierge_customers)
     _seed_synthetic_operator_data()
 
 
@@ -127,5 +154,5 @@ def reset_m4_synthetic(request: Request):
         "artists": 6,
         "customers": 1205,
         "open_scenarios": 5,
-        "message": "Synthetic M4 shop reset complete. No real customer data or external recipients are present.",
+        "message": "Synthetic M4 shop reset complete. Concierge-created profiles were preserved; no real outbound delivery occurs.",
     }, headers={"Cache-Control": "no-store"})
