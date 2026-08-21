@@ -141,3 +141,4 @@ def concierge_page(request: Request):
 # Runtime hardening and the cinematic flywheel demo are loaded after the base routes.
 import m4_operator_runtime_fix  # noqa: F401,E402
 import m4_flywheel_demo  # noqa: F401,E402
+import m4_flywheel_refine  # noqa: F401,E402
