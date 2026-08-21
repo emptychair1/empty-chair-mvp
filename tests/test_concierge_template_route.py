@@ -1,0 +1,13 @@
+def test_concierge_public_template_route():
+    import concierge
+
+    class QueryParams(dict):
+        def get(self, key, default=None):
+            return super().get(key, default)
+
+    class RequestStub:
+        query_params = QueryParams()
+
+    response = concierge.concierge_page(RequestStub())
+    assert response.status_code == 200
+    assert response.headers.get("cache-control") == "no-store"
