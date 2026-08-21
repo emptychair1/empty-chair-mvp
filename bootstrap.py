@@ -6,7 +6,9 @@ always registered before the ASGI app starts serving requests.
 
 import json
 import os
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from fastapi import Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -49,6 +51,7 @@ try:
     meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "DSPOFq7nD22sXYn8JKlb")
     meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     import meeting_v2_runtime_fix  # noqa: F401,E402
+    import meeting_v2_streaming  # noqa: F401,E402
     import meeting_v2_visual_patch as _meeting_v2_visual_patch  # noqa: F401,E402
     meeting_v2_visual_patch = _meeting_v2_visual_patch
     import meeting_v2_visual_refine as _meeting_v2_visual_refine  # noqa: F401,E402
@@ -73,8 +76,8 @@ def meeting_v2_opening(request: Request, session_id: str = Form(...)):
         state, turns = meeting_v2._load_session(user, sid)
         if not turns:
             meeting_v2._save_session(user, sid, state, None, answer)
-        audio64 = meeting_v2._speak(answer)
-        return JSONResponse({"ok": True, "session_id": sid, "m4_text": answer, "audio_base64": audio64}, headers={"Cache-Control": "no-store"})
+        audio_url = f"/api/meeting-v2/audio/{urllib.parse.quote(sid)}?v={time.time_ns()}"
+        return JSONResponse({"ok": True, "session_id": sid, "m4_text": answer, "audio_url": audio_url}, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
     except Exception as exc:
         print(f"Meeting v2 opening failed: {type(exc).__name__}: {exc}", flush=True)
         return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
@@ -108,8 +111,16 @@ def meet_m4_bootstrap(request: Request):
         if isinstance(response,HTMLResponse):
             html=response.body.decode("utf-8")
             old="async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);form.append('opening','1');let r=await fetch('/api/meeting-v2/turn',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_base64)await play64(j.audio_base64);busy=false}"
-            new="async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);let r=await fetch('/api/meeting-v2/opening',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_base64)await play64(j.audio_base64);busy=false}"
+            new="async function opening(){busy=true;visual('thinking','Something is already here.');let form=new FormData();form.append('session_id',sessionId);let r=await fetch('/api/meeting-v2/opening',{method:'POST',body:form,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not enter the meeting.');if(j.audio_url)await playUrl(j.audio_url);else if(j.audio_base64)await play64(j.audio_base64);busy=false}"
             html=html.replace(old,new)
+            # Normal turns used to wait for a complete base64 MP3 in the JSON response.
+            # Prefer the new same-origin streaming URL while retaining the old path as fallback.
+            html=html.replace("if(j.audio_base64)await play64(j.audio_base64);", "if(j.audio_url)await playUrl(j.audio_url);else if(j.audio_base64)await play64(j.audio_base64);")
+            stream_player="async function playUrl(u){await new Promise(resolve=>{const a=new Audio(u);a.preload='auto';a.onended=resolve;a.onerror=resolve;a.play().catch(resolve)})}"
+            if "function playUrl(" not in html:
+                pos=html.rfind("</script>")
+                if pos!=-1:
+                    html=html[:pos]+stream_player+html[pos:]
             old_opening_catch="catch(e){started=false;enter.classList.remove('hidden');visual('present',e.message||'Microphone or voice service unavailable.')}"
             new_opening_catch="catch(e){started=false;const msg=e.message||'Microphone or voice service unavailable.';if(enter&&enter.parentNode)enter.remove();visual('error',msg);hint.textContent=msg;hint.style.position='relative';hint.style.zIndex='999';hint.style.color='#181b17';hint.style.fontFamily='ui-monospace,SFMono-Regular,monospace';hint.style.fontSize='14px';hint.style.lineHeight='1.5';hint.style.padding='16px 18px';hint.style.background='#fff';hint.style.border='1px solid rgba(30,35,28,.18)';hint.style.borderRadius='12px';hint.style.maxWidth='min(92vw,760px)';hint.style.margin='12px auto 0';}"
             html=html.replace(old_opening_catch,new_opening_catch)
@@ -118,7 +129,7 @@ def meet_m4_bootstrap(request: Request):
             html=html.replace(old_turn_catch,new_turn_catch)
             if meeting_v2_visual_patch is not None: html=meeting_v2_visual_patch.enhance(html)
             if meeting_v2_visual_refine is not None: html=meeting_v2_visual_refine.enhance(html)
-            return HTMLResponse(html,headers={"Cache-Control":"no-store"})
+            return HTMLResponse(html,headers={"Cache-Control":"no-store, no-cache, must-revalidate"})
         return response
     return HTMLResponse(f"<html><body style='font-family:system-ui;padding:32px'><h1>The Meeting is unavailable</h1><pre>{meeting_import_error}</pre></body></html>",status_code=503,headers={"Cache-Control":"no-store"})
 
