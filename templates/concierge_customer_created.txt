@@ -1,0 +1,1 @@
+Customer profile created. Contact consent is stored separately from the profile and may be changed later.
