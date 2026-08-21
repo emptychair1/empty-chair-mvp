@@ -136,3 +136,8 @@ def concierge_page(request: Request):
             status_code=503,
             headers={"Cache-Control": "no-store"},
         )
+
+
+# Loaded after m4_operator_observable by bootstrap; this keeps the existing URL
+# while hardening the live operator against slow narration requests.
+import m4_operator_runtime_fix  # noqa: F401,E402
