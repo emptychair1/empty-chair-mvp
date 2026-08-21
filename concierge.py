@@ -1,7 +1,10 @@
 """Empty Chair Concierge: customer-side zero-party intelligence experience."""
+import json
 import uuid
+
 from fastapi import Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+
 import app as core
 import concierge_leads
 
@@ -83,9 +86,18 @@ def concierge_profile(
 
 @core.app.get("/concierge", response_class=HTMLResponse)
 def concierge_page(request: Request):
+    """Serve Concierge without depending on Jinja rendering at request time."""
     shop_id = (request.query_params.get("shop_id") or DEMO_SHOP_ID).replace('"', '')
-    return core.templates.TemplateResponse(
-        "concierge_chat.html",
-        {"request": request, "shop_id": shop_id},
-        headers={"Cache-Control": "no-store"},
-    )
+    try:
+        with open("templates/concierge_chat.html", "r", encoding="utf-8") as handle:
+            html = handle.read()
+        html = html.replace("{{ url_for('static', path='/concierge-chat.css') }}", "/static/concierge-chat.css")
+        html = html.replace("{{ url_for('static', path='/concierge-chat.js') }}", "/static/concierge-chat.js")
+        html = html.replace("{{ shop_id|tojson }}", json.dumps(shop_id))
+        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        return HTMLResponse(
+            "<!doctype html><html><body style='background:#080908;color:#f0eadf;font-family:system-ui;padding:40px'><h1>Empty Chair Concierge</h1><p>Concierge could not load.</p><pre>" + str(exc) + "</pre></body></html>",
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
+        )
