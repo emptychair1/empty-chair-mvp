@@ -33,6 +33,8 @@ import artist_metrics  # noqa: F401,E402
 import onboarding  # noqa: F401,E402
 import dashboard_metrics  # noqa: F401,E402
 import m4_dashboard  # noqa: F401,E402
+import m4_integration  # noqa: F401,E402
+import m4_operator  # noqa: F401,E402
 
 meeting_v2 = None
 meeting_import_error = None
