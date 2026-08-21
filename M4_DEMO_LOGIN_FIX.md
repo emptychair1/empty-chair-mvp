@@ -1,0 +1,1 @@
+Fixes synthetic demo login on the production PostgreSQL schema by supplying fictional 555 phone values for synthetic customer rows. The customers.phone column is NOT NULL in production. No real recipient data is used and synthetic M4 activation remains delivery-suppressed.

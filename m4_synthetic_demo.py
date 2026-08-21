@@ -27,6 +27,12 @@ ARTISTS = [
 STYLES = ["Blackwork", "Traditional", "American Traditional", "Neo Traditional", "Fine line", "Realism", "Black & Grey", "Botanical", "Japanese"]
 
 
+def _synthetic_phone(number: int) -> str:
+    # Required by the production customer schema. These are reserved fictional
+    # 555 values and are never used for external delivery in the synthetic demo.
+    return f"+1555{number:07d}"
+
+
 def _seed_synthetic_operator_data():
     conn = core.connect()
     try:
@@ -58,7 +64,7 @@ def _seed_synthetic_operator_data():
             avg = int(max(140, min(1400, _rng.lognormvariate(5.85, 0.42))))
             consent = 1 if _rng.random() < 0.87 else 0
             core.db_execute(conn, "INSERT INTO customers(id,shop_id,name,phone,email,communication_consent,preferred_artists,preferred_styles,preferred_services,appointment_count,completed_count,cancellation_count,no_show_count,average_spend,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                            (cid, DEMO_SHOP_ID, f"Synthetic Customer {i:04d}", None, None, consent, artist, style, "Tattoo", appointments, completed, cancellations, no_shows, avg, now, now))
+                            (cid, DEMO_SHOP_ID, f"Synthetic Customer {i:04d}", _synthetic_phone(i), None, consent, artist, style, "Tattoo", appointments, completed, cancellations, no_shows, avg, now, now))
 
         # Known high-signal examples for benchmark scenarios. These are synthetic
         # ground-truth fixtures, not claims about real customers.
@@ -69,14 +75,14 @@ def _seed_synthetic_operator_data():
             ("demo_signal_realism", "Realism Benchmark", "demo_artist_sage", "Black & Grey", 8, 8, 0, 0, 900),
             ("demo_signal_japanese", "Japanese Benchmark", "demo_artist_rome", "Japanese", 6, 6, 0, 0, 780),
         ]
-        for cid, name, artist, style, appts, completed, cancels, no_shows, avg in fixtures:
+        for fixture_index, (cid, name, artist, style, appts, completed, cancels, no_shows, avg) in enumerate(fixtures, start=9001):
             row = core.db_fetchone(conn, "SELECT id FROM customers WHERE id=?", (cid,))
             if row:
-                core.db_execute(conn, "UPDATE customers SET name=?,communication_consent=1,preferred_artists=?,preferred_styles=?,preferred_services='Tattoo',appointment_count=?,completed_count=?,cancellation_count=?,no_show_count=?,average_spend=?,updated_at=? WHERE id=?",
-                                (name, artist, style, appts, completed, cancels, no_shows, avg, now, cid))
+                core.db_execute(conn, "UPDATE customers SET name=?,phone=?,communication_consent=1,preferred_artists=?,preferred_styles=?,preferred_services='Tattoo',appointment_count=?,completed_count=?,cancellation_count=?,no_show_count=?,average_spend=?,updated_at=? WHERE id=?",
+                                (name, _synthetic_phone(fixture_index), artist, style, appts, completed, cancels, no_shows, avg, now, cid))
             else:
                 core.db_execute(conn, "INSERT INTO customers(id,shop_id,name,phone,email,communication_consent,preferred_artists,preferred_styles,preferred_services,appointment_count,completed_count,cancellation_count,no_show_count,average_spend,created_at,updated_at) VALUES (?,?,?,?,?,1,?,?,?,?,?,?,?,?,?,?)",
-                                (cid, DEMO_SHOP_ID, name, None, None, artist, style, "Tattoo", appts, completed, cancels, no_shows, avg, now, now))
+                                (cid, DEMO_SHOP_ID, name, _synthetic_phone(fixture_index), None, artist, style, "Tattoo", appts, completed, cancels, no_shows, avg, now, now))
 
         # Add four additional open gaps; the existing demo reset already provides
         # one Fine-line OPEN gap, producing five current operator scenarios.
