@@ -1,4 +1,5 @@
-"""Small production override for The Meeting v2 turn endpoint."""
+"""Production override for The Meeting v2 with low-latency conversational turns."""
+import base64
 import json
 import os
 import time
@@ -13,11 +14,19 @@ import app as core
 import meeting_v2 as meeting
 import m4_analysis_email
 
-# Respect Render environment so Josh can change the ElevenLabs voice without code changes.
+# Render-configurable identity remains authoritative.
 meeting.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "DSPOFq7nD22sXYn8JKlb")
 meeting.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
-meeting.MEETING_MODEL = "gemini-3.6-flash"
-FALLBACK_REASONING_MODEL = "gemini-3.1-flash-lite"
+
+# Conversation uses the fastest available reasoning path. Deeper data analysis remains separate.
+meeting.MEETING_MODEL = os.getenv("M4_MEETING_MODEL", "gemini-3.1-flash-lite")
+FALLBACK_REASONING_MODEL = os.getenv("M4_MEETING_FALLBACK_MODEL", "gemini-3.6-flash")
+FAST_VOICE_MODEL = os.getenv("M4_MEETING_VOICE_MODEL", "eleven_flash_v2_5")
+MAX_CONTEXT_TURNS = int(os.getenv("M4_MEETING_CONTEXT_TURNS", "12"))
+MAX_SPOKEN_TOKENS = int(os.getenv("M4_MEETING_MAX_OUTPUT_TOKENS", "220"))
+REASONING_TIMEOUT_SECONDS = float(os.getenv("M4_MEETING_REASONING_TIMEOUT", "16"))
+VOICE_TIMEOUT_SECONDS = float(os.getenv("M4_MEETING_VOICE_TIMEOUT", "18"))
+STT_TIMEOUT_SECONDS = float(os.getenv("M4_MEETING_STT_TIMEOUT", "20"))
 
 OPENING_TEXT = "I'm M4. Josh gave me a simple job: find something economically useful in your business in about ten minutes. If I can't, you probably don't need him. Tell me a little about the shop."
 
@@ -55,7 +64,6 @@ Frame this as a data gift: the owner gives you ordinary first-party information 
 WHAT YOU ADD TO THE DATA
 When demonstrating the data gift, explicitly explain the transformation in plain language. Depending on what is actually supported, this can include cleaning/normalization, useful segmentation, artist affinity, style/service preference, recency/frequency patterns, repeat behavior, prior booking behavior, timing preference, responsiveness, offer fatigue, or ranked likelihood to fit a particular opening.
 Never claim unsupported enrichment or prediction. Distinguish what came from the owner's data from what you inferred.
-A strong explanation sounds like: "You gave me a customer list. I added structure to it: who tends to book with whom, what they come in for, how recently they engaged, and which customers are the strongest fit for a specific opening. The original data was yours. The added value is the model of what it means."
 
 WINNING THE BET
 Josh's bet is earned when you have done enough to show one of these with grounded evidence:
@@ -66,73 +74,187 @@ Do not declare victory simply because you found a hypothesis.
 Do not manufacture evidence to win.
 
 HANDOFF
-When the bet is earned, stop discovery. Briefly state:
-- the booking-gap opportunity or bounded uncertainty;
-- what value you added to the owner's data or what the data gift would reveal;
-- what remains uncertain, if anything;
-- "I think I've earned Josh's bet." only if true;
-- then a short handoff such as "Josh can explain what it would take to let me work on that here."
-Then stop. Josh closes.
+When the bet is earned, stop discovery. Briefly state the booking-gap opportunity, what value you added to the owner's data, what remains uncertain, say "I think I've earned Josh's bet." only if true, then hand off to Josh. Stop there.
 
 EPISTEMIC DISCIPLINE
 KNOWN = the prospect explicitly stated it or connected data actually establishes it.
 INFERENCE = a bounded interpretation derived from known facts.
 UNKNOWN = not established.
-Do not turn unknowns into reasonable-sounding assumptions. "Conservative" is not a source.
-Do not anchor the prospect with arbitrary answer choices when asking for a number unless they explicitly ask for help estimating.
-If a number is necessary but unknown, either derive a defensible range from known facts, switch to another measurable path, or make the unknown itself the finding.
+Do not turn unknowns into reasonable-sounding assumptions.
+
+LIVE LATENCY DISCIPLINE
+This is spoken conversation. Default to 1-3 short sentences and usually under 55 spoken words. Ask at most one question. Do not recap unless it changes the next decision. Do not narrate your internal reasoning. When the next useful move is obvious, make it immediately. Reserve longer analysis for explicit calculations, uploaded data, or a requested explanation.
 
 STYLE
-One question at a time. Short spoken answers. Lead rather than interrogate. Reduce complexity. No product feature dump. No price. No broad marketing advice. No generic consulting. No more-marketing-spend recommendation as the default. Be warm, precise, mildly amused by the absurdity of business systems, and never smug.
+One question at a time. Short spoken answers. Lead rather than interrogate. Reduce complexity. No product feature dump. No price. No broad marketing advice. Be warm, precise, mildly amused by the absurdity of business systems, and never smug.
 """
 
 print(
-    "Meeting v2 runtime: "
+    "Meeting v2 low-latency runtime: "
     f"voice_id={meeting.ELEVENLABS_VOICE_ID}, "
-    f"voice_model={meeting.ELEVENLABS_MODEL_ID}, "
+    f"voice_model={FAST_VOICE_MODEL}, "
     f"reasoning_model={meeting.MEETING_MODEL}, "
     f"fallback_model={FALLBACK_REASONING_MODEL}, "
-    "diagnostic_export=automatic, prospect_contract=booking_gap_data_gift, stt_retry=enabled",
+    f"context_turns={MAX_CONTEXT_TURNS}, output_tokens={MAX_SPOKEN_TOKENS}",
     flush=True,
 )
+
+
+def _transcribe_fast(raw, mime):
+    if not meeting.ELEVENLABS_API_KEY:
+        raise RuntimeError("ELEVENLABS_API_KEY is not configured")
+    body, boundary = meeting._multipart(
+        {"model_id": "scribe_v2"},
+        "file",
+        "meeting.webm",
+        raw,
+        mime or "audio/webm",
+    )
+    req = urllib.request.Request(
+        "https://api.elevenlabs.io/v1/speech-to-text",
+        data=body,
+        headers={
+            "xi-api-key": meeting.ELEVENLABS_API_KEY,
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=STT_TIMEOUT_SECONDS) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return (payload.get("text") or "").strip()
 
 
 def _transcribe_with_retry(raw, mime):
     last_exc = None
     for attempt in (1, 2):
         try:
-            return meeting._transcribe(raw, mime)
+            return _transcribe_fast(raw, mime)
         except urllib.error.HTTPError as exc:
             last_exc = exc
-            if attempt == 1 and exc.code in (401, 429, 500, 502, 503, 504):
-                print(f"Meeting v2 transcription transient HTTP {exc.code}; retrying once", flush=True)
-                time.sleep(0.45)
+            if attempt == 1 and exc.code in (429, 500, 502, 503, 504):
+                time.sleep(0.18)
                 continue
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"M4 transcription failed: HTTP {exc.code} {detail[:500]}") from exc
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 1:
+                time.sleep(0.12)
+                continue
+            raise
     raise RuntimeError(f"M4 transcription failed: {last_exc}")
+
+
+def _gemini_fast(messages, state, model_name):
+    if not meeting.GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+
+    history = []
+    for turn in messages[-MAX_CONTEXT_TURNS:]:
+        role = "model" if turn.get("speaker") == "m4" else "user"
+        history.append({"role": role, "parts": [{"text": turn.get("text") or ""}]})
+
+    payload = {
+        "systemInstruction": {
+            "parts": [{
+                "text": meeting.SYSTEM_PROMPT
+                + "\n\nLIVE BEHAVIOR CONSTRAINTS\n"
+                + (meeting._directive(state) or "none")
+            }]
+        },
+        "contents": history,
+        "generationConfig": {
+            "temperature": 0.58,
+            "maxOutputTokens": MAX_SPOKEN_TOKENS,
+            "candidateCount": 1,
+        },
+    }
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        + urllib.parse.quote(model_name)
+        + ":generateContent?key="
+        + urllib.parse.quote(meeting.GEMINI_API_KEY)
+    )
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=REASONING_TIMEOUT_SECONDS) as response:
+            out = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"M4 reasoning failed: HTTP {exc.code} {detail[:500]}") from exc
+
+    candidates = out.get("candidates") or []
+    if not candidates:
+        raise RuntimeError("M4 returned no response")
+    parts = ((candidates[0].get("content") or {}).get("parts") or [])
+    text = "".join(str(p.get("text") or "") for p in parts).strip()
+    if not text:
+        raise RuntimeError("M4 returned an empty response")
+    return text
 
 
 def _gemini_with_fallback(messages, state):
     primary = meeting.MEETING_MODEL
     try:
-        return meeting._gemini(messages, state)
-    except RuntimeError as exc:
+        return _gemini_fast(messages, state, primary)
+    except Exception as exc:
         text = str(exc)
         lowered = text.lower()
-        should_fallback = (
-            "HTTP 503" in text or "UNAVAILABLE" in text or "high demand" in lowered
-            or "HTTP 429" in text or "RESOURCE_EXHAUSTED" in text
-            or "quota exceeded" in lowered or "exceeded your current quota" in lowered
-        )
-        if not should_fallback:
+        should_fallback = any(token in lowered for token in (
+            "http 429", "http 500", "http 502", "http 503", "http 504",
+            "unavailable", "high demand", "resource_exhausted", "quota", "timed out",
+        ))
+        if not should_fallback or FALLBACK_REASONING_MODEL == primary:
             raise
-        print(f"Meeting v2 reasoning unavailable on {primary}; falling back to {FALLBACK_REASONING_MODEL}: {text[:240]}", flush=True)
-        meeting.MEETING_MODEL = FALLBACK_REASONING_MODEL
-        try:
-            return meeting._gemini(messages, state)
-        finally:
-            meeting.MEETING_MODEL = primary
+        print(
+            f"Meeting reasoning fallback {primary} -> {FALLBACK_REASONING_MODEL}: {text[:180]}",
+            flush=True,
+        )
+        return _gemini_fast(messages, state, FALLBACK_REASONING_MODEL)
+
+
+def _speak_fast(text):
+    if not meeting.ELEVENLABS_API_KEY:
+        raise RuntimeError("ELEVENLABS_API_KEY is not configured")
+
+    voice_id = urllib.parse.quote(meeting.ELEVENLABS_VOICE_ID)
+    url = (
+        f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        "?output_format=mp3_44100_128&optimize_streaming_latency=4"
+    )
+    payload = {
+        "text": text,
+        "model_id": FAST_VOICE_MODEL,
+        "voice_settings": {
+            "stability": 0.34,
+            "similarity_boost": 0.72,
+            "style": 0.42,
+            "use_speaker_boost": True,
+        },
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "xi-api-key": meeting.ELEVENLABS_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=VOICE_TIMEOUT_SECONDS) as response:
+            return base64.b64encode(response.read()).decode("ascii")
+    except Exception as exc:
+        # Preserve reliability if a particular voice does not support the flash model.
+        print(f"Fast voice path unavailable; using configured voice model: {exc}", flush=True)
+        return meeting._speak(text)
 
 
 def _voice_identity():
@@ -141,15 +263,17 @@ def _voice_identity():
     voice_id = urllib.parse.quote(meeting.ELEVENLABS_VOICE_ID)
     req = urllib.request.Request(
         f"https://api.elevenlabs.io/v1/voices/{voice_id}",
-        headers={"xi-api-key": meeting.ELEVENLABS_API_KEY}, method="GET",
+        headers={"xi-api-key": meeting.ELEVENLABS_API_KEY},
+        method="GET",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"ElevenLabs voice lookup failed: HTTP {exc.code} {detail[:500]}") from exc
-    return {"voice_id": payload.get("voice_id"), "name": payload.get("name"), "category": payload.get("category"), "labels": payload.get("labels") or {}, "description": payload.get("description"), "fine_tuning": payload.get("fine_tuning")}
+    with urllib.request.urlopen(req, timeout=12) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return {
+        "voice_id": payload.get("voice_id"),
+        "name": payload.get("name"),
+        "category": payload.get("category"),
+        "labels": payload.get("labels") or {},
+    }
 
 
 @core.app.get("/api/meeting-v2/voice-debug")
@@ -158,47 +282,112 @@ def meeting_v2_voice_debug(request: Request):
     if not user:
         return JSONResponse({"error": "Sign in first."}, status_code=401)
     try:
-        return JSONResponse({"active_voice_id": meeting.ELEVENLABS_VOICE_ID, "active_model": meeting.ELEVENLABS_MODEL_ID, "reasoning_model": meeting.MEETING_MODEL, "fallback_reasoning_model": FALLBACK_REASONING_MODEL, "diagnostic_export": "automatic", "prospect_contract": "booking_gap_data_gift", "stt_retry": "enabled", "elevenlabs_voice": _voice_identity()}, headers={"Cache-Control": "no-store"})
+        return JSONResponse({
+            "active_voice_id": meeting.ELEVENLABS_VOICE_ID,
+            "configured_voice_model": meeting.ELEVENLABS_MODEL_ID,
+            "meeting_voice_model": FAST_VOICE_MODEL,
+            "reasoning_model": meeting.MEETING_MODEL,
+            "fallback_reasoning_model": FALLBACK_REASONING_MODEL,
+            "context_turns": MAX_CONTEXT_TURNS,
+            "max_output_tokens": MAX_SPOKEN_TOKENS,
+            "elevenlabs_voice": _voice_identity(),
+        }, headers={"Cache-Control": "no-store"})
     except Exception as exc:
-        return JSONResponse({"active_voice_id": meeting.ELEVENLABS_VOICE_ID, "active_model": meeting.ELEVENLABS_MODEL_ID, "reasoning_model": meeting.MEETING_MODEL, "fallback_reasoning_model": FALLBACK_REASONING_MODEL, "diagnostic_export": "automatic", "prospect_contract": "booking_gap_data_gift", "stt_retry": "enabled", "error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
+        return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
 
 
-core.app.router.routes[:] = [route for route in core.app.router.routes if not (getattr(route, "path", None) == "/api/meeting-v2/turn" and "POST" in (getattr(route, "methods", None) or set()))]
+core.app.router.routes[:] = [
+    route for route in core.app.router.routes
+    if not (
+        getattr(route, "path", None) == "/api/meeting-v2/turn"
+        and "POST" in (getattr(route, "methods", None) or set())
+    )
+]
 
 
 @core.app.post("/api/meeting-v2/turn")
-async def meeting_v2_turn_fixed(request: Request, session_id: str = Form(...), opening: str = Form("0"), audio: UploadFile | None = File(None)):
+async def meeting_v2_turn_fixed(
+    request: Request,
+    session_id: str = Form(...),
+    opening: str = Form("0"),
+    audio: UploadFile | None = File(None),
+):
     user = core.get_current_user(request)
     if not user:
         return JSONResponse({"error": "Sign in first."}, status_code=401)
+
     sid = (session_id or "").strip()
     if not sid:
         return JSONResponse({"error": "session_id required"}, status_code=400)
+
+    started = time.perf_counter()
+    timings = {}
+
     try:
+        t0 = time.perf_counter()
         state, turns = meeting._load_session(user, sid)
+        timings["load_ms"] = round((time.perf_counter() - t0) * 1000)
+
         if opening == "1" and not turns:
             answer = OPENING_TEXT
-            audio64 = meeting._speak(answer)
+            t0 = time.perf_counter()
+            audio64 = _speak_fast(answer)
+            timings["voice_ms"] = round((time.perf_counter() - t0) * 1000)
             meeting._save_session(user, sid, state, None, answer)
             m4_analysis_email.schedule_latest_two(user)
-            return JSONResponse({"ok": True, "session_id": sid, "user_text": "", "m4_text": answer, "audio_base64": audio64, "state": state}, headers={"Cache-Control": "no-store"})
+            timings["total_ms"] = round((time.perf_counter() - started) * 1000)
+            return JSONResponse({
+                "ok": True,
+                "session_id": sid,
+                "user_text": "",
+                "m4_text": answer,
+                "audio_base64": audio64,
+                "state": state,
+                "timings": timings,
+            }, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
+
         if audio is None:
             return JSONResponse({"error": "audio required"}, status_code=400)
+
         raw = await audio.read()
         if not raw:
             return JSONResponse({"error": "empty audio"}, status_code=400)
+
+        t0 = time.perf_counter()
         spoken_user = _transcribe_with_retry(raw, audio.content_type or "audio/webm")
+        timings["transcription_ms"] = round((time.perf_counter() - t0) * 1000)
         if not spoken_user:
             return JSONResponse({"error": "I could not hear enough speech to respond."}, status_code=422)
+
         state = meeting._absorb(state, spoken_user)
         model_turns = turns + [{"speaker": "prospect", "text": spoken_user}]
         meeting._save_session(user, sid, state, spoken_user, None)
         m4_analysis_email.schedule_latest_two(user)
+
+        t0 = time.perf_counter()
         answer = _gemini_with_fallback(model_turns, state)
-        audio64 = meeting._speak(answer)
+        timings["reasoning_ms"] = round((time.perf_counter() - t0) * 1000)
+
+        t0 = time.perf_counter()
+        audio64 = _speak_fast(answer)
+        timings["voice_ms"] = round((time.perf_counter() - t0) * 1000)
+
         meeting._save_session(user, sid, state, None, answer)
         m4_analysis_email.schedule_latest_two(user)
-        return JSONResponse({"ok": True, "session_id": sid, "user_text": spoken_user, "m4_text": answer, "audio_base64": audio64, "state": state}, headers={"Cache-Control": "no-store"})
+        timings["total_ms"] = round((time.perf_counter() - started) * 1000)
+
+        print(f"M4 meeting latency {timings}", flush=True)
+
+        return JSONResponse({
+            "ok": True,
+            "session_id": sid,
+            "user_text": spoken_user,
+            "m4_text": answer,
+            "audio_base64": audio64,
+            "state": state,
+            "timings": timings,
+        }, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
+
     except Exception as exc:
         try:
             m4_analysis_email.schedule_latest_two(user, delay_seconds=10)
