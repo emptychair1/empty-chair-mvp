@@ -1,0 +1,5 @@
+Smoke checks:
+- Submit Concierge with consent Yes: customer + lead created, communication_consent=1.
+- Submit Concierge with consent No: customer + lead created, communication_consent=0.
+- Signed-in shop can open /concierge-leads and see only its own leads.
+- Sidebar exposes Concierge Leads on desktop and mobile.
