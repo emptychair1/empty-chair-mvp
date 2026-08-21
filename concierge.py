@@ -17,6 +17,17 @@ def _profile_score(p):
     return round(25 + 70 * known / len(fields))
 
 
+def _resolve_shop(request: Request, requested_shop: str = "") -> str:
+    """Use an explicit shop link first; otherwise bind signed-in testing to that user's shop."""
+    explicit = (requested_shop or "").strip().replace('"', "")
+    if explicit:
+        return explicit
+    user = core.get_current_user(request)
+    if user and user.get("shop_id"):
+        return str(user["shop_id"])
+    return DEMO_SHOP_ID
+
+
 @core.app.post("/api/concierge/profile")
 def concierge_profile(
     request: Request,
@@ -37,7 +48,14 @@ def concierge_profile(
     travel: str = Form(""),
 ):
     sid = session_id.strip() or f"conc_{uuid.uuid4().hex[:12]}"
-    target_shop = shop_id.strip() or DEMO_SHOP_ID
+    target_shop = _resolve_shop(request, shop_id)
+    conn = core.connect()
+    try:
+        if not core.db_fetchone(conn, "SELECT id FROM shops WHERE id=?", (target_shop,)):
+            return JSONResponse({"error": "This Concierge link is not attached to a valid shop."}, status_code=400)
+    finally:
+        conn.close()
+
     p = {
         "session_id": sid,
         "name": name.strip(),
@@ -56,21 +74,22 @@ def concierge_profile(
     }
     if not p["name"] or not p["phone"]:
         return JSONResponse({"error": "Name and phone are required to create your profile."}, status_code=400)
+
     before = 31
     after = _profile_score(p)
     try:
         customer_id, lead_id = concierge_leads.save_concierge_profile(target_shop, p, after)
     except Exception as exc:
         return JSONResponse({"error": f"Could not save customer profile: {exc}"}, status_code=500)
-    signals = [{"label": k.replace("_", " ").title(), "value": v} for k, v in p.items() if k not in {"session_id", "email", "phone", "offer_opt_in"} and v]
+
     return JSONResponse({
         "ok": True,
+        "shop_id": target_shop,
         "session_id": sid,
         "customer_id": customer_id,
         "lead_id": lead_id,
         "profile_created": True,
         "communication_consent": p["offer_opt_in"],
-        "signals": signals,
         "m4_confidence_before": before,
         "m4_confidence_after": after,
         "value": {
@@ -86,8 +105,7 @@ def concierge_profile(
 
 @core.app.get("/concierge", response_class=HTMLResponse)
 def concierge_page(request: Request):
-    """Serve Concierge without depending on Jinja rendering at request time."""
-    shop_id = (request.query_params.get("shop_id") or DEMO_SHOP_ID).replace('"', '')
+    shop_id = _resolve_shop(request, request.query_params.get("shop_id") or "")
     try:
         with open("templates/concierge_chat.html", "r", encoding="utf-8") as handle:
             html = handle.read()
