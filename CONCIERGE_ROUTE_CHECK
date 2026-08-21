@@ -1,0 +1,1 @@
+GET /concierge should render templates/concierge_public.html with no-store headers.
