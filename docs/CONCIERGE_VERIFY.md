@@ -1,0 +1,1 @@
+Concierge profile creation now verifies both the customer row and Concierge lead row after commit. Signed-in sessions always bind saves to the authenticated shop. Concierge Leads uses the current Starlette/FastAPI keyword TemplateResponse signature.
