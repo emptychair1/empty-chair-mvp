@@ -1,0 +1,1 @@
+The `concierge_leads` table is created lazily with CREATE TABLE IF NOT EXISTS on first Concierge save or leads-screen load, supporting both SQLite and PostgreSQL deployments.
