@@ -138,6 +138,6 @@ def concierge_page(request: Request):
         )
 
 
-# Loaded after m4_operator_observable by bootstrap; this keeps the existing URL
-# while hardening the live operator against slow narration requests.
+# Runtime hardening and the cinematic flywheel demo are loaded after the base routes.
 import m4_operator_runtime_fix  # noqa: F401,E402
+import m4_flywheel_demo  # noqa: F401,E402
