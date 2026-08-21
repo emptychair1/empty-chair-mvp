@@ -46,7 +46,7 @@ def save_concierge_profile(shop_id, profile, confidence):
             customer_id, shop_id, profile.get("name") or "Concierge lead",
             profile.get("phone") or "000-000-0000", profile.get("email") or None,
             consent, profile.get("artist_vibe") or "", profile.get("styles") or "",
-            "tattoo", 0,0,0,0,0,None,None,now,now,
+            "tattoo", 0, 0, 0, 0, 0, None, None, now, now,
         ))
         core.db_execute(conn, """
             INSERT INTO concierge_leads(
@@ -56,6 +56,9 @@ def save_concierge_profile(shop_id, profile, confidence):
         """, (lead_id, shop_id, customer_id, "concierge", json.dumps(profile), int(confidence), consent, now, now))
         conn.commit()
         return customer_id, lead_id
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -74,10 +77,10 @@ def concierge_leads_screen(request: Request):
                    c.preferred_styles, c.preferred_artists
             FROM concierge_leads l
             JOIN customers c ON c.id=l.customer_id
-            WHERE l.shop_id=?
+            WHERE l.shop_id=? AND c.shop_id=?
             ORDER BY l.created_at DESC
             LIMIT 250
-        """, (user["shop_id"],))
+        """, (user["shop_id"], user["shop_id"]))
     finally:
         conn.close()
 
@@ -91,9 +94,9 @@ def concierge_leads_screen(request: Request):
         leads.append(r)
 
     return core.templates.TemplateResponse(
-        "concierge_leads.html",
-        {
-            "request": request,
+        request=request,
+        name="concierge_leads.html",
+        context={
             "user": user,
             "shop": shop,
             "leads": leads,
