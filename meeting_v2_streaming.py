@@ -1,12 +1,13 @@
 """Low-latency streaming layer for The Meeting.
 
-Normal turns now return as soon as transcription + reasoning are complete. The
-browser then opens a same-origin audio URL; that route proxies ElevenLabs' MP3
-response as a StreamingResponse so playback can begin before the full clip has
-finished generating.
+Normal turns return as soon as transcription + reasoning are complete. The browser
+then opens a same-origin audio URL. That route proxies ElevenLabs streaming audio
+and falls back to the configured voice model when the ultra-low-latency model is
+unsupported by a particular voice.
 """
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -32,7 +33,7 @@ def _latest_m4_text(user, session_id):
         conn.close()
 
 
-def _audio_iterator(response, chunk_size=8192):
+def _audio_iterator(response, chunk_size=4096):
     try:
         while True:
             chunk = response.read(chunk_size)
@@ -46,17 +47,7 @@ def _audio_iterator(response, chunk_size=8192):
             pass
 
 
-@core.app.get("/api/meeting-v2/audio/{session_id}")
-def meeting_v2_audio_stream(request: Request, session_id: str):
-    user = core.get_current_user(request)
-    if not user:
-        return JSONResponse({"error": "Sign in first."}, status_code=401)
-    text = _latest_m4_text(user, (session_id or "").strip())
-    if not text:
-        return JSONResponse({"error": "No M4 response is ready for this meeting."}, status_code=404)
-    if not meeting.ELEVENLABS_API_KEY:
-        return JSONResponse({"error": "ELEVENLABS_API_KEY is not configured"}, status_code=503)
-
+def _open_voice_stream(text, model_id):
     voice_id = urllib.parse.quote(meeting.ELEVENLABS_VOICE_ID)
     url = (
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
@@ -64,7 +55,7 @@ def meeting_v2_audio_stream(request: Request, session_id: str):
     )
     payload = {
         "text": text,
-        "model_id": runtime.FAST_VOICE_MODEL,
+        "model_id": model_id,
         "voice_settings": {
             "stability": 0.34,
             "similarity_boost": 0.72,
@@ -82,21 +73,57 @@ def meeting_v2_audio_stream(request: Request, session_id: str):
         },
         method="POST",
     )
-    try:
-        upstream = urllib.request.urlopen(req, timeout=runtime.VOICE_TIMEOUT_SECONDS)
-        return StreamingResponse(
-            _audio_iterator(upstream),
-            media_type="audio/mpeg",
-            headers={
-                "Cache-Control": "no-store, no-cache, must-revalidate",
-                "X-Accel-Buffering": "no",
-            },
-        )
-    except Exception as exc:
-        return JSONResponse({"error": f"M4 voice stream failed: {exc}"}, status_code=503)
+    return urllib.request.urlopen(req, timeout=runtime.VOICE_TIMEOUT_SECONDS)
 
 
-# Replace the prior POST turn route with a text-first version.
+@core.app.get("/api/meeting-v2/audio/{session_id}")
+def meeting_v2_audio_stream(request: Request, session_id: str):
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
+    text = _latest_m4_text(user, (session_id or "").strip())
+    if not text:
+        return JSONResponse({"error": "No M4 response is ready for this meeting."}, status_code=404)
+    if not meeting.ELEVENLABS_API_KEY:
+        return JSONResponse({"error": "ELEVENLABS_API_KEY is not configured"}, status_code=503)
+
+    models = []
+    for model in (runtime.FAST_VOICE_MODEL, meeting.ELEVENLABS_MODEL_ID):
+        if model and model not in models:
+            models.append(model)
+
+    errors = []
+    for model in models:
+        try:
+            upstream = _open_voice_stream(text, model)
+            print(f"M4 voice stream opened model={model}", flush=True)
+            return StreamingResponse(
+                _audio_iterator(upstream),
+                media_type="audio/mpeg",
+                headers={
+                    "Cache-Control": "no-store, no-cache, must-revalidate",
+                    "X-Accel-Buffering": "no",
+                    "Content-Disposition": "inline",
+                },
+            )
+        except urllib.error.HTTPError as exc:
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                detail = ""
+            errors.append(f"{model}: HTTP {exc.code} {detail[:180]}")
+            print(f"M4 stream model failed {errors[-1]}", flush=True)
+        except Exception as exc:
+            errors.append(f"{model}: {exc}")
+            print(f"M4 stream model failed {errors[-1]}", flush=True)
+
+    return JSONResponse(
+        {"error": "M4 voice stream failed", "detail": " | ".join(errors)[:700]},
+        status_code=503,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 core.app.router.routes[:] = [
     route for route in core.app.router.routes
     if not (
@@ -161,8 +188,6 @@ async def meeting_v2_turn_streaming(
         answer = runtime._gemini_with_fallback(model_turns, state)
         timings["reasoning_ms"] = round((time.perf_counter() - t0) * 1000)
 
-        # Persist both sides after reasoning so DB I/O is no longer in the critical
-        # path between transcription and the model call.
         t0 = time.perf_counter()
         meeting._save_session(user, sid, state, spoken_user, answer)
         timings["save_ms"] = round((time.perf_counter() - t0) * 1000)
