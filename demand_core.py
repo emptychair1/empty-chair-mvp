@@ -104,6 +104,7 @@ def capture_concierge_profile(shop_id, customer_id, profile, conn=None):
         "short_notice": "declared.short_notice",
         "artist_vibe": "declared.artist_preference",
         "travel": "declared.travel",
+        "location": "declared.location",
         "contact_preference": "declared.contact_preference",
         "offer_opt_in": "consent.opening_outreach",
     }
@@ -219,6 +220,10 @@ def customer_intelligence(shop_id, customer_id):
             lead = core.db_fetchone(conn, "SELECT profile_json,m4_confidence,created_at FROM concierge_leads WHERE shop_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 1", (shop_id, customer_id))
         except Exception:
             lead = None
+        try:
+            context_row = core.db_fetchone(conn, "SELECT context_json,source,confidence,observed_at FROM enrichment_context WHERE shop_id=? AND customer_id=? LIMIT 1", (shop_id, customer_id))
+        except Exception:
+            context_row = None
         signals = core.db_fetchall(conn, "SELECT signal_type,source,value_json,confidence,observed_at FROM demand_signals WHERE shop_id=? AND customer_id=? ORDER BY observed_at DESC", (shop_id, customer_id))
         bookings = core.db_fetchall(conn, "SELECT b.status,b.amount,b.booked_at,b.artist_id,b.opening_id FROM bookings b JOIN openings o ON o.id=b.opening_id WHERE b.customer_id=? AND o.shop_id=? ORDER BY COALESCE(b.booked_at,'') DESC", (customer_id, shop_id))
         attrs = core.db_fetchall(conn, "SELECT action_type,channel,attribution_class,value,metadata_json,created_at,opening_id FROM attribution_events WHERE shop_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 100", (shop_id, customer_id))
@@ -227,6 +232,13 @@ def customer_intelligence(shop_id, customer_id):
         tattoo = json_value(profile["tattoo_dna"], {}) if profile else {}
         practical = json_value(profile["practical_fit"], {}) if profile else {}
         affinity = json_value(profile["affinity"], {}) if profile else {}
+        contextual = json_value(context_row["context_json"], {}) if context_row else {}
+        if context_row:
+            contextual["provenance"] = {
+                "source": context_row["source"],
+                "confidence": float(context_row["confidence"] or 0),
+                "observed_at": context_row["observed_at"],
+            }
         behavior = {
             "appointment_count": int(customer["appointment_count"] or 0) if "appointment_count" in customer.keys() else len(bookings),
             "completed_count": int(customer["completed_count"] or 0) if "completed_count" in customer.keys() else 0,
@@ -245,7 +257,7 @@ def customer_intelligence(shop_id, customer_id):
             "visual": tattoo,
             "practical": practical,
             "affinity": affinity,
-            "contextual": {},
+            "contextual": contextual,
             "provenance": provenance,
             "attribution": [{**dict(a), "metadata": json_value(a["metadata_json"], {})} for a in attrs],
             "completeness": float(profile["completeness"] or 0) if profile else 0.0,

@@ -9,12 +9,13 @@ import app as core
 import concierge_leads
 import demand_engine
 import demand_core
+import enrichment_v1
 
 DEMO_SHOP_ID = "shop_live_demo"
 
 
 def _profile_score(p):
-    fields = ["styles", "placement", "budget", "timing", "short_notice", "artist_vibe", "travel", "project"]
+    fields = ["styles", "placement", "budget", "timing", "short_notice", "artist_vibe", "travel", "project", "location"]
     known = sum(bool(p.get(k)) for k in fields)
     return round(25 + 70 * known / len(fields))
 
@@ -55,6 +56,7 @@ def concierge_profile(
     short_notice: str = Form(""),
     artist_vibe: str = Form(""),
     travel: str = Form(""),
+    location: str = Form(""),
 ):
     sid = session_id.strip() or f"conc_{uuid.uuid4().hex[:12]}"
     target_shop = _resolve_shop(request, shop_id)
@@ -80,6 +82,7 @@ def concierge_profile(
         "short_notice": short_notice.strip(),
         "artist_vibe": artist_vibe.strip(),
         "travel": travel.strip(),
+        "location": location.strip(),
     }
     if not p["name"] or not p["phone"]:
         return JSONResponse({"error": "Name and phone are required to create your profile."}, status_code=400)
@@ -90,6 +93,12 @@ def concierge_profile(
         customer_id, lead_id = concierge_leads.save_concierge_profile(target_shop, p, after)
         demand_core.capture_concierge_profile(target_shop, customer_id, p)
         demand_core.sync_concierge_profile(target_shop, customer_id, p)
+        contextual = None
+        if p["location"]:
+            try:
+                contextual = enrichment_v1.enrich_customer(target_shop, customer_id, p["location"], source="concierge_zero_party")
+            except Exception as exc:
+                core.event("enrichment.customer_failed", "customer", customer_id, str(exc))
         verify = core.connect()
         try:
             customer = core.db_fetchone(verify, "SELECT id FROM customers WHERE id=? AND shop_id=?", (customer_id, target_shop))
@@ -113,12 +122,14 @@ def concierge_profile(
         "communication_consent": p["offer_opt_in"],
         "m4_confidence_before": before,
         "m4_confidence_after": after,
+        "contextual_enrichment": contextual or {},
         "value": {
             "name": p["name"],
             "readiness": "ready to match" if after >= 70 else "developing",
             "short_notice": p.get("short_notice") or "not specified",
             "budget": p.get("budget") or "not specified",
             "style": p.get("styles") or "open",
+            "location": p.get("location") or "not specified",
             "contact_preference": p.get("contact_preference") or "not specified",
         },
     }, headers={"Cache-Control": "no-store"})
