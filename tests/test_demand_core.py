@@ -1,5 +1,8 @@
+import json
+
 import app as core
 import demand_core
+import enrichment_v1
 
 
 def _shop_customer(prefix="dc"):
@@ -20,13 +23,35 @@ def _shop_customer(prefix="dc"):
 
 def test_concierge_profile_becomes_provenance_and_practical_fit():
     shop_id, customer_id = _shop_customer("profile")
-    profile = {"styles": "black and grey, botanical", "placement": "forearm", "budget": "$600-1000", "timing": "this month", "short_notice": "yes", "travel": "30 miles", "offer_opt_in": True}
+    profile = {"styles": "black and grey, botanical", "placement": "forearm", "budget": "$600-1000", "timing": "this month", "short_notice": "yes", "travel": "30 miles", "location": "Athens, GA", "offer_opt_in": True}
     demand_core.capture_concierge_profile(shop_id, customer_id, profile)
     demand_core.sync_concierge_profile(shop_id, customer_id, profile)
     intel = demand_core.customer_intelligence(shop_id, customer_id)
     assert "black and grey" in intel["visual"]["styles"]
     assert intel["practical"]["placement"] == "forearm"
     assert any(s["signal_type"] == "declared.budget" and s["source"] == "concierge_zero_party" for s in intel["provenance"])
+    assert any(s["signal_type"] == "declared.location" and s["source"] == "concierge_zero_party" for s in intel["provenance"])
+
+
+def test_customer_intelligence_exposes_contextual_enrichment():
+    shop_id, customer_id = _shop_customer("context")
+    enrichment_v1.ensure_schema()
+    now = core.now_iso()
+    context = {
+        "geocode": {"matched_address": "Athens, GA"},
+        "area_context": {"classification": "area_level_context_only", "median_household_income": 60000},
+        "travel": {"drive_miles": 8.2, "drive_minutes": 14.0},
+    }
+    conn = core.connect()
+    try:
+        core.db_execute(conn, "INSERT OR REPLACE INTO enrichment_context(id,shop_id,customer_id,context_json,source,confidence,observed_at) VALUES(?,?,?,?,?,?,?)", ("ctx_test", shop_id, customer_id, json.dumps(context), "test_enrichment", 0.9, now))
+        conn.commit()
+    finally:
+        conn.close()
+    intel = demand_core.customer_intelligence(shop_id, customer_id)
+    assert intel["contextual"]["travel"]["drive_minutes"] == 14.0
+    assert intel["contextual"]["area_context"]["classification"] == "area_level_context_only"
+    assert intel["contextual"]["provenance"]["source"] == "test_enrichment"
 
 
 def test_customer_intelligence_is_shop_scoped():
