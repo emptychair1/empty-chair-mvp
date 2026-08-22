@@ -128,6 +128,7 @@ def test_full_concierge_to_learning_pipeline(monkeypatch):
     monkeypatch.setattr(enrichment_v1, "acs_area_context", _fake_acs)
     monkeypatch.setattr(enrichment_v1, "drive_context", _fake_drive)
     monkeypatch.setattr(demand_engine, "_vision_analyze", _fake_vision)
+    monkeypatch.setenv("EMPTY_CHAIR_SMS_LIVE", "true")
 
     with TestClient(app) as client:
         shop_id = _signup(client)
