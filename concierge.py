@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import app as core
 import concierge_leads
 import demand_engine
+import demand_core
 
 DEMO_SHOP_ID = "shop_live_demo"
 
@@ -87,6 +88,8 @@ def concierge_profile(
     after = _profile_score(p)
     try:
         customer_id, lead_id = concierge_leads.save_concierge_profile(target_shop, p, after)
+        demand_core.capture_concierge_profile(target_shop, customer_id, p)
+        demand_core.sync_concierge_profile(target_shop, customer_id, p)
         verify = core.connect()
         try:
             customer = core.db_fetchone(verify, "SELECT id FROM customers WHERE id=? AND shop_id=?", (customer_id, target_shop))
@@ -139,7 +142,6 @@ def concierge_page(request: Request):
         )
 
 
-# Demand Graph is registered here because bootstrap imports Concierge in every production process.
 demand_engine.register_demand_engine(
     app=core.app,
     templates=core.templates,
@@ -151,7 +153,6 @@ demand_engine.register_demand_engine(
     now_iso=core.now_iso,
 )
 
-# Runtime hardening and the cinematic flywheel demo are loaded after the base routes.
 import m4_operator_runtime_fix  # noqa: F401,E402
 import m4_flywheel_demo  # noqa: F401,E402
 import m4_flywheel_refine  # noqa: F401,E402

@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from fastapi.responses import RedirectResponse
 import app as core
 import google_integration
+import demand_core
 
 app = core.app
 
@@ -53,10 +54,7 @@ def claim_offer_atomic(offer_id: str):
         booking_id = f"booking_{uuid.uuid4().hex[:12]}"
         shop = core.db_fetchone(conn, "SELECT booking_url,deposits_enabled,default_deposit_amount FROM shops WHERE id=?", (offer["shop_id"],))
         booking_url = shop["booking_url"] if shop else None
-        deposit_amount = min(
-            max(float(shop["default_deposit_amount"] or 0), 0),
-            float(offer["price"] or 0),
-        ) if shop and shop["deposits_enabled"] else 0
+        deposit_amount = min(max(float(shop["default_deposit_amount"] or 0), 0), float(offer["price"] or 0)) if shop and shop["deposits_enabled"] else 0
         booking_status = "PAYMENT_REQUIRED" if deposit_amount > 0 else "AWAITING_CONFIRMATION"
         deposit_status = "REQUIRED" if deposit_amount > 0 else "NOT_REQUIRED"
         core.db_execute(conn, "UPDATE offers SET status='CANCELLED' WHERE opening_id=? AND id!=? AND status IN ('PENDING','SENT')", (offer["opening_id"], offer_id))
@@ -72,6 +70,11 @@ def claim_offer_atomic(offer_id: str):
     conn.close()
 
     core.event("offer.claimed", "offer", offer_id); core.event("booking.created", "booking", booking_id)
+    try:
+        demand_core.record_attribution(offer["shop_id"], offer["customer_id"], offer["opening_id"], "offer_claimed", channel=offer["channel"] or "sms", attribution_class="direct", value=float(offer["price"] or 0), metadata={"offer_id": offer_id, "booking_id": booking_id, "source": "claim_flow"})
+        demand_core.record_signal(offer["shop_id"], offer["customer_id"], "behavior.offer_claimed", "empty_chair_runtime", {"offer_id": offer_id, "booking_id": booking_id, "opening_id": offer["opening_id"]}, confidence=1.0)
+    except Exception as exc:
+        core.event("attribution.claim_failed", "offer", offer_id, str(exc))
     try: core.send_recovery_email(offer["opening_id"])
     except Exception as exc: print("Recovery confirmation send failed:", str(exc))
     return RedirectResponse(f"/booking/{booking_id}?customer=1", status_code=303)

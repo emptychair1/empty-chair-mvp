@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse
 import app as core
 import google_integration
 import notifications
+import demand_core
 
 app = core.app
 app.router.routes = [r for r in app.router.routes if not (getattr(r, "path", None) == "/bookings/{booking_id}/confirm" and "POST" in (getattr(r, "methods", set()) or set()))]
@@ -51,19 +52,10 @@ def confirm_booking(request: Request, booking_id: str):
             start_iso = None
             end_iso = None
 
-        cursor = core.db_execute(
-            conn,
-            "UPDATE bookings SET status='CONFIRMED', booked_at=? WHERE id=? AND status IN ('AWAITING_CONFIRMATION','PENDING')",
-            (core.now_iso(), booking_id),
-        )
+        cursor = core.db_execute(conn, "UPDATE bookings SET status='CONFIRMED', booked_at=? WHERE id=? AND status IN ('AWAITING_CONFIRMATION','PENDING')", (core.now_iso(), booking_id))
         if cursor.rowcount != 1:
             raise HTTPException(409, "Booking is no longer awaiting confirmation")
-
-        core.db_execute(
-            conn,
-            "UPDATE openings SET status='BOOKED' WHERE id=? AND status='CLAIMED'",
-            (booking["opening_id"],),
-        )
+        core.db_execute(conn, "UPDATE openings SET status='BOOKED' WHERE id=? AND status='CLAIMED'", (booking["opening_id"],))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -74,13 +66,7 @@ def confirm_booking(request: Request, booking_id: str):
     if calendar_user_id and start_iso and end_iso:
         try:
             timezone_name = booking["shop_timezone"] or "America/New_York"
-            result = google_integration.block_calendar_time_for_user(
-                calendar_user_id,
-                f"Empty Chair · {booking['customer_name']} with {booking['artist_name']}",
-                start_iso,
-                end_iso,
-                timezone_name,
-            )
+            result = google_integration.block_calendar_time_for_user(calendar_user_id, f"Empty Chair · {booking['customer_name']} with {booking['artist_name']}", start_iso, end_iso, timezone_name)
             if result:
                 google_integration.remember_booking_event(booking_id, calendar_user_id, result.get("id"))
                 core.event("calendar.slot_blocked", "booking", booking_id, result.get("id"))
@@ -88,14 +74,15 @@ def confirm_booking(request: Request, booking_id: str):
             core.event("calendar.block_failed", "booking", booking_id, str(exc))
 
     core.event("booking.confirmed", "booking", booking_id)
+    try:
+        demand_core.record_attribution(booking["shop_id"], booking["customer_id"], booking["opening_id"], "booking_confirmed", channel="recovery", attribution_class="direct", value=float(booking["amount"] or 0), metadata={"booking_id": booking_id, "artist_id": booking["artist_id"], "source": "booking_confirmation"})
+        demand_core.record_signal(booking["shop_id"], booking["customer_id"], "outcome.booking_confirmed", "empty_chair_runtime", {"booking_id": booking_id, "opening_id": booking["opening_id"], "artist_id": booking["artist_id"], "amount": float(booking["amount"] or 0)}, confidence=1.0)
+    except Exception as exc:
+        core.event("attribution.booking_failed", "booking", booking_id, str(exc))
 
     if booking["customer_email"]:
         try:
-            notifications.send_email(
-                booking["customer_email"],
-                f"Your appointment at {booking['shop_name']} is confirmed",
-                f"<h2>Your appointment is confirmed.</h2><p>{booking['date']} at {booking['start_time']} with {booking['artist_name']}.</p>",
-            )
+            notifications.send_email(booking["customer_email"], f"Your appointment at {booking['shop_name']} is confirmed", f"<h2>Your appointment is confirmed.</h2><p>{booking['date']} at {booking['start_time']} with {booking['artist_name']}.</p>")
         except Exception as exc:
             core.event("booking.confirmation_delivery_failed", "booking", booking_id, str(exc))
 
