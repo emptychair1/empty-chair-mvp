@@ -29,6 +29,7 @@ import pilot  # noqa: F401,E402
 import pilot_safety  # noqa: F401,E402
 import fill_chairs_flow  # noqa: F401,E402
 import demo_mode  # noqa: F401,E402
+import sales_demo  # noqa: F401,E402
 import paid_activation  # noqa: F401,E402
 import admin_dashboard  # noqa: F401,E402
 import artist_metrics  # noqa: F401,E402
@@ -118,22 +119,8 @@ def meet_m4_bootstrap(request: Request):
             html=html.replace("if(j.audio_base64)await play64(j.audio_base64);", "if(j.audio_url)await playUrl(j.audio_url);else if(j.audio_base64)await play64(j.audio_base64);")
             stream_player="async function playUrl(u){return new Promise(resolve=>{let done=false;const finish=(msg)=>{if(done)return;done=true;presence.style.transform='';visual('listening',msg||'Speak when you are ready.');resolve()};const a=new Audio();a.preload='auto';a.src=u;a.onplaying=()=>visual('speaking','M4 is speaking.');a.onended=()=>finish();a.onerror=()=>finish('Voice stream interrupted. Continue when ready.');const timer=setTimeout(()=>finish('Voice took too long. Continue when ready.'),12000);a.addEventListener('ended',()=>clearTimeout(timer),{once:true});a.addEventListener('error',()=>clearTimeout(timer),{once:true});a.play().catch(()=>finish('Voice playback was blocked. Tap once and continue.'))})}"
             if "function playUrl(" not in html:
-                pos=html.rfind("</script>")
-                if pos!=-1:
-                    html=html[:pos]+stream_player+html[pos:]
-            old_opening_catch="catch(e){started=false;enter.classList.remove('hidden');visual('present',e.message||'Microphone or voice service unavailable.')}"
-            new_opening_catch="catch(e){started=false;const msg=e.message||'Microphone or voice service unavailable.';if(enter&&enter.parentNode)enter.remove();visual('error',msg);hint.textContent=msg;hint.style.position='relative';hint.style.zIndex='999';hint.style.color='#181b17';hint.style.fontFamily='ui-monospace,SFMono-Regular,monospace';hint.style.fontSize='14px';hint.style.lineHeight='1.5';hint.style.padding='16px 18px';hint.style.background='#fff';hint.style.border='1px solid rgba(30,35,28,.18)';hint.style.borderRadius='12px';hint.style.maxWidth='min(92vw,760px)';hint.style.margin='12px auto 0';}"
-            html=html.replace(old_opening_catch,new_opening_catch)
-            old_turn_catch="catch(e){visual('present','Connection interrupted. Tap Enter to continue.');hint.textContent=e.message||String(e);enter.classList.remove('hidden');started=false}"
-            new_turn_catch="catch(e){const msg=e.message||String(e);visual('error',msg);hint.textContent=msg;hint.style.position='relative';hint.style.zIndex='999';hint.style.color='#181b17';hint.style.fontFamily='ui-monospace,SFMono-Regular,monospace';hint.style.fontSize='14px';hint.style.lineHeight='1.5';hint.style.padding='16px 18px';hint.style.background='#fff';hint.style.border='1px solid rgba(30,35,28,.18)';hint.style.borderRadius='12px';hint.style.maxWidth='min(92vw,760px)';hint.style.margin='12px auto 0';setTimeout(()=>{if(started){hint.removeAttribute('style');visual('listening','Connection restored. Continue.');startRecording()}},1800)}"
-            html=html.replace(old_turn_catch,new_turn_catch)
-            if meeting_v2_visual_patch is not None: html=meeting_v2_visual_patch.enhance(html)
-            if meeting_v2_visual_refine is not None: html=meeting_v2_visual_refine.enhance(html)
-            return HTMLResponse(html,headers={"Cache-Control":"no-store, no-cache, must-revalidate"})
-        return response
-    return HTMLResponse(f"<html><body style='font-family:system-ui;padding:32px'><h1>The Meeting is unavailable</h1><pre>{meeting_import_error}</pre></body></html>",status_code=503,headers={"Cache-Control":"no-store"})
+                html=html.replace("async function play64(b64){", stream_player+"async function play64(b64){")
+            return HTMLResponse(html, headers={"Cache-Control":"no-store, no-cache, must-revalidate"})
+    return HTMLResponse(f"<h1>M4 meeting unavailable</h1><pre>{meeting_import_error or 'Meeting module not loaded'}</pre>",status_code=503)
 
-import settings_sms_test  # noqa: F401,E402
-import pilot_worker  # noqa: F401,E402
-app=core.app
-print("Empty Chair bootstrap loaded: "+f"version={pilot.PILOT_VERSION}, "+f"sms_live={notifications.SMS_LIVE}, "+f"email_live={notifications.EMAIL_LIVE}, "+f"resend_configured={bool(core.RESEND_API_KEY)}, "+f"google_configured={bool(google_integration.GOOGLE_CLIENT_ID)}, "+f"stripe_configured={stripe_deposits.configured()}, "+f"contact_cooldown_hours={pilot_safety.CONTACT_COOLDOWN_HOURS}")
+app = core.app
