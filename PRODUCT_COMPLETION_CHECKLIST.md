@@ -52,7 +52,7 @@ This is the frozen MVP completion scope for the private tattoo-shop demand intel
 
 ## P1 — Production proof
 
-- [ ] End-to-end test: Concierge → customer → Tattoo DNA → enrichment → Artist DNA → M4 ranking → offer → claim → booking → attribution → learning.
+- [x] End-to-end test: Concierge → customer → Tattoo DNA → enrichment → Artist DNA → M4 ranking → offer → claim → booking → attribution → learning.
 - [ ] Cross-shop isolation tests for Customer DNA, Artist DNA and attribution.
 - [ ] Public upload/session abuse tests.
 - [ ] DNA ranking regression tests.
