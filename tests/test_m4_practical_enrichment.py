@@ -63,6 +63,20 @@ def test_drive_context_falls_back_without_routing(monkeypatch):
     assert result["confidence"] == 0.55
 
 
+def test_zip_geocode_uses_zip_centroid(monkeypatch):
+    monkeypatch.setattr(
+        enrichment_v1,
+        "_json_get",
+        lambda *args, **kwargs: {
+            "places": [{"place name": "Athens", "state abbreviation": "GA", "latitude": "33.95", "longitude": "-83.38"}]
+        },
+    )
+    geo = enrichment_v1.geocode_address("30601")
+    assert geo["zcta"] == "30601"
+    assert geo["geography_level"] == "zip"
+    assert geo["latitude"] == 33.95
+
+
 def test_acs_context_is_explicitly_area_level(monkeypatch):
     monkeypatch.setattr(
         enrichment_v1,
@@ -74,4 +88,19 @@ def test_acs_context_is_explicitly_area_level(monkeypatch):
     )
     context = enrichment_v1.acs_area_context("13", "059", "000100")
     assert context["classification"] == "area_level_context_only"
+    assert context["geography_level"] == "tract"
     assert context["median_household_income"] == 65000.0
+
+
+def test_acs_zcta_context_is_area_level(monkeypatch):
+    monkeypatch.setattr(
+        enrichment_v1,
+        "_json_get",
+        lambda *args, **kwargs: [
+            ["NAME", "B19013_001E", "B25077_001E", "B01003_001E", "B23025_005E", "zip code tabulation area"],
+            ["ZCTA5 30601", "62000", "245000", "21000", "500", "30601"],
+        ],
+    )
+    context = enrichment_v1.acs_area_context(zcta="30601")
+    assert context["classification"] == "area_level_context_only"
+    assert context["geography_level"] == "zcta"
