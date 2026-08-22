@@ -40,7 +40,7 @@ This is the frozen MVP completion scope for the private tattoo-shop demand intel
 - [ ] Customer deletion endpoint including inspiration assets and derived intelligence.
 - [ ] Shop export/delete lifecycle.
 - [ ] Encrypt sensitive raw assets at rest at the application/storage layer or move them to encrypted object storage.
-- [ ] Trial privacy mode: shop sees identities; Empty Chair trial analytics can operate on pseudonymous/aggregate data.
+- [x] Trial privacy mode: shop sees identities; Empty Chair trial analytics operate on stable pseudonymous IDs, bucketed operational features and minimum-size aggregates with identity/location/raw-data exclusions.
 
 ## P1 — Enrichment v1
 
@@ -58,6 +58,7 @@ This is the frozen MVP completion scope for the private tattoo-shop demand intel
 - [ ] DNA ranking regression tests.
 - [x] Attribution tests.
 - [ ] Enrichment failure/degraded-mode tests.
+- [x] Privacy Trial analytics boundary tests: stable pseudonyms, identity stripping and small-group suppression.
 
 ## Later — deliberately out of current completion scope
 
