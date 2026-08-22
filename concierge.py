@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 import app as core
 import concierge_leads
+import concierge_pilot
 import demand_engine
 import demand_core
 import enrichment_v1
@@ -109,6 +110,11 @@ def concierge_profile(
             return JSONResponse({"error": "Profile save could not be verified."}, status_code=500)
     except Exception as exc:
         return JSONResponse({"error": f"Could not save customer profile: {exc}"}, status_code=500)
+
+    try:
+        concierge_pilot.send_new_lead_email(target_shop, p, after, customer_id)
+    except Exception as exc:
+        core.event("concierge.lead_email_failed", "customer", customer_id, str(exc))
 
     return JSONResponse({
         "ok": True,
