@@ -29,6 +29,7 @@ import pilot  # noqa: F401,E402
 import pilot_safety  # noqa: F401,E402
 import fill_chairs_flow  # noqa: F401,E402
 import demo_mode  # noqa: F401,E402
+import sales_demo  # noqa: F401,E402
 import paid_activation  # noqa: F401,E402
 import admin_dashboard  # noqa: F401,E402
 import artist_metrics  # noqa: F401,E402
