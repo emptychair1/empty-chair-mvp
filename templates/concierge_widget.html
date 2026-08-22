@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Concierge</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:transparent;color:#171917}.widget{height:100vh;min-height:520px;display:flex;flex-direction:column;background:#fff;border:1px solid #deded8;border-radius:16px;overflow:hidden}.head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #ecece7;background:#fff}.avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#171917;color:#fff;font-weight:800;font-size:13px}.head strong{display:block;font-size:14px}.head small{display:block;color:#76766f;font-size:11px;margin-top:2px}.dot{width:7px;height:7px;border-radius:50%;background:#63a83d;display:inline-block;margin-right:5px}.thread{flex:1;overflow:auto;padding:16px;background:#f7f7f3}.message{max-width:86%;padding:10px 12px;border-radius:14px;margin:0 0 10px;line-height:1.42;font-size:14px;white-space:pre-wrap}.message.concierge{background:#fff;border:1px solid #e4e4de;border-bottom-left-radius:5px}.message.user{background:#171917;color:#fff;margin-left:auto;border-bottom-right-radius:5px}.message small{display:block;font-size:9px;opacity:.55;margin-top:5px}.typing{display:flex;gap:3px;padding:3px 0}.typing i{width:5px;height:5px;background:#888;border-radius:50%;display:block}.quick{display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 0;background:#fff}.quick button{border:1px solid #d8d8d1;background:#fff;border-radius:999px;padding:7px 10px;font-size:11px;cursor:pointer}.composer{background:#fff;border-top:1px solid #e7e7e1;padding-bottom:10px}.inputrow{display:flex;gap:8px;padding:10px 12px 0}.inputrow input{flex:1;min-width:0;border:1px solid #d8d8d1;border-radius:12px;padding:11px 12px;font-size:14px;outline:none}.inputrow input:focus{border-color:#99998f}.send{border:0;border-radius:12px;background:#171917;color:#fff;padding:0 15px;font-weight:700;cursor:pointer}.foot{text-align:center;color:#92928a;font-size:9px;padding:7px 12px 0}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="widget">
+  <div class="head"><div class="avatar">C</div><div><strong>Concierge</strong><small><span class="dot"></span>Here to help with your tattoo</small></div></div>
+  <div id="thread" class="thread"><div class="message concierge">Hey — what are you thinking about getting?<small>Concierge</small></div></div>
+  <div class="composer"><div id="quick" class="quick"></div><div class="inputrow"><input id="answer" autocomplete="off" placeholder="Type a message…"><button id="send" class="send">Send</button></div><div class="foot">Your answers go directly to this tattoo shop.</div></div>
+</div>
+<script>window.EMPTY_CHAIR_CONCIERGE={shopId:{{ shop_id|tojson }},widget:true};</script>
+<script src="/static/concierge-widget.js"></script>
+</body>
+</html>
