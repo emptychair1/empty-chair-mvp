@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 import app as core
 import concierge_leads
+import demand_engine
 
 DEMO_SHOP_ID = "shop_live_demo"
 
@@ -137,6 +138,18 @@ def concierge_page(request: Request):
             headers={"Cache-Control": "no-store"},
         )
 
+
+# Demand Graph is registered here because bootstrap imports Concierge in every production process.
+demand_engine.register_demand_engine(
+    app=core.app,
+    templates=core.templates,
+    connect=core.connect,
+    db_execute=core.db_execute,
+    db_fetchone=core.db_fetchone,
+    db_fetchall=core.db_fetchall,
+    login_required_redirect=core.login_required_redirect,
+    now_iso=core.now_iso,
+)
 
 # Runtime hardening and the cinematic flywheel demo are loaded after the base routes.
 import m4_operator_runtime_fix  # noqa: F401,E402
