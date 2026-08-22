@@ -34,21 +34,43 @@ def _rank(opening,artist,customers,concierge=None):
             c=dict(customer);enrich=concierge.get(customer["id"],{});p=enrich.get("profile",{})
             if p.get("styles"):c["preferred_styles"]=p["styles"]
             if p.get("artist_vibe"):c["preferred_artists"]=(c.get("preferred_artists") or "")+" "+p["artist_vibe"]
-            result=m4_runtime.score(c,dict(opening));queue=m4_integration.m4_recovery_score(c,dict(opening),artist_dict)
+            result=m4_runtime.score(c,dict(opening))
+            decision=m4_integration.m4_recovery_breakdown(c,dict(opening),artist_dict)
+            queue=float(decision["score"])
             signals=[k for k in ("styles","placement","budget","timing","short_notice","artist_vibe","travel","project") if p.get(k)]
-            enrichment_points=min(8.0,len(signals)*.75)
-            # Cold-start Concierge leads have no tattoo history yet. Their volunteered intent is
-            # evidence, not noise, so give it a bounded exploration bonus without allowing it
-            # to dominate known behavioral history.
+            enrichment_points=min(5.0,len(signals)*.5)
             cold_start=bool(p) and int(c.get("appointment_count") or 0)==0 and int(c.get("completed_count") or 0)==0
-            exploration_bonus=min(6.0,float(enrich.get("confidence",0))/20.0) if cold_start else 0.0
+            exploration_bonus=min(4.0,float(enrich.get("confidence",0))/25.0) if cold_start else 0.0
+            # Concierge completeness can encourage exploration, but Tattoo DNA / Artist DNA
+            # compatibility now comes from the same production score used by recovery campaigns.
             queue+=enrichment_points+exploration_bonus
-            ranked.append({"customer_id":customer["id"],"name":c.get("name"),"booking_probability":round(float(result.get("booking_probability",0)),4),"incremental_uplift":round(float(result.get("incremental_uplift",0)),4),"confidence":round(float(result.get("confidence",0)),4),"expected_value":round(float(result.get("expected_value",0)),2) if result.get("expected_value") is not None else None,"style_fit":round(float(result.get("style_fit",0)),3),"budget_fit":round(float(result.get("budget_fit",0)),3),"queue_score":round(float(queue),2),"why":result.get("why") or [],"concierge_enriched":bool(p),"concierge_confidence":enrich.get("confidence",0),"concierge_signals":signals,"cold_start_exploration":cold_start})
+            why=list(decision.get("why") or result.get("why") or [])
+            ranked.append({
+                "customer_id":customer["id"],
+                "name":c.get("name"),
+                "booking_probability":round(float(decision.get("booking_probability",0)),4),
+                "incremental_uplift":round(float(decision.get("incremental_uplift",0)),4),
+                "confidence":round(float(decision.get("confidence",0)),4),
+                "expected_value":round(float(decision.get("expected_value",0)),2) if decision.get("expected_value") is not None else None,
+                "style_fit":round(float(decision.get("style_fit",0)),3),
+                "budget_fit":round(float(decision.get("budget_fit",0)),3),
+                "artist_affinity":round(float(decision.get("artist_affinity",0)),3),
+                "tattoo_dna_match":round(float(decision["tattoo_dna_match"]),3) if decision.get("tattoo_dna_match") is not None else None,
+                "demand_graph_confidence":round(float(decision.get("demand_graph_confidence",0)),3),
+                "dna_score_weight":round(float(decision.get("dna_weight",0)),3),
+                "base_queue_score":round(float(decision.get("base_score",queue)),2),
+                "queue_score":round(float(queue),2),
+                "why":why,
+                "concierge_enriched":bool(p),
+                "concierge_confidence":enrich.get("confidence",0),
+                "concierge_signals":signals,
+                "cold_start_exploration":cold_start,
+                "tattoo_dna":decision.get("tattoo_dna") or {},
+                "artist_dna":decision.get("artist_dna") or {},
+                "practical_fit":decision.get("practical_fit") or {},
+            })
         except Exception:continue
     ranked.sort(key=lambda x:(x["queue_score"],x["expected_value"] or 0,x["confidence"]),reverse=True)
-    # Always keep consented Concierge-enriched customers observable in the operator queue,
-    # even if they are not yet top-8 by score. This makes the closed loop visible without
-    # forcing M4 to select them over stronger candidates.
     top=ranked[:8]
     seen={x["customer_id"] for x in top}
     enriched=[x for x in ranked if x.get("concierge_enriched") and x["customer_id"] not in seen][:4]
@@ -74,7 +96,7 @@ def preview(request:Request,opening_id:str=Form(...)):
         if not opening:return JSONResponse({"error":"Opening not found for this shop."},status_code=404)
         if opening["status"]!="OPEN":return JSONResponse({"error":"Only OPEN openings can be previewed."},status_code=409)
         cp=_concierge_profiles(conn,user["shop_id"]);ranked=_rank(opening,artist,customers,cp)
-        return JSONResponse({"ok":True,"synthetic":user["shop_id"]==DEMO_SHOP_ID,"opening":dict(opening),"artist":dict(artist) if artist else None,"consented_candidates":len(customers),"concierge_enriched_candidates":len([c for c in customers if c["id"] in cp]),"m4_top_candidates":ranked,"execution":"preview_only","guardrails":["shop ownership","communication consent","calendar safety on live activation","contact cooldown","sequential offers","demo delivery suppression" if user["shop_id"]==DEMO_SHOP_ID else "production delivery safeguards"]},headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache"})
+        return JSONResponse({"ok":True,"synthetic":user["shop_id"]==DEMO_SHOP_ID,"opening":dict(opening),"artist":dict(artist) if artist else None,"consented_candidates":len(customers),"concierge_enriched_candidates":len([c for c in customers if c["id"] in cp]),"m4_top_candidates":ranked,"ranking_model":"incrementality + behavior + Tattoo DNA × Artist DNA + practical fit","execution":"preview_only","guardrails":["shop ownership","communication consent","calendar safety on live activation","contact cooldown","sequential offers","demo delivery suppression" if user["shop_id"]==DEMO_SHOP_ID else "production delivery safeguards"]},headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache"})
     finally:conn.close()
 
 def _simulate_demo_activation(opening_id,preview):
@@ -83,7 +105,7 @@ def _simulate_demo_activation(opening_id,preview):
     try:
         core.db_execute(conn,"INSERT INTO offers(id,opening_id,customer_id,score,rank,channel,sent_at,expires_at,status) VALUES (?,?,?,?,?,?,?,?,?)",(offer_id,opening_id,top["customer_id"],top["queue_score"],1,"synthetic",now,now,"SENT"));core.db_execute(conn,"UPDATE openings SET status='RECOVERY_ACTIVE' WHERE id=? AND shop_id=? AND status='OPEN'",(opening_id,DEMO_SHOP_ID));conn.commit()
     finally:conn.close()
-    core.event("m4.synthetic_operator_activated","opening",opening_id,json.dumps({"offer_id":offer_id,"customer_id":top["customer_id"],"queue_score":top["queue_score"],"external_delivery":False}));return offer_id
+    core.event("m4.synthetic_operator_activated","opening",opening_id,json.dumps({"offer_id":offer_id,"customer_id":top["customer_id"],"queue_score":top["queue_score"],"tattoo_dna_match":top.get("tattoo_dna_match"),"external_delivery":False}));return offer_id
 
 @core.app.post("/api/m4/operator/activate")
 def activate(request:Request,opening_id:str=Form(...)):
@@ -97,5 +119,5 @@ def activate(request:Request,opening_id:str=Form(...)):
         ranked=_rank(opening,artist,customers,_concierge_profiles(conn,user["shop_id"]))
     finally:conn.close()
     try:
-        synthetic=user["shop_id"]==DEMO_SHOP_ID;offer_id=_simulate_demo_activation(opening_id,ranked) if synthetic else core.start_recovery_campaign(opening_id);core.event("m4.operator_activated","opening",opening_id,json.dumps({"offer_id":offer_id,"candidate_preview":ranked[:3],"synthetic":synthetic}));return JSONResponse({"ok":bool(offer_id),"synthetic":synthetic,"external_delivery":False if synthetic else None,"opening_id":opening_id,"offer_id":offer_id,"m4_top_candidates":ranked,"message":"Synthetic recovery activated. M4 selected the top modeled customer and created an internal offer; no SMS or email was sent." if synthetic and offer_id else "M4 handed this opening to Empty Chair's guarded recovery engine." if offer_id else "The recovery engine did not activate an offer; existing safety or eligibility rules may have blocked it."},headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache"})
+        synthetic=user["shop_id"]==DEMO_SHOP_ID;offer_id=_simulate_demo_activation(opening_id,ranked) if synthetic else core.start_recovery_campaign(opening_id);core.event("m4.operator_activated","opening",opening_id,json.dumps({"offer_id":offer_id,"candidate_preview":ranked[:3],"synthetic":synthetic,"ranking_model":"demand_graph_v1"}));return JSONResponse({"ok":bool(offer_id),"synthetic":synthetic,"external_delivery":False if synthetic else None,"opening_id":opening_id,"offer_id":offer_id,"m4_top_candidates":ranked,"ranking_model":"demand_graph_v1","message":"Synthetic recovery activated. M4 selected the top modeled customer using behavior plus Demand Graph intelligence; no SMS or email was sent." if synthetic and offer_id else "M4 handed this opening to Empty Chair's guarded recovery engine. The production queue now uses the same Demand Graph scoring." if offer_id else "The recovery engine did not activate an offer; existing safety or eligibility rules may have blocked it."},headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache"})
     except Exception as exc:core.event("m4.operator_activation_failed","opening",opening_id,json.dumps({"error":str(exc)}));return JSONResponse({"error":str(exc)},status_code=409)
