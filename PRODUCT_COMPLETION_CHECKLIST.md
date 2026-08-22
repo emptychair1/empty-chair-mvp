@@ -26,7 +26,7 @@ This is the frozen MVP completion scope for the private tattoo-shop demand intel
 
 - [x] Record every actual M4/Empty Chair intervention as an attribution event.
 - [x] Record claims and confirmed bookings against the originating intervention.
-- [ ] Classify direct / assisted / organic outcomes.
+- [x] Classify direct / assisted / organic outcomes with conservative evidence rules and a bounded intervention lookback.
 - [x] Write outcome signals back into Customer Intelligence.
 - [ ] Add holdout support for future incrementality measurement.
 

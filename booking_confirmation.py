@@ -4,7 +4,7 @@ from fastapi.responses import RedirectResponse
 import app as core
 import google_integration
 import notifications
-import demand_core
+import attribution_classifier
 
 app = core.app
 app.router.routes = [r for r in app.router.routes if not (getattr(r, "path", None) == "/bookings/{booking_id}/confirm" and "POST" in (getattr(r, "methods", set()) or set()))]
@@ -52,7 +52,8 @@ def confirm_booking(request: Request, booking_id: str):
             start_iso = None
             end_iso = None
 
-        cursor = core.db_execute(conn, "UPDATE bookings SET status='CONFIRMED', booked_at=? WHERE id=? AND status IN ('AWAITING_CONFIRMATION','PENDING')", (core.now_iso(), booking_id))
+        booked_at = core.now_iso()
+        cursor = core.db_execute(conn, "UPDATE bookings SET status='CONFIRMED', booked_at=? WHERE id=? AND status IN ('AWAITING_CONFIRMATION','PENDING')", (booked_at, booking_id))
         if cursor.rowcount != 1:
             raise HTTPException(409, "Booking is no longer awaiting confirmation")
         core.db_execute(conn, "UPDATE openings SET status='BOOKED' WHERE id=? AND status='CLAIMED'", (booking["opening_id"],))
@@ -75,8 +76,16 @@ def confirm_booking(request: Request, booking_id: str):
 
     core.event("booking.confirmed", "booking", booking_id)
     try:
-        demand_core.record_attribution(booking["shop_id"], booking["customer_id"], booking["opening_id"], "booking_confirmed", channel="recovery", attribution_class="direct", value=float(booking["amount"] or 0), metadata={"booking_id": booking_id, "artist_id": booking["artist_id"], "source": "booking_confirmation"})
-        demand_core.record_signal(booking["shop_id"], booking["customer_id"], "outcome.booking_confirmed", "empty_chair_runtime", {"booking_id": booking_id, "opening_id": booking["opening_id"], "artist_id": booking["artist_id"], "amount": float(booking["amount"] or 0)}, confidence=1.0)
+        classification = attribution_classifier.record_booking_outcome(
+            booking["shop_id"],
+            booking["customer_id"],
+            booking["opening_id"],
+            booking_id,
+            booking["artist_id"],
+            float(booking["amount"] or 0),
+            observed_at=booked_at,
+        )
+        core.event("attribution.booking_classified", "booking", booking_id, classification["class"])
     except Exception as exc:
         core.event("attribution.booking_failed", "booking", booking_id, str(exc))
 
