@@ -27,7 +27,7 @@ def _at(days_ago=0):
 
 def test_same_opening_claim_is_direct():
     shop_id, customer_id = _seed("direct")
-    demand_core.record_attribution(shop_id, customer_id, "opening_direct", "offer_sent", channel="sms", observed_at if False else None)
+    demand_core.record_attribution(shop_id, customer_id, "opening_direct", "offer_sent", channel="sms", attribution_class="candidate")
     demand_core.record_attribution(shop_id, customer_id, "opening_direct", "offer_claimed", channel="sms", attribution_class="direct")
     result = attribution_classifier.classify_outcome(shop_id, customer_id, "opening_direct")
     assert result["class"] == "direct"
