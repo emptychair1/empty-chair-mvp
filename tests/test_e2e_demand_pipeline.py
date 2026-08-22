@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -16,6 +15,7 @@ os.environ["EMPTY_CHAIR_WORKER_ENABLED"] = "false"
 os.environ.pop("DATABASE_URL", None)
 
 from bootstrap import app
+import delivery_safety
 import demand_core
 import demand_engine
 import enrichment_v1
@@ -32,6 +32,7 @@ def fresh_database():
     core.init_db()
     demand_core.ensure_schema()
     enrichment_v1.ensure_schema()
+    delivery_safety.ensure_schema()
     yield
     if TEST_DB.exists():
         TEST_DB.unlink()
@@ -59,8 +60,7 @@ def _signup(client):
 
 
 def _fake_geocode(address):
-    text = str(address or "").lower()
-    if "shop" in text:
+    if "shop" in str(address or "").lower():
         return {
             "matched_address": "100 Shop St, Athens, GA 30601",
             "latitude": 33.9600,
@@ -109,19 +109,6 @@ def _fake_drive(customer_geo, shop_geo):
 
 
 def _fake_vision(image_bytes, mime_type, subject="customer inspiration"):
-    if "artist" in subject:
-        return {
-            "status": "analyzed",
-            "styles": ["traditional"],
-            "motifs": ["rose"],
-            "palette": ["red", "black"],
-            "line_weight": "bold",
-            "composition": "centered",
-            "likely_scale": "medium",
-            "likely_placement": ["forearm", "upper arm"],
-            "confidence": 0.92,
-            "summary": "Bold traditional rose portfolio work.",
-        }
     return {
         "status": "analyzed",
         "styles": ["traditional"],
@@ -130,9 +117,9 @@ def _fake_vision(image_bytes, mime_type, subject="customer inspiration"):
         "line_weight": "bold",
         "composition": "centered",
         "likely_scale": "medium",
-        "likely_placement": ["forearm"],
-        "confidence": 0.94,
-        "summary": "Traditional rose inspiration with bold lines.",
+        "likely_placement": ["forearm", "upper arm"] if "artist" in subject else ["forearm"],
+        "confidence": 0.92 if "artist" in subject else 0.94,
+        "summary": "Bold traditional rose portfolio work." if "artist" in subject else "Traditional rose inspiration with bold lines.",
     }
 
 
@@ -195,12 +182,7 @@ def test_full_concierge_to_learning_pipeline(monkeypatch):
         token = inspiration.json()["attach_token"]
         attached = client.post(
             "/api/concierge/inspiration/attach",
-            json={
-                "shop_id": shop_id,
-                "session_id": "session_pipeline",
-                "customer_id": customer_id,
-                "tokens": [token],
-            },
+            json={"shop_id": shop_id, "session_id": "session_pipeline", "customer_id": customer_id, "tokens": [token]},
         )
         assert attached.status_code == 200, attached.text
         assert attached.json()["tattoo_dna"]["styles"] == ["traditional"]
@@ -288,10 +270,7 @@ def test_full_concierge_to_learning_pipeline(monkeypatch):
         assert confirmed_events[-1]["attribution_class"] == "direct"
         assert confirmed_events[-1]["metadata"]["classification_reason"] == "same_opening_offer_claim"
 
-        outcome_signals = [
-            signal for signal in intelligence["provenance"]
-            if signal["signal_type"] == "outcome.booking_confirmed"
-        ]
+        outcome_signals = [signal for signal in intelligence["provenance"] if signal["signal_type"] == "outcome.booking_confirmed"]
         assert outcome_signals
         assert outcome_signals[-1]["value"]["attribution_class"] == "direct"
 
