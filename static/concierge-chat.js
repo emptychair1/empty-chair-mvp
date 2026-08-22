@@ -3,14 +3,14 @@
   const sessionId='conc_'+crypto.getRandomValues(new Uint32Array(3)).join('');
   const state={
     shop_id:cfg.shopId||'shop_live_demo',session_id:sessionId,
-    project:'',styles:'',placement:'',budget:'',timing:'',short_notice:'',artist_vibe:'',travel:'',
+    project:'',styles:'',placement:'',budget:'',timing:'',short_notice:'',artist_vibe:'',travel:'',location:'',
     name:'',phone:'',email:'',contact_preference:'',offer_consent:'',step:0,
     vision:false,visionSummary:'',visionTokens:[]
   };
   const thread=document.getElementById('thread'),input=document.getElementById('answer'),send=document.getElementById('send'),quick=document.getElementById('quick');
   const pct=document.getElementById('confidence'),bar=document.getElementById('confidenceBar'),gift=document.getElementById('gift'),giftBody=document.getElementById('giftBody'),giftId=document.getElementById('giftId');
   const inspirationInput=document.getElementById('inspirationInput'),analyzeImages=document.getElementById('analyzeImages'),visionStatus=document.getElementById('visionStatus'),visionChips=document.getElementById('visionChips');
-  const fields={project:'Project',styles:'Style',placement:'Placement',budget:'Budget',timing:'Timing',short_notice:'Short notice',artist_vibe:'Artist fit',travel:'Travel',name:'Name',phone:'Phone',email:'Email',contact_preference:'Contact preference',offer_consent:'Offer consent'};
+  const fields={project:'Project',styles:'Style',placement:'Placement',budget:'Budget',timing:'Timing',short_notice:'Short notice',artist_vibe:'Artist fit',travel:'Travel',location:'Location',name:'Name',phone:'Phone',email:'Email',contact_preference:'Contact preference',offer_consent:'Offer consent'};
   const questions=[
     {key:'project',ask:"Tell me what you're actually thinking about getting. Rough idea is fine — I don't need a polished brief.",placeholder:'Describe the tattoo idea…',visualSkip:true},
     {key:'styles',ask:'What style feels closest to it?',placeholder:'Traditional, black & gray, fine line…',options:['Traditional','Black & gray','Fine line','Blackwork','Realism','Anime','Not sure yet'],visualSkip:true},
@@ -20,6 +20,7 @@
     {key:'short_notice',ask:'If a strong match had a cancellation tomorrow, would you want to know?',placeholder:'Choose one…',options:['Yes — I can move fast','Maybe, with 2–3 days notice','No — I need to plan ahead']},
     {key:'artist_vibe',ask:'Anything important about the artist or appointment vibe?',placeholder:'Collaborative, quiet, specialist…'},
     {key:'travel',ask:'How far would you go for the right artist?',placeholder:'Choose or type…',options:['15 miles','30 miles','60 miles','Worth traveling for']},
+    {key:'location',ask:'What city or ZIP are you usually coming from? This is only for travel-time matching.',placeholder:'City, state or ZIP'},
     {key:'name',ask:"What's your name so I can make this an actual profile?",placeholder:'Your name'},
     {key:'phone',ask:'What mobile number should belong to the profile?',placeholder:'Mobile number'},
     {key:'email',ask:"Email too, if you want it attached. You can type 'skip'.",placeholder:'Email or skip'},
@@ -32,7 +33,7 @@
   function typing(){const d=bubble('<span class="typing"><i></i><i></i><i></i></span>','concierge');return d}
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   function confidence(){
-    const keys=['project','styles','placement','budget','timing','short_notice','artist_vibe','travel'];
+    const keys=['project','styles','placement','budget','timing','short_notice','artist_vibe','travel','location'];
     const known=keys.filter(k=>state[k]).length;return Math.min(97,Math.round(25+70*known/keys.length+(state.vision?8:0)));
   }
   function updateSignals(){
@@ -46,7 +47,7 @@
   async function ask(){
     const q=nextQuestion();if(!q)return finish();
     input.placeholder=q.placeholder||'Type your answer…';input.disabled=false;send.disabled=false;setQuick(q);
-    const t=typing();await sleep(220);t.remove();bubble(q.ask,'concierge',q.key==='offer_consent'?'Your permission controls whether this profile can receive automated offers.':'Concierge // only what the images cannot tell me');input.focus();
+    const t=typing();await sleep(220);t.remove();bubble(q.ask,'concierge',q.key==='offer_consent'?'Your permission controls whether this profile can receive automated offers.':q.key==='location'?'Used for geocoding and drive-time only; area statistics are never treated as facts about you.':'Concierge // only what the images cannot tell me');input.focus();
   }
   async function answer(raw){
     if(send.disabled)return;const q=nextQuestion();if(!q)return finish();let v=String(raw||'').trim();if(!v)return;
@@ -79,14 +80,15 @@
   async function finish(){
     input.disabled=true;send.disabled=true;quick.innerHTML='';const t=typing();await sleep(260);t.remove();bubble("That's enough. I'm creating your Tattoo DNA profile now.",'concierge');
     const fd=new FormData();
-    ['shop_id','session_id','project','styles','placement','budget','timing','short_notice','artist_vibe','travel','name','phone','email','contact_preference'].forEach(k=>fd.append(k,state[k]||''));fd.append('offer_consent',state.offer_consent||'no');
+    ['shop_id','session_id','project','styles','placement','budget','timing','short_notice','artist_vibe','travel','location','name','phone','email','contact_preference'].forEach(k=>fd.append(k,state[k]||''));fd.append('offer_consent',state.offer_consent||'no');
     try{
       const r=await fetch('/api/concierge/profile',{method:'POST',body:fd,cache:'no-store'}),j=await r.json();if(!r.ok)throw Error(j.error||'Could not create customer profile');
       let dna=null;
       if(state.visionTokens.length){const ar=await fetch('/api/concierge/inspiration/attach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({shop_id:state.shop_id,session_id:state.session_id,customer_id:j.customer_id,tokens:state.visionTokens}),cache:'no-store'}),aj=await ar.json();if(ar.ok)dna=aj;}
       bubble(state.offer_consent==='yes'?"Done. Your Tattoo DNA is live, and matching openings are allowed to reach you.":"Done. Your Tattoo DNA is live. I will not use it for opening alerts unless you change that permission later.",'concierge','Profile created');
       const dnaLine=dna&&dna.tattoo_dna&&dna.tattoo_dna.styles?.length?`<br>Tattoo DNA: ${dna.tattoo_dna.styles.slice(0,4).join(' · ')}`:'';
-      gift.classList.add('show');giftBody.innerHTML=`<b>${j.value.name}</b><br>${j.value.style} · ${j.value.budget}<br>${j.value.short_notice}<br>Preferred contact: ${j.value.contact_preference}<br>Offer permission: ${j.communication_consent?'YES':'NO'}${dnaLine}`;giftId.textContent='CUSTOMER PROFILE // '+j.customer_id;
+      const drive=j.contextual_enrichment?.travel?.drive_minutes?`<br>Drive time: ~${Math.round(j.contextual_enrichment.travel.drive_minutes)} min`:'';
+      gift.classList.add('show');giftBody.innerHTML=`<b>${j.value.name}</b><br>${j.value.style} · ${j.value.budget}<br>${j.value.short_notice}<br>Preferred contact: ${j.value.contact_preference}<br>Offer permission: ${j.communication_consent?'YES':'NO'}${dnaLine}${drive}`;giftId.textContent='CUSTOMER PROFILE // '+j.customer_id;
       const finalConfidence=dna?Math.max(j.m4_confidence_after,Math.round((dna.completeness||0)*100)):j.m4_confidence_after;pct.textContent=finalConfidence+'%';bar.style.width=finalConfidence+'%';input.placeholder='Profile complete';
     }catch(e){bubble('I hit a save error. Your answers are still on this screen, so nothing is lost. '+e.message,'concierge');input.disabled=false;send.disabled=false;send.textContent='Retry';send.onclick=()=>finish();}
   }
