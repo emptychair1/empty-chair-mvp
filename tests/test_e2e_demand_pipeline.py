@@ -222,6 +222,7 @@ def test_full_concierge_to_learning_pipeline(monkeypatch):
                 "INSERT INTO openings(id,shop_id,artist_id,date,start_time,end_time,service,price,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (opening_id, shop_id, artist_id, opening_date, "14:00", "16:00", "tattoo", 450, "OPEN", now, expires_at),
             )
+            conn.commit()
             customer = core.db_fetchone(conn, "SELECT * FROM customers WHERE id=?", (customer_id,))
             opening = core.db_fetchone(conn, "SELECT * FROM openings WHERE id=?", (opening_id,))
             artist = core.db_fetchone(conn, "SELECT * FROM artists WHERE id=?", (artist_id,))
