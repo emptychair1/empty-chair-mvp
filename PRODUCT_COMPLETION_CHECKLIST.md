@@ -10,24 +10,24 @@ This is the frozen MVP completion scope for the private tattoo-shop demand intel
 - [x] Tattoo DNA persistence.
 - [x] Artist portfolio ingestion and Artist DNA persistence.
 - [x] Tattoo DNA × Artist DNA affects the production M4 recovery queue.
-- [ ] Unified Customer Intelligence read model across declared, behavioral, visual, practical, affinity and contextual evidence.
+- [x] Unified Customer Intelligence read model across declared, behavioral, visual, practical, affinity and contextual evidence.
 - [ ] Field/signal provenance for every new customer intelligence fact.
 
 ## P0 — Decision quality
 
 - [x] Booking probability, uplift, confidence and artist affinity contribute to M4 ranking.
 - [x] Visual DNA match contributes with bounded weight.
-- [ ] Budget fit uses declared practical fit.
-- [ ] Placement/project-scale fit contributes where evidence exists.
-- [ ] Travel radius / real drive-time fit contributes where evidence exists.
-- [ ] M4 explanations expose every material decision component.
+- [x] Budget fit uses declared practical fit.
+- [ ] Placement/project-scale fit contributes where evidence exists. (Placement is live; project-scale still needs a production feature.)
+- [x] Travel radius / real drive-time fit contributes where evidence exists.
+- [x] M4 explanations expose every material decision component.
 
 ## P0 — Attribution and learning
 
-- [ ] Record every actual M4/Empty Chair intervention as an attribution event.
-- [ ] Record claims and confirmed bookings against the originating intervention.
+- [x] Record every actual M4/Empty Chair intervention as an attribution event.
+- [x] Record claims and confirmed bookings against the originating intervention.
 - [ ] Classify direct / assisted / organic outcomes.
-- [ ] Write outcome signals back into Customer Intelligence.
+- [x] Write outcome signals back into Customer Intelligence.
 - [ ] Add holdout support for future incrementality measurement.
 
 ## P0 — Privacy and ownership
@@ -44,19 +44,19 @@ This is the frozen MVP completion scope for the private tattoo-shop demand intel
 
 ## P1 — Enrichment v1
 
-- [ ] Geocode customer location with explicit provenance.
-- [ ] Census/ACS area context; label all values as area-level, never individual facts.
-- [ ] Drive-time / distance-to-shop feature.
+- [x] Geocode customer location with explicit provenance.
+- [x] Census/ACS area context; label all values as area-level, never individual facts.
+- [x] Drive-time / distance-to-shop feature.
 - [ ] Contact validation/hygiene.
 - [ ] Enrichment freshness and retry policy.
 
 ## P1 — Production proof
 
-- [ ] End-to-end test: Concierge → customer → Tattoo DNA → M4 ranking → offer → claim → booking → attribution → learning.
+- [ ] End-to-end test: Concierge → customer → Tattoo DNA → enrichment → Artist DNA → M4 ranking → offer → claim → booking → attribution → learning.
 - [ ] Cross-shop isolation tests for Customer DNA, Artist DNA and attribution.
 - [ ] Public upload/session abuse tests.
 - [ ] DNA ranking regression tests.
-- [ ] Attribution tests.
+- [x] Attribution tests.
 - [ ] Enrichment failure/degraded-mode tests.
 
 ## Later — deliberately out of current completion scope
