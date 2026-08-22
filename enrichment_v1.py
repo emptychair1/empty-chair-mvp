@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -17,6 +18,7 @@ import demand_core
 
 CENSUS_GEOCODER_URL = "https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress"
 CENSUS_ACS_URL = "https://api.census.gov/data/2024/acs/acs5"
+ZIPPOPOTAM_URL = "https://api.zippopotam.us/us"
 OSRM_ROUTE_URL = "https://router.project-osrm.org/route/v1/driving"
 USER_AGENT = "EmptyChair/1.0 (+https://tryemptychair.com)"
 
@@ -92,10 +94,40 @@ def _upsert_location(conn, shop_id, entity_type, entity_id, address, geo, source
     return location_id
 
 
+def _zip_code(value: str):
+    match = re.fullmatch(r"\s*(\d{5})(?:-\d{4})?\s*", str(value or ""))
+    return match.group(1) if match else None
+
+
+def _geocode_zip(zip_code: str):
+    payload = _json_get(f"{ZIPPOPOTAM_URL}/{urllib.parse.quote(zip_code)}")
+    places = (payload or {}).get("places") or []
+    if not places:
+        return None
+    place = places[0]
+    return {
+        "matched_address": f"{place.get('place name') or zip_code}, {place.get('state abbreviation') or ''} {zip_code}".strip(),
+        "latitude": float(place["latitude"]),
+        "longitude": float(place["longitude"]),
+        "state_fips": None,
+        "county_fips": None,
+        "tract": None,
+        "zcta": zip_code,
+        "geography_level": "zip",
+        "confidence": 0.82,
+    }
+
+
 def geocode_address(address: str):
     address = str(address or "").strip()
     if not address:
         return None
+    zip_code = _zip_code(address)
+    if zip_code:
+        try:
+            return _geocode_zip(zip_code)
+        except Exception:
+            return None
     params = urllib.parse.urlencode({"address": address, "benchmark": "Public_AR_Current", "vintage": "Current_Current", "format": "json"})
     payload = _json_get(f"{CENSUS_GEOCODER_URL}?{params}")
     matches = (((payload or {}).get("result") or {}).get("addressMatches") or [])
@@ -115,15 +147,22 @@ def geocode_address(address: str):
         "state_fips": state_fips or None,
         "county_fips": county_fips or None,
         "tract": tract or None,
+        "zcta": None,
+        "geography_level": "tract",
         "confidence": 0.95,
     }
 
 
-def acs_area_context(state_fips: str, county_fips: str, tract: str):
-    if not state_fips or not county_fips or not tract:
-        return None
+def acs_area_context(state_fips: str = None, county_fips: str = None, tract: str = None, zcta: str = None):
     fields = "NAME,B19013_001E,B25077_001E,B01003_001E,B23025_005E"
-    params = urllib.parse.urlencode({"get": fields, "for": f"tract:{tract}", "in": f"state:{state_fips} county:{county_fips}"})
+    if zcta:
+        params = urllib.parse.urlencode({"get": fields, "for": f"zip code tabulation area:{zcta}"})
+        geography_level = "zcta"
+    elif state_fips and county_fips and tract:
+        params = urllib.parse.urlencode({"get": fields, "for": f"tract:{tract}", "in": f"state:{state_fips} county:{county_fips}"})
+        geography_level = "tract"
+    else:
+        return None
     rows = _json_get(f"{CENSUS_ACS_URL}?{params}")
     if not rows or len(rows) < 2:
         return None
@@ -135,15 +174,14 @@ def acs_area_context(state_fips: str, county_fips: str, tract: str):
             return None if value < 0 else value
         except Exception:
             return None
-    population = number("B01003_001E")
-    unemployed = number("B23025_005E")
     return {
         "area_label": data.get("NAME"),
         "median_household_income": number("B19013_001E"),
         "median_home_value": number("B25077_001E"),
-        "population": population,
-        "unemployed_population": unemployed,
+        "population": number("B01003_001E"),
+        "unemployed_population": number("B23025_005E"),
         "classification": "area_level_context_only",
+        "geography_level": geography_level,
         "dataset": "ACS 2024 5-year",
     }
 
@@ -196,7 +234,6 @@ def set_shop_location(shop_id: str, address: str, source: str = "shop_setup"):
     conn = core.connect()
     try:
         _upsert_location(conn, shop_id, "shop", shop_id, address, geo, source)
-        demand_core.record_signal(shop_id, None, "context.shop_geocode", source, {**geo, "address": address}, confidence=geo["confidence"], conn=conn)
         conn.commit()
     finally:
         conn.close()
@@ -221,12 +258,17 @@ def enrich_customer(shop_id: str, customer_id: str, address: str, source: str = 
         shop_geo = dict(shop_row) if shop_row else None
         area = None
         try:
-            area = acs_area_context(geo.get("state_fips"), geo.get("county_fips"), geo.get("tract"))
+            area = acs_area_context(geo.get("state_fips"), geo.get("county_fips"), geo.get("tract"), geo.get("zcta"))
         except Exception:
             area = None
         drive = drive_context(geo, shop_geo)
         context = {
-            "geocode": {"matched_address": geo.get("matched_address"), "latitude": geo.get("latitude"), "longitude": geo.get("longitude")},
+            "geocode": {
+                "matched_address": geo.get("matched_address"),
+                "latitude": geo.get("latitude"),
+                "longitude": geo.get("longitude"),
+                "geography_level": geo.get("geography_level"),
+            },
             "area_context": area or {},
             "travel": drive or {},
         }
@@ -236,7 +278,7 @@ def enrich_customer(shop_id: str, customer_id: str, address: str, source: str = 
             core.db_execute(conn, "UPDATE enrichment_context SET context_json=?,source=?,confidence=?,observed_at=? WHERE id=?", (json.dumps(context), source, confidence, _now(), existing["id"]))
         else:
             core.db_execute(conn, "INSERT INTO enrichment_context(id,shop_id,customer_id,context_json,source,confidence,observed_at) VALUES(?,?,?,?,?,?,?)", (f"ctx_{uuid.uuid4().hex[:12]}", shop_id, customer_id, json.dumps(context), source, confidence, _now()))
-        demand_core.record_signal(shop_id, customer_id, "context.customer_geocode", source, {"matched_address": geo.get("matched_address"), "latitude": geo.get("latitude"), "longitude": geo.get("longitude")}, confidence=geo["confidence"], conn=conn)
+        demand_core.record_signal(shop_id, customer_id, "context.customer_geocode", source, {"matched_address": geo.get("matched_address"), "latitude": geo.get("latitude"), "longitude": geo.get("longitude"), "geography_level": geo.get("geography_level")}, confidence=geo["confidence"], conn=conn)
         if area:
             demand_core.record_signal(shop_id, customer_id, "context.acs_area", "US_Census_ACS_2024_5yr", area, confidence=0.95, conn=conn)
         if drive:
