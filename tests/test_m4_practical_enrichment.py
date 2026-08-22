@@ -47,7 +47,8 @@ def test_distance_fit_uses_drive_miles_not_acs_demographics():
 def test_placement_fit_uses_artist_portfolio_evidence():
     context = {"artist": {"placements": ["forearm", "upper arm", "thigh"]}}
     assert m4_integration._placement_fit("forearm", context) == 1.0
-    assert m4_integration._placement_fit("calf", context) == 0.35
+    assert m4_integration._placement_fit("calf", context) == 0.8
+    assert m4_integration._placement_fit("neck", context) == 0.35
 
 
 def test_drive_context_falls_back_without_routing(monkeypatch):
