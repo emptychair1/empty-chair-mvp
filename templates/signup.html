@@ -1,1 +1,57 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create account · Empty Chair</title><link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}"><link rel="stylesheet" href="{{ url_for('static', path='/auth.css') }}"></head><body class="auth-page"><main class="auth-shell"><aside class="auth-brand"><img class="auth-logo" src="{{ url_for('static', path='/75D951D9-292A-4177-83C0-26358B437AC6.png') }}" alt="Empty Chair"><div class="auth-manifesto"><b>Start with the shop you already have</b><p>Empty Chair learns from real openings, real customers and real outcomes — then helps you recover what would have gone unused.</p></div></aside><div class="auth-stage"><section class="auth-card"><div class="auth-kicker">Open the books</div><h1>PUT EMPTY<br>TIME TO WORK.</h1><p class="auth-sub">Create your shop account. We’ll start with what you already know and get smarter as real outcomes arrive.</p>{% if error %}<div class="auth-message">{{ error }}</div>{% endif %}<form class="auth-form" method="post" action="/signup"><div class="auth-field"><label for="name">Your name</label><input id="name" name="name" type="text" autocomplete="name" required></div><div class="auth-field"><label for="shop_name">Shop name</label><input id="shop_name" name="shop_name" type="text" autocomplete="organization" required></div><div class="auth-field full"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div><div class="auth-field full"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required></div><button class="auth-submit" type="submit">Create account</button></form><div class="auth-links">Already have an account? <a href="/login">Log in</a></div><div class="auth-foot"><span>CONNECT</span><span>→</span><span>LEARN</span><span>→</span><span>RECOVER</span></div></section></div></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Create account · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/auth.css') }}">
+</head>
+<body class="auth-page auth-signup">
+  <main class="auth-shell">
+    <aside class="auth-brand">
+      <img class="auth-logo" src="/static/D8F5F51D-90EE-45DE-9D95-DB078BDEB87E.png?v=2" alt="Empty Chair">
+      <div class="auth-manifesto">
+        <b>Start with the shop you already have</b>
+        <p>Empty Chair learns from real openings, real customers and real outcomes — then helps you recover what would have gone unused.</p>
+      </div>
+    </aside>
+
+    <div class="auth-stage">
+      <section class="auth-card">
+        <div class="auth-kicker">Open the books</div>
+        <h1>PUT EMPTY<br>TIME TO WORK.</h1>
+        <p class="auth-sub">Create your shop account. We’ll start with what you already know and get smarter as real outcomes arrive.</p>
+
+        {% if error %}<div class="auth-message">{{ error }}</div>{% endif %}
+
+        <form class="auth-form" method="post" action="/signup">
+          <div class="auth-field">
+            <label for="name">Your name</label>
+            <input id="name" name="name" type="text" autocomplete="name" required>
+          </div>
+          <div class="auth-field">
+            <label for="shop_name">Shop name</label>
+            <input id="shop_name" name="shop_name" type="text" autocomplete="organization" required>
+          </div>
+          <div class="auth-field full">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required>
+          </div>
+          <div class="auth-field full">
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+          </div>
+          <button class="auth-submit" type="submit">Create account</button>
+        </form>
+
+        <div class="auth-links">Already have an account? <a href="/login">Log in</a></div>
+
+        <div class="auth-foot">
+          <span>CONNECT</span><span>→</span><span>LEARN</span><span>→</span><span>RECOVER</span>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
