@@ -1,26 +1,7 @@
 <link rel="stylesheet" href="{{ url_for('static', path='/mobile-nav.css') }}">
 <style>
 .nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--signal);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid var(--line-soft);background:transparent;color:var(--cream-dim);cursor:pointer;font:inherit;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.ec-brand{display:block;padding:4px}.ec-brand img{display:block;width:100%;max-width:255px;height:auto;margin:0 auto}.nav-icon{width:32px!important;height:32px!important;display:grid!important;place-items:center!important;flex:0 0 32px}.nav-icon img{display:block;width:30px!important;height:30px!important;object-fit:contain}.mobile-primary{display:none!important}.menu-icon{display:block;width:32px;height:32px;object-fit:contain}
-.topbar.ec-section-hero{position:relative;overflow:hidden;padding-right:370px!important;min-height:196px;background:#090b09}.topbar.ec-section-hero:after{content:'';position:absolute;right:16px;top:14px;width:330px;height:166px;border:1px solid var(--line-soft);background-position:center;background-size:cover;background-repeat:no-repeat;box-shadow:4px 4px 0 #000;pointer-events:none}.topbar.ec-section-hero.ec-hero-contain:after{background-size:contain;border:0;box-shadow:none}
-@media(max-width:900px){.topbar.ec-section-hero{padding-right:255px!important;min-height:164px}.topbar.ec-section-hero:after{width:226px;height:136px}}
-@media(max-width:610px){.topbar.ec-section-hero{padding-right:122px!important;min-height:124px}.topbar.ec-section-hero:after{right:8px;top:12px;width:108px;height:94px;box-shadow:2px 2px 0 #000}.topbar.ec-section-hero.ec-hero-contain:after{background-size:contain}}
 </style>
-
-{% set hero_page = active_page|default('') %}
-{% if hero_page in ['artists','customers','bookings','calendar','pilot','openings','recovery','concierge_leads','operations','setup','settings','support','owner','demo'] %}
-<script>document.addEventListener('DOMContentLoaded',function(){var t=document.querySelector('.topbar');if(t){t.classList.add('ec-section-hero');{% if hero_page in ['setup','settings','support','owner','demo'] %}t.classList.add('ec-hero-contain');{% endif %}}});</script>
-{% endif %}
-{% if hero_page == 'artists' %}<style>.topbar:after{background-image:url('/static/hero-artists.jpg')}</style>
-{% elif hero_page == 'customers' %}<style>.topbar:after{background-image:url('/static/hero-customer-intelligence.jpg')}</style>
-{% elif hero_page in ['bookings','calendar'] %}<style>.topbar:after{background-image:url('/static/hero-calendar.jpg')}</style>
-{% elif hero_page in ['pilot','openings','recovery'] %}<style>.topbar:after{background-image:url('/static/hero-openings-recovery.jpg')}</style>
-{% elif hero_page == 'concierge_leads' %}<style>.topbar:after{background-image:url('/static/hero-concierge-leads.jpg')}</style>
-{% elif hero_page == 'operations' %}<style>.topbar:after{background-image:url('/static/hero-operations.jpg')}</style>
-{% elif hero_page == 'setup' %}<style>.topbar:after{background-image:url('/static/hero-setup.png')}</style>
-{% elif hero_page == 'settings' %}<style>.topbar:after{background-image:url('/static/hero-settings.png')}</style>
-{% elif hero_page == 'support' %}<style>.topbar:after{background-image:url('/static/hero-support.png')}</style>
-{% elif hero_page == 'owner' %}<style>.topbar:after{background-image:url('/static/hero-platform-intelligence.png')}</style>
-{% elif hero_page == 'demo' %}<style>.topbar:after{background-image:url('/static/hero-demo-guide.png')}</style>{% endif %}
 
 <aside class="sidebar"><div class="brand-wrap"><a class="ec-brand" href="/" aria-label="Empty Chair home"><img src="/static/D8F5F51D-90EE-45DE-9D95-DB078BDEB87E.png?v=3" alt="Empty Chair"></a></div>
 <nav class="sidebar-nav" aria-label="Primary navigation">
