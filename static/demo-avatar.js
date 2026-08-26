@@ -1,1 +1,21 @@
-(()=>{window.EmptyChairAvatar={svg(name){name=String(name||'?');let h=0;for(const c of name)h=(h*31+c.charCodeAt(0))>>>0;const hue=h%360,h2=(hue+38)%360,initials=name.split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase();const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="hsl(${hue} 30% 28%)"/><stop offset="1" stop-color="hsl(${h2} 25% 13%)"/></linearGradient></defs><rect width="80" height="80" rx="40" fill="url(#g)"/><circle cx="40" cy="31" r="14" fill="hsl(${hue} 18% 70%)"/><path d="M14 77c2-18 12-28 26-28s24 10 26 28" fill="hsl(${h2} 22% 55%)"/><text x="40" y="74" text-anchor="middle" font-family="system-ui" font-size="9" font-weight="800" fill="white" opacity=".72">${initials}</text></svg>`;return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)}}})();
+(()=>{
+  function stableIndex(name){
+    name=String(name||'?');
+    let h=2166136261;
+    for(const ch of name){
+      h^=ch.charCodeAt(0);
+      h=Math.imul(h,16777619)>>>0;
+    }
+    return (h%16)+1;
+  }
+
+  function profilePath(name){
+    const n=String(stableIndex(name)).padStart(2,'0');
+    return `/static/profile-${n}.png?v=1`;
+  }
+
+  window.EmptyChairAvatar={
+    svg:profilePath,
+    src:profilePath
+  };
+})();
