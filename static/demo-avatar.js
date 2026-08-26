@@ -1,7 +1,15 @@
 (()=>{
-  const all=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
   const masculine=[1,3,6,8,9,11,13,15];
   const feminine=[2,4,5,7,10,12,14,16];
+  const neutral=3;
+
+  const masculineNames=new Set([
+    'aaron','adam','adrian','alexander','andrew','anthony','austin','ben','benjamin','blake','brad','brandon','brian','bruce','caleb','cameron','carter','charles','chris','christian','christopher','cole','colin','connor','daniel','david','derek','devin','dylan','edward','eli','elijah','ethan','evan','frank','gabriel','george','grant','henry','hunter','ian','isaac','jack','jacob','james','jason','jeff','jeremy','jesse','john','jonathan','jordan','joseph','josh','joshua','justin','kevin','kyle','liam','logan','luke','mason','matt','matthew','michael','mike','nathan','nicholas','nick','noah','oliver','owen','patrick','paul','peter','ryan','samuel','scott','sean','seth','stephen','steven','thomas','tim','tyler','victor','william','wyatt','zach','zachary'
+  ]);
+
+  const feminineNames=new Set([
+    'abigail','alexandra','alice','alyssa','amanda','amber','amelia','amy','andrea','anna','ashley','audrey','averie','avery','beth','brianna','brittany','brooke','caroline','charlotte','chloe','christina','claire','danielle','elizabeth','ella','emily','emma','erica','eva','gabriella','grace','hannah','heather','isabella','jasmine','jennifer','jessica','julia','kaitlyn','katherine','katie','kayla','kim','lauren','leah','lily','lindsey','madison','maria','megan','melissa','mia','michelle','morgan','natalie','nicole','olivia','paige','rachel','rebecca','samantha','sarah','savannah','sophia','stephanie','taylor','victoria','zoe'
+  ]);
 
   function hashName(name){
     name=String(name||'?');
@@ -17,18 +25,29 @@
     const v=String(value||'').trim().toLowerCase();
     if(['male','man','masculine','m'].includes(v)) return 'masculine';
     if(['female','woman','feminine','f'].includes(v)) return 'feminine';
+    if(['neutral','unknown','unspecified','nonbinary','non-binary','nb'].includes(v)) return 'neutral';
     return '';
+  }
+
+  function inferPresentationFromName(name){
+    const first=String(name||'').trim().toLowerCase().split(/\s+/)[0].replace(/[^a-z'-]/g,'');
+    if(!first) return 'neutral';
+    if(masculineNames.has(first)) return 'masculine';
+    if(feminineNames.has(first)) return 'feminine';
+    return 'neutral';
   }
 
   function profileIndex(name,presentation){
     const explicit=normalizedPresentation(presentation);
-    const pool=explicit==='masculine'?masculine:explicit==='feminine'?feminine:all;
+    const inferred=explicit||inferPresentationFromName(name);
+    if(inferred==='neutral') return neutral;
+    const pool=inferred==='masculine'?masculine:feminine;
     return pool[hashName(name)%pool.length];
   }
 
   function profilePath(name,presentation){
     const n=String(profileIndex(name,presentation)).padStart(2,'0');
-    return `/static/profile-${n}.png?v=3`;
+    return `/static/profile-${n}.png?v=4`;
   }
 
   function hydrate(root=document){
@@ -90,7 +109,7 @@
     document.head.appendChild(style);
   }
 
-  window.EmptyChairAvatar={svg:profilePath,src:profilePath,hydrate,decorate};
+  window.EmptyChairAvatar={svg:profilePath,src:profilePath,hydrate,decorate,inferPresentationFromName};
   const boot=()=>{installStyles();decorate(document)};
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
