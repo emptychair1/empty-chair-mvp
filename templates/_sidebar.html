@@ -1,8 +1,8 @@
 <link rel="stylesheet" href="{{ url_for('static', path='/mobile-nav.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', path='/hero-overrides.css') }}">
-<script src="/static/demo-avatar.js?v=3" defer></script>
+<script src="/static/demo-avatar.js?v=4" defer></script>
 <style>
-.nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--signal);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid var(--line-soft);background:transparent;color:var(--cream-dim);cursor:pointer;font:inherit;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.ec-brand{display:block;padding:4px}.ec-brand img{display:block;width:100%;max-width:255px;height:auto;margin:0 auto}.nav-icon{width:32px!important;height:32px!important;display:grid!important;place-items:center!important;flex:0 0 32px}.nav-icon img{display:block;width:30px!important;height:30px!important;object-fit:contain}.mobile-primary{display:none!important}.menu-icon{display:block;width:32px;height:32px;object-fit:contain}
+.nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--signal);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid var(--line-soft);background:transparent;color:var(--cream-dim);cursor:pointer;font:inherit;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.ec-brand{display:block;padding:4px}.ec-brand img{display:block;width:100%;max-width:255px;height:auto;margin:0 auto}.nav-icon{width:32px!important;height:32px!important;display:grid!important;place-items:center!important;flex:0 0 32px}.nav-icon img{display:block;width:30px!important;height:30px!important;object-fit:contain}.mobile-primary{display:none!important}.menu-icon{display:block;width:32px;height:32px;object-fit:contain}.studio-card,.owner-card{position:relative}.sidebar-identity{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center}.sidebar-shop-avatar{width:52px;height:52px;object-fit:contain;display:block}.sidebar-user-avatar{width:46px;height:46px;border-radius:50%;border:1px solid var(--line-soft);object-fit:cover;display:block;background:#0b0d0b}.global-shop-chip{display:flex;align-items:center;gap:9px;margin-left:auto;padding:6px 9px;border:1px solid var(--line-soft);background:#0b0d0b;min-width:0}.global-shop-chip img{width:48px;height:48px;object-fit:contain;display:block;flex:0 0 48px}.global-shop-chip .shop-chip-text{min-width:0}.global-shop-chip .shop-chip-kicker{color:var(--muted);font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.global-shop-chip .shop-chip-name{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cream);font-size:11px;font-weight:850}@media(max-width:760px){.global-shop-chip{display:none}.sidebar-identity{grid-template-columns:44px minmax(0,1fr)}.sidebar-shop-avatar{width:44px;height:44px}.sidebar-user-avatar{width:40px;height:40px}}
 </style>
 
 <aside class="sidebar"><div class="brand-wrap"><a class="ec-brand" href="/" aria-label="Empty Chair home"><img src="/static/D8F5F51D-90EE-45DE-9D95-DB078BDEB87E.png?v=3" alt="Empty Chair"></a></div>
@@ -42,4 +42,21 @@
 <a href="/support"><span><img class="menu-icon" src="/static/support.png" alt=""></span><strong>Support</strong></a>
 {% if user and user.id == 'user_live_demo' %}<a href="/demo"><span><img class="menu-icon" src="/static/demo-guide.png" alt=""></span><strong>Demo Guide</strong></a>{% endif %}
 </div></details></nav>
-<div class="sidebar-footer"><div class="studio-card"><div class="kicker">Studio</div><div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div><div class="online">● System active</div></div><div class="owner-card"><div class="kicker">Signed in</div><div class="owner-name">{{ user["name"] if user else "Owner" }}</div></div><form class="logout-form" method="post" action="/logout"><button class="logout-button" type="submit">Log out</button></form></div></aside>
+<div class="sidebar-footer"><div class="studio-card"><div class="sidebar-identity"><img class="sidebar-shop-avatar" src="/static/shop-avatar.png?v=1" alt=""><div><div class="kicker">Studio</div><div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div><div class="online">● System active</div></div></div></div><div class="owner-card"><div class="sidebar-identity"><img class="sidebar-user-avatar mock-avatar" data-name="{{ user['name'] if user else 'Owner' }}" alt=""><div><div class="kicker">Signed in</div><div class="owner-name">{{ user["name"] if user else "Owner" }}</div></div></div></div><form class="logout-form" method="post" action="/logout"><button class="logout-button" type="submit">Log out</button></form></div></aside>
+<script>
+(()=>{
+  const shopName={{ (shop['name'] if shop else 'No studio configured')|tojson }};
+  const addGlobalShopIdentity=()=>{
+    document.querySelectorAll('.topbar').forEach(topbar=>{
+      if(topbar.querySelector('.global-shop-chip')) return;
+      const chip=document.createElement('div');
+      chip.className='global-shop-chip';
+      chip.innerHTML=`<img src="/static/shop-avatar.png?v=1" alt=""><div class="shop-chip-text"><div class="shop-chip-kicker">Studio</div><div class="shop-chip-name"></div></div>`;
+      chip.querySelector('.shop-chip-name').textContent=shopName;
+      const actions=topbar.querySelector('.top-actions');
+      if(actions) topbar.insertBefore(chip,actions); else topbar.appendChild(chip);
+    });
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addGlobalShopIdentity,{once:true}); else addGlobalShopIdentity();
+})();
+</script>
