@@ -62,21 +62,23 @@
     root.querySelectorAll('.live-person').forEach(el=>addAvatar(el,el.textContent.replace(/ chose this opening\.?$/i,'')));
     root.querySelectorAll('.match .name').forEach(el=>addAvatar(el,el.textContent));
     root.querySelectorAll('.rankrow>div:nth-child(2)>strong:first-child').forEach(el=>addAvatar(el,el.textContent));
-    root.querySelectorAll('table tbody tr').forEach(row=>{
-      const cells=row.querySelectorAll('td');
-      if(cells.length>=2){
-        const cell=cells[1];
-        if(!cell.querySelector('.person-avatar')&&cell.textContent.trim()&&!/No booking/i.test(cell.textContent)){
-          const textNode=[...cell.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim());
-          if(textNode){
-            const span=document.createElement('span');
-            span.textContent=textNode.textContent.trim();
-            cell.replaceChild(span,textNode);
-            addAvatar(span,span.textContent);
+    if(location.pathname==='/bookings'){
+      root.querySelectorAll('table tbody tr').forEach(row=>{
+        const cells=row.querySelectorAll('td');
+        if(cells.length>=2){
+          const cell=cells[1];
+          if(!cell.querySelector('.person-avatar')&&cell.textContent.trim()&&!/No booking/i.test(cell.textContent)){
+            const textNode=[...cell.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.trim());
+            if(textNode){
+              const span=document.createElement('span');
+              span.textContent=textNode.textContent.trim();
+              cell.replaceChild(span,textNode);
+              addAvatar(span,span.textContent);
+            }
           }
         }
-      }
-    });
+      });
+    }
     hydrate(root);
   }
 
