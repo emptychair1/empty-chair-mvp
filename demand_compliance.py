@@ -15,6 +15,13 @@ import app as core
 
 
 META_COMMERCE_POLICY_URL = "https://www.facebook.com/policies_center/commerce"
+SHORT_CAMPAIGN_SLUGS = {
+    "Traditional Animals": "animals",
+    "Weird / Psychedelic": "weird",
+    "Moths / Bugs / Nature": "nature",
+    "Dark Traditional": "dark",
+    "Custom Traditional": "custom",
+}
 
 
 def _e(value):
@@ -81,6 +88,9 @@ def _draft_copy(campaign):
 
 def _tracked_url(request, campaign):
     base = str(request.base_url).rstrip("/")
+    slug = SHORT_CAMPAIGN_SLUGS.get(campaign["name"])
+    if slug:
+        return f"{base}/josh/{slug}"
     params = urlencode(
         {
             "shop_id": campaign["shop_id"],
@@ -135,7 +145,7 @@ def demand_acquisition_compliance(request: Request):
             <label>MARKETPLACE DESCRIPTION</label>
             <div class='copyrow'><textarea id='copy-{campaign_id}' rows='5' readonly>{_e(copy)}</textarea><button type='button' class='secondary' onclick="copyField('copy-{campaign_id}', this)">Copy description</button></div>
 
-            <label>TRACKED CONCIERGE LINK</label>
+            <label>SHORT TRACKED CONCIERGE LINK</label>
             <div class='copyrow'><textarea id='link-{campaign_id}' readonly>{_e(tracked_url)}</textarea><button type='button' class='secondary' onclick="copyField('link-{campaign_id}', this)">Copy link</button></div>
 
             <label>COMPLIANCE RESULT</label>
@@ -166,7 +176,7 @@ def demand_acquisition_compliance(request: Request):
         </style></head><body><main>
         <a href='/demand-acquisition'>← Demand Acquisition</a>
         <div class='ey'>M4 · READY-TO-POST DEMAND</div><h1>Marketplace Launch Packages</h1>
-        <p class='note'>Each campaign below contains the exact title, description and tracked Concierge link needed for launch. Copy the full package or each field separately.</p>
+        <p class='note'>Each campaign below contains the exact title, description and short tracked Concierge link needed for launch. Copy the full package or each field separately.</p>
         <div class='policy'><b>Preflight only.</b> Green means the local copy rules found no obvious issue; it does not mean Meta has approved the listing or that the listing category is eligible. <a href='{META_COMMERCE_POLICY_URL}' target='_blank' rel='noopener'>Review Meta Commerce Policies</a>.</div>
         {body}
         </main>
