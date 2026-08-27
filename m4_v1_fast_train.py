@@ -14,7 +14,6 @@ import uuid
 import app as core
 import m4_frozen_simulator_v1 as frozen
 import m4_runtime
-import m4_signal_ablation_benchmark as ablation
 from founder_simulation_safety import load_and_assert_founder_simulation_target
 
 VERSION = "m4-v1-fast-train-1"
@@ -83,16 +82,28 @@ def _synthetic_opening(template, shop_index, opening_index, rng):
     return opening
 
 
+def _observed_proxies(shop_id, customer, opening, cycle):
+    """Build all observable proxies from one latent-environment calculation."""
+    env = frozen.v3._latent_environment(shop_id, opening, customer, cycle)
+    cid = customer["id"]
+    oid = opening["id"]
+
+    distance = max(0.20, min(1.05, env["distance_multiplier"] * (0.94 + 0.12 * frozen.v3._stable(cid, oid, "ablation_distance_noise"))))
+    budget = max(0.12, min(1.08, env["budget_multiplier"] * (0.82 + 0.36 * frozen.v3._stable(cid, "ablation_budget_noise"))))
+    short_notice = max(0.30, min(1.22, env["short_notice_multiplier"] * (0.90 + 0.20 * frozen.v3._stable(cid, cycle // 6, "ablation_short_notice_noise"))))
+    artist_affinity = max(0.55, min(1.45, env["artist_multiplier"] * (0.86 + 0.28 * frozen.v3._stable(cid, opening.get("artist_id"), "ablation_artist_noise"))))
+    fatigue = max(0.40, min(1.05, env["fatigue_multiplier"] * (0.94 + 0.12 * frozen.v3._stable(cid, cycle // 5, "ablation_fatigue_noise"))))
+    return distance, budget, short_notice, artist_affinity, fatigue
+
+
 def _feature_vector(shop_id, customer, opening, cycle, regime):
     scored = m4_runtime.score(customer, opening)
     baseline_p = _clamp(scored.get("booking_probability") or 0.01)
     baseline_logit = _logit(baseline_p) / 4.0
 
-    distance = ablation._observed_multiplier(shop_id, customer, opening, cycle, "distance")
-    budget = ablation._observed_multiplier(shop_id, customer, opening, cycle, "budget")
-    short_notice = ablation._observed_multiplier(shop_id, customer, opening, cycle, "short_notice")
-    artist_affinity = ablation._observed_multiplier(shop_id, customer, opening, cycle, "artist_affinity")
-    fatigue = ablation._observed_multiplier(shop_id, customer, opening, cycle, "fatigue")
+    distance, budget, short_notice, artist_affinity, fatigue = _observed_proxies(
+        shop_id, customer, opening, cycle
+    )
 
     preferred_styles = {x.strip().lower() for x in str(customer.get("preferred_styles") or "").split(",") if x.strip()}
     style = str(opening.get("style") or "").strip().lower()
@@ -110,7 +121,7 @@ def _feature_vector(shop_id, customer, opening, cycle, regime):
     alog = math.log(max(0.05, artist_affinity))
     flog = math.log(max(0.05, fatigue))
 
-    return (
+    features = (
         1.0,
         baseline_logit,
         dlog,
@@ -129,6 +140,7 @@ def _feature_vector(shop_id, customer, opening, cycle, regime):
         baseline_logit * blog,
         baseline_logit * dlog,
     )
+    return features, baseline_p
 
 
 def _templates(shop_id):
@@ -160,7 +172,7 @@ def _row_stream(customers, openings, start_shop, rows, seed):
                 break
             template = customers[(opening_index * 7 + position * 11) % len(customers)]
             customer = _synthetic_customer(template, shop_index, opening_index * CANDIDATES_PER_OPENING + position, rng)
-            features = _feature_vector(shop_id, customer, opening, cycle, regime)
+            features, baseline_p = _feature_vector(shop_id, customer, opening, cycle, regime)
             truth, env = frozen.hidden_probability(shop_id, customer, opening, cycle, regime)
             accepted = 1.0 if frozen._stable(shop_id, opening["id"], customer["id"], cycle, regime, "m4v1_train_accept") < truth else 0.0
             yield {
@@ -169,7 +181,7 @@ def _row_stream(customers, openings, start_shop, rows, seed):
                 "price": float(opening.get("price") or 0.0),
                 "regime": regime,
                 "features": features,
-                "baseline_probability": _clamp(m4_runtime.score(customer, opening).get("booking_probability") or 0.01),
+                "baseline_probability": baseline_p,
                 "accepted": accepted,
                 "structurally_unfillable": bool(env.get("structurally_unfillable")),
             }
