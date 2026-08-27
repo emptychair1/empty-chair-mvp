@@ -51,7 +51,7 @@ def _founder_controls_html():
  const show=v=>{box.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)};
  async function jsonFetch(url,opts={}){
    const controller=new AbortController();
-   const timer=setTimeout(()=>controller.abort(),8000);
+   const timer=setTimeout(()=>controller.abort(),12000);
    try{
      const r=await fetch(url,{...opts,signal:controller.signal,cache:'no-store'});
      const text=await r.text();
@@ -70,6 +70,28 @@ def _founder_controls_html():
    }catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}
    finally{setBusy(false);}
  }
+ async function runBatched(total){
+   setBusy(true);
+   let completed=0;
+   let last=null;
+   try{
+     while(completed<total){
+       const chunk=Math.min(3,total-completed);
+       show('Running '+completed+'/'+total+' cycles…');
+       const f=new FormData();
+       f.append('cycles',String(chunk));
+       last=await jsonFetch('/api/founder-sim/run',{method:'POST',body:f});
+       completed+=chunk;
+       show({progress:completed+'/'+total,last:last});
+     }
+     const status=await jsonFetch('/api/founder-sim/status');
+     show({ok:true,completed_cycles:completed,status:status,last:last});
+   }catch(e){
+     show('ERROR after '+completed+'/'+total+' cycles: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
+   }finally{
+     setBusy(false);
+   }
+ }
  async function status(){
    setBusy(true); show('Loading status…');
    try{show(await jsonFetch('/api/founder-sim/status'));}
@@ -79,8 +101,8 @@ def _founder_controls_html():
  document.getElementById('simInit').onclick=()=>call('/api/founder-sim/initialize');
  document.getElementById('simReset').onclick=()=>call('/api/founder-sim/reset');
  document.getElementById('sim1').onclick=()=>call('/api/founder-sim/run',1);
- document.getElementById('sim30').onclick=()=>call('/api/founder-sim/run',30);
- document.getElementById('sim180').onclick=()=>call('/api/founder-sim/run',180);
+ document.getElementById('sim30').onclick=()=>runBatched(30);
+ document.getElementById('sim180').onclick=()=>runBatched(180);
  document.getElementById('simStatus').onclick=status;
 })();
 </script>
