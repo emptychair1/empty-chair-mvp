@@ -13,12 +13,12 @@ No new M4 V1 work is added unless it closes one of these gates. Everything else 
 - [x] Signal-ablation benchmark identifies budget and distance as high-value simulated inputs.
 - [x] M4 Advisor recommendation UI exists and can speak evidence-backed recommendations with the configured M4 voice.
 - [x] Public sales-site benchmark section exists with explicit simulation disclosure.
-- [ ] Freeze realistic simulator with non-trivial unfilled openings across easy / normal / hard demand regimes.
-- [ ] Generate large synthetic training corpus using the frozen simulator and measured high-value signals.
-- [ ] Train M4 V1 against booking probability, top-1/top-3 quality, contacts-to-book and recovered value.
-- [ ] Run one untouched holdout benchmark with no post-result tuning.
-- [ ] Freeze V1 acceptance bar and select the winning production policy; if training does not beat the safe baseline, ship the safe baseline/hybrid architecture.
-- [ ] Wire the winning policy into production M4 recommendations and recovery ranking.
+- [x] Freeze realistic simulator with non-trivial unfilled openings across easy / normal / hard demand regimes.
+- [x] Generate large synthetic training corpus using the frozen simulator and measured high-value signals.
+- [x] Train M4 V1 against booking probability, top-1/top-3 quality, contacts-to-book and recovered value.
+- [x] Run one untouched holdout benchmark with no post-result tuning.
+- [x] Freeze V1 acceptance bar and select the winning production policy; final untouched evaluation passed every predeclared gate.
+- [x] Wire the winning policy into production M4 recovery ranking with safe fallback when required budget/distance evidence is unavailable.
 - [ ] Complete real outcome feedback loop for accept / decline / ignore / book / cancel / completed outcomes.
 - [ ] Run pilot shadow-mode validation and compare predictions with real outcomes.
 - [ ] Publish real-world benchmark separately from simulation results when sample size is sufficient.
