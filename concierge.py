@@ -11,6 +11,7 @@ import concierge_pilot
 import demand_engine
 import demand_core
 import enrichment_v1
+import m4_active_learning
 
 DEMO_SHOP_ID = "shop_live_demo"
 
@@ -37,6 +38,27 @@ def _resolve_shop(request: Request, requested_shop: str = "") -> str:
         return signed_in
     explicit = (requested_shop or "").strip().replace('"', "")
     return explicit or DEMO_SHOP_ID
+
+
+@core.app.post("/api/m4/active-learning/next")
+async def m4_active_learning_next(request: Request):
+    """Return the single missing zero-party answer with highest M4 value."""
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    profile = payload.get("profile") if isinstance(payload, dict) else {}
+    if not isinstance(profile, dict):
+        return JSONResponse({"error": "profile must be an object"}, status_code=400)
+    question = m4_active_learning.next_best_question(profile)
+    ranked = m4_active_learning.rank_missing_questions(profile)
+    return JSONResponse({
+        "ok": True,
+        "strategy": "m4_v1_information_value",
+        "question": question,
+        "remaining": len(ranked),
+        "ranked_missing": ranked,
+    }, headers={"Cache-Control": "no-store"})
 
 
 @core.app.post("/api/concierge/profile")
