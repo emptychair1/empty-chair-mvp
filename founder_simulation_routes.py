@@ -5,7 +5,10 @@ from fastapi.responses import JSONResponse
 
 import app as core
 import m4_founder_simulation_engine as engine
-from founder_simulation_safety import FounderSimulationSafetyError
+from founder_simulation_safety import (
+    FounderSimulationSafetyError,
+    load_and_assert_founder_simulation_target,
+)
 
 app = core.app
 
@@ -39,6 +42,88 @@ def _set_read_timeout(conn):
     if getattr(core, "USE_POSTGRES", False):
         core.db_execute(conn, "SET LOCAL statement_timeout = '2500ms'")
         core.db_execute(conn, "SET LOCAL lock_timeout = '1000ms'")
+
+
+def _set_write_timeout(conn):
+    if getattr(core, "USE_POSTGRES", False):
+        core.db_execute(conn, "SET LOCAL statement_timeout = '5000ms'")
+        core.db_execute(conn, "SET LOCAL lock_timeout = '1500ms'")
+
+
+def _ensure_founder_support_tables(conn):
+    engine.ensure_tables(conn)
+    core.db_execute(
+        conn,
+        """
+        CREATE TABLE IF NOT EXISTS founder_sim_artist_portfolios (
+            id TEXT PRIMARY KEY,
+            shop_id TEXT NOT NULL,
+            artist_id TEXT NOT NULL,
+            profile_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL
+        )
+        """,
+    )
+    core.db_execute(
+        conn,
+        """
+        CREATE TABLE IF NOT EXISTS founder_sim_runs (
+            id TEXT PRIMARY KEY,
+            shop_id TEXT NOT NULL,
+            seed_version TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """,
+    )
+
+
+@app.post("/api/founder-sim/initialize")
+def founder_sim_initialize(request: Request):
+    user, error = _user(request)
+    if error:
+        return error
+
+    conn = core.connect()
+    try:
+        _set_write_timeout(conn)
+        load_and_assert_founder_simulation_target(
+            conn,
+            core.db_fetchone,
+            user["shop_id"],
+        )
+        _ensure_founder_support_tables(conn)
+        conn.commit()
+        return JSONResponse(
+            {
+                "ok": True,
+                "initialized": True,
+                "message": "Founder simulation tables initialized. No shop, customer, lead, artist, opening, or booking data was changed.",
+                "reset_enabled": False,
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+    except FounderSimulationSafetyError as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return JSONResponse(
+            {"error": str(exc)},
+            status_code=403,
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return JSONResponse(
+            {"error": f"Founder simulation initialization unavailable: {exc}"},
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
+        )
+    finally:
+        conn.close()
 
 
 @app.post("/api/founder-sim/reset")
@@ -95,6 +180,8 @@ def founder_sim_status(request: Request):
             "founder_sim_metrics",
             "founder_sim_customer_learning",
             "founder_sim_recommendations",
+            "founder_sim_artist_portfolios",
+            "founder_sim_runs",
         )
         missing = [table for table in required_tables if not _table_exists(conn, table)]
         if missing:
@@ -108,6 +195,7 @@ def founder_sim_status(request: Request):
                     "recommendation": None,
                     "reset_enabled": False,
                     "message": "Founder simulation has not been initialized yet.",
+                    "missing_tables": missing,
                 },
                 headers={"Cache-Control": "no-store"},
             )
