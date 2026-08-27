@@ -30,6 +30,40 @@ def _concierge_profiles(conn,shop_id):
 def _round_optional(value,digits=3):
     return round(float(value),digits) if value is not None else None
 
+def _confidence_view(decision,enrich,signals):
+    raw=max(0.0,min(1.0,float(decision.get("confidence",0) or 0)))
+    evidence=max(0.0,min(1.0,float(decision.get("demand_graph_confidence",0) or 0)))
+    concierge=max(0.0,min(1.0,float(enrich.get("confidence",0) or 0)/100.0))
+    coverage=min(1.0,len(signals)/5.0)
+    score=round(100*(0.55*raw+0.20*evidence+0.15*concierge+0.10*coverage))
+    if score>=75:label="HIGH"
+    elif score>=50:label="MEDIUM"
+    else:label="LOW"
+    action="ACT" if label=="HIGH" else "RECOMMEND" if label=="MEDIUM" else "LEARN_OR_FALLBACK"
+    return score,label,action
+
+def _explanation(decision,profile,confidence_label):
+    positives=[];risks=[]
+    def fit(key,label):
+        v=decision.get(key)
+        if v is None:return
+        v=float(v)
+        if v>=0.72:positives.append(label)
+        elif v<0.42:risks.append(label.replace("Strong ","Weak ").replace("Good ","Poor "))
+    fit("budget_fit","Strong budget fit")
+    fit("distance_fit","Good travel-distance fit")
+    fit("timing_fit","Good timing fit")
+    fit("short_notice_fit","Strong short-notice readiness")
+    fit("style_fit","Strong tattoo-style fit")
+    if float(decision.get("artist_affinity",0) or 0)>=0.65:positives.append("Strong artist affinity")
+    if float(decision.get("incremental_uplift",0) or 0)>=0.10:positives.append("M4 expects this outreach to materially increase booking likelihood")
+    for text in list(decision.get("why") or []):
+        text=str(text).strip()
+        if text and text not in positives:positives.append(text)
+    if confidence_label=="LOW":risks.append("Evidence is too thin for automatic action")
+    missing=[k for k in ("styles","budget","short_notice","artist_vibe","travel") if not profile.get(k)]
+    return positives[:5],risks[:3],missing
+
 def _rank(opening,artist,customers,concierge=None):
     ranked=[];artist_dict=dict(artist) if artist else {};concierge=concierge or {}
     for customer in customers:
@@ -46,42 +80,31 @@ def _rank(opening,artist,customers,concierge=None):
             exploration_bonus=min(4.0,float(enrich.get("confidence",0))/25.0) if cold_start else 0.0
             queue+=enrichment_points+exploration_bonus
             why=list(decision.get("why") or result.get("why") or [])
+            confidence_score,confidence_label,recommended_action=_confidence_view(decision,enrich,signals)
+            positives,risks,missing=_explanation(decision,p,confidence_label)
             ranked.append({
-                "customer_id":customer["id"],
-                "name":c.get("name"),
+                "customer_id":customer["id"],"name":c.get("name"),
                 "booking_probability":round(float(decision.get("booking_probability",0)),4),
                 "incremental_uplift":round(float(decision.get("incremental_uplift",0)),4),
                 "confidence":round(float(decision.get("confidence",0)),4),
+                "m4_confidence_score":confidence_score,"m4_confidence_label":confidence_label,
+                "recommended_action":recommended_action,"why_this_person":positives,"risk_factors":risks,
+                "missing_high_value_signals":missing,
                 "expected_value":round(float(decision.get("expected_value",0)),2) if decision.get("expected_value") is not None else None,
-                "style_fit":round(float(decision.get("style_fit",0)),3),
-                "budget_fit":_round_optional(decision.get("budget_fit")),
-                "placement_fit":_round_optional(decision.get("placement_fit")),
-                "distance_fit":_round_optional(decision.get("distance_fit")),
-                "timing_fit":_round_optional(decision.get("timing_fit")),
-                "short_notice_fit":_round_optional(decision.get("short_notice_fit")),
-                "practical_score":_round_optional(decision.get("practical_score")),
-                "practical_score_weight":round(float(decision.get("practical_weight",0)),3),
-                "artist_affinity":round(float(decision.get("artist_affinity",0)),3),
-                "tattoo_dna_match":_round_optional(decision.get("tattoo_dna_match")),
-                "demand_graph_confidence":round(float(decision.get("demand_graph_confidence",0)),3),
-                "dna_score_weight":round(float(decision.get("dna_weight",0)),3),
-                "base_queue_score":round(float(decision.get("base_score",queue)),2),
-                "queue_score":round(float(queue),2),
-                "why":why,
-                "concierge_enriched":bool(p),
-                "concierge_confidence":enrich.get("confidence",0),
-                "concierge_signals":signals,
-                "cold_start_exploration":cold_start,
-                "tattoo_dna":decision.get("tattoo_dna") or {},
-                "artist_dna":decision.get("artist_dna") or {},
-                "practical_fit":decision.get("practical_fit") or {},
-                "contextual":decision.get("contextual") or {},
+                "style_fit":round(float(decision.get("style_fit",0)),3),"budget_fit":_round_optional(decision.get("budget_fit")),
+                "placement_fit":_round_optional(decision.get("placement_fit")),"distance_fit":_round_optional(decision.get("distance_fit")),
+                "timing_fit":_round_optional(decision.get("timing_fit")),"short_notice_fit":_round_optional(decision.get("short_notice_fit")),
+                "practical_score":_round_optional(decision.get("practical_score")),"practical_score_weight":round(float(decision.get("practical_weight",0)),3),
+                "artist_affinity":round(float(decision.get("artist_affinity",0)),3),"tattoo_dna_match":_round_optional(decision.get("tattoo_dna_match")),
+                "demand_graph_confidence":round(float(decision.get("demand_graph_confidence",0)),3),"dna_score_weight":round(float(decision.get("dna_weight",0)),3),
+                "base_queue_score":round(float(decision.get("base_score",queue)),2),"queue_score":round(float(queue),2),"why":why,
+                "concierge_enriched":bool(p),"concierge_confidence":enrich.get("confidence",0),"concierge_signals":signals,
+                "cold_start_exploration":cold_start,"tattoo_dna":decision.get("tattoo_dna") or {},"artist_dna":decision.get("artist_dna") or {},
+                "practical_fit":decision.get("practical_fit") or {},"contextual":decision.get("contextual") or {},
             })
         except Exception:continue
     ranked.sort(key=lambda x:(x["queue_score"],x["expected_value"] or 0,x["confidence"]),reverse=True)
-    top=ranked[:8]
-    seen={x["customer_id"] for x in top}
-    enriched=[x for x in ranked if x.get("concierge_enriched") and x["customer_id"] not in seen][:4]
+    top=ranked[:8];seen={x["customer_id"] for x in top};enriched=[x for x in ranked if x.get("concierge_enriched") and x["customer_id"] not in seen][:4]
     return top+enriched
 
 @core.app.get("/api/m4/operator/status")
@@ -104,7 +127,7 @@ def preview(request:Request,opening_id:str=Form(...)):
         if not opening:return JSONResponse({"error":"Opening not found for this shop."},status_code=404)
         if opening["status"]!="OPEN":return JSONResponse({"error":"Only OPEN openings can be previewed."},status_code=409)
         cp=_concierge_profiles(conn,user["shop_id"]);ranked=_rank(opening,artist,customers,cp)
-        return JSONResponse({"ok":True,"synthetic":user["shop_id"]==DEMO_SHOP_ID,"opening":dict(opening),"artist":dict(artist) if artist else None,"consented_candidates":len(customers),"concierge_enriched_candidates":len([c for c in customers if c["id"] in cp]),"m4_top_candidates":ranked,"ranking_model":"incrementality + behavior + Tattoo DNA × Artist DNA + budget + placement + distance + timing + short notice + artist preference","execution":"preview_only","guardrails":["shop ownership","communication consent","calendar safety on live activation","contact cooldown","sequential offers","demo delivery suppression" if user["shop_id"]==DEMO_SHOP_ID else "production delivery safeguards"]},headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache"})
+        return JSONResponse({"ok":True,"synthetic":user["shop_id"]==DEMO_SHOP_ID,"opening":dict(opening),"artist":dict(artist) if artist else None,"consented_candidates":len(customers),"concierge_enriched_candidates":len([c for c in customers if c["id"] in cp]),"m4_top_candidates":ranked,"ranking_model":"incrementality + behavior + Tattoo DNA × Artist DNA + budget + placement + distance + timing + short notice + artist preference","confidence_policy":{"HIGH":"act automatically","MEDIUM":"recommend and expose uncertainty","LOW":"learn the highest-value missing signal or fall back"},"execution":"preview_only","guardrails":["shop ownership","communication consent","calendar safety on live activation","contact cooldown","sequential offers","demo delivery suppression" if user["shop_id"]==DEMO_SHOP_ID else "production delivery safeguards"]},headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache"})
     finally:conn.close()
 
 def _simulate_demo_activation(opening_id,preview):
@@ -113,7 +136,7 @@ def _simulate_demo_activation(opening_id,preview):
     try:
         core.db_execute(conn,"INSERT INTO offers(id,opening_id,customer_id,score,rank,channel,sent_at,expires_at,status) VALUES (?,?,?,?,?,?,?,?,?)",(offer_id,opening_id,top["customer_id"],top["queue_score"],1,"synthetic",now,now,"SENT"));core.db_execute(conn,"UPDATE openings SET status='RECOVERY_ACTIVE' WHERE id=? AND shop_id=? AND status='OPEN'",(opening_id,DEMO_SHOP_ID));conn.commit()
     finally:conn.close()
-    core.event("m4.synthetic_operator_activated","opening",opening_id,json.dumps({"offer_id":offer_id,"customer_id":top["customer_id"],"queue_score":top["queue_score"],"tattoo_dna_match":top.get("tattoo_dna_match"),"practical_score":top.get("practical_score"),"external_delivery":False}));return offer_id
+    core.event("m4.synthetic_operator_activated","opening",opening_id,json.dumps({"offer_id":offer_id,"customer_id":top["customer_id"],"queue_score":top["queue_score"],"confidence":top.get("m4_confidence_score"),"confidence_label":top.get("m4_confidence_label"),"tattoo_dna_match":top.get("tattoo_dna_match"),"practical_score":top.get("practical_score"),"external_delivery":False}));return offer_id
 
 @core.app.post("/api/m4/operator/activate")
 def activate(request:Request,opening_id:str=Form(...)):
