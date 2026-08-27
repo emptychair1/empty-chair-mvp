@@ -156,16 +156,24 @@ def founder_sim_run(request: Request, cycles: int = Form(30)):
     if error:
         return error
     try:
-        result = engine.run_simulation(user["shop_id"], cycles=max(1, min(int(cycles), 365)))
-        recommendation = engine.latest_recommendation(user["shop_id"])
+        requested_cycles = max(1, min(int(cycles), 365))
+        result = engine.run_simulation(user["shop_id"], cycles=requested_cycles)
         return JSONResponse(
-            {"ok": True, "result": result, "recommendation": recommendation},
+            {"ok": True, "result": result},
             headers={"Cache-Control": "no-store"},
         )
     except FounderSimulationSafetyError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=403, headers={"Cache-Control": "no-store"})
+        return JSONResponse(
+            {"error": str(exc)},
+            status_code=403,
+            headers={"Cache-Control": "no-store"},
+        )
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
+        return JSONResponse(
+            {"error": str(exc)},
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 @app.get("/api/founder-sim/status")
