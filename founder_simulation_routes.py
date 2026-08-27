@@ -1,9 +1,10 @@
 """Authenticated controls for the Crybaby founder simulation."""
 
-from fastapi import Form, Request
+from fastapi import BackgroundTasks, Form, Request
 from fastapi.responses import JSONResponse
 
 import app as core
+import founder_simulation_jobs as jobs
 import founder_simulation_staged
 import m4_founder_simulation_engine_v2 as engine
 from founder_simulation_safety import (
@@ -51,6 +52,7 @@ def _set_write_timeout(conn):
 
 def _ensure_founder_support_tables(conn):
     engine.ensure_tables(conn)
+    jobs.ensure_table(conn)
     core.db_execute(
         conn,
         """
@@ -151,12 +153,12 @@ def founder_sim_reset(request: Request):
 
 
 @app.post("/api/founder-sim/run")
-def founder_sim_run(request: Request, cycles: int = Form(30)):
+def founder_sim_run(request: Request, cycles: int = Form(1)):
     user, error = _user(request)
     if error:
         return error
     try:
-        requested_cycles = max(1, min(int(cycles), 365))
+        requested_cycles = max(1, min(int(cycles), 5))
         result = engine.run_simulation(user["shop_id"], cycles=requested_cycles)
         return JSONResponse(
             {"ok": True, "result": result},
@@ -174,6 +176,50 @@ def founder_sim_run(request: Request, cycles: int = Form(30)):
             status_code=503,
             headers={"Cache-Control": "no-store"},
         )
+
+
+@app.post("/api/founder-sim/run-job")
+def founder_sim_run_job(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    cycles: int = Form(30),
+):
+    user, error = _user(request)
+    if error:
+        return error
+    try:
+        requested = max(1, min(int(cycles), 365))
+        job_id, created = jobs.create_job(user["shop_id"], requested)
+        if created:
+            background_tasks.add_task(jobs.run_job, job_id, user["shop_id"])
+        return JSONResponse(
+            {
+                "ok": True,
+                "job_id": job_id,
+                "requested_cycles": requested,
+                "started": created,
+                "message": "Simulation job started." if created else "A simulation job is already running for this shop.",
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+    except FounderSimulationSafetyError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=403, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/founder-sim/job-status")
+def founder_sim_job_status(request: Request, job_id: str):
+    user, error = _user(request)
+    if error:
+        return error
+    try:
+        job = jobs.get_job(job_id, user["shop_id"])
+        if not job:
+            return JSONResponse({"error": "Simulation job not found."}, status_code=404)
+        return JSONResponse({"ok": True, "job": job}, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/founder-sim/status")
