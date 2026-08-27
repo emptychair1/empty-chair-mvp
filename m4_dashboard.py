@@ -12,6 +12,7 @@ import m4_runtime
 import m4_founder_simulation_engine as founder_engine
 import founder_simulation_routes  # noqa: F401,E402
 import m4_policy_benchmark_routes  # noqa: F401,E402
+import m4_stress_benchmark_routes  # noqa: F401,E402
 
 app = core.app
 M4_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "Ss7hQAiJNG6a81OU5k51")
@@ -27,12 +28,12 @@ def _is_crybaby(shop):
 def _founder_controls_html():
     return r'''
 <style>
-.founder-sim{margin-top:18px;padding:20px;border:1px solid #c7ff3e;background:#0b0e0a;box-shadow:4px 4px 0 #000}.founder-sim h2{margin:6px 0 8px;color:#f2ecde;font:400 30px var(--cartoon);text-transform:uppercase}.founder-sim p{margin:0;color:#9da198;font-size:12px;line-height:1.55}.founder-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.founder-actions button{appearance:none;border:1px solid #3d4138;background:#141812;color:#f2ecde;padding:10px 13px;font:400 12px var(--cartoon);text-transform:uppercase;cursor:pointer}.founder-actions button.primary{background:#c7ff3e;color:#0b0e0a;border-color:#c7ff3e}.founder-actions button.decision{border-color:#c7ff3e;color:#c7ff3e}.founder-actions button:disabled{opacity:.5;cursor:wait}.founder-status{margin-top:14px;padding:12px;border:1px solid #30342d;background:#080a08;color:#b9bdb3;font:11px/1.55 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap}.founder-warning{margin-top:10px;color:#7f857a;font-size:10px}.founder-warning b{color:#c7ff3e}
+.founder-sim{margin-top:18px;padding:20px;border:1px solid #c7ff3e;background:#0b0e0a;box-shadow:4px 4px 0 #000}.founder-sim h2{margin:6px 0 8px;color:#f2ecde;font:400 30px var(--cartoon);text-transform:uppercase}.founder-sim p{margin:0;color:#9da198;font-size:12px;line-height:1.55}.founder-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.founder-actions button{appearance:none;border:1px solid #3d4138;background:#141812;color:#f2ecde;padding:10px 13px;font:400 12px var(--cartoon);text-transform:uppercase;cursor:pointer}.founder-actions button.primary{background:#c7ff3e;color:#0b0e0a;border-color:#c7ff3e}.founder-actions button.decision{border-color:#c7ff3e;color:#c7ff3e}.founder-actions button.stress{border-color:#f2ecde;color:#f2ecde;background:#1b1914}.founder-actions button:disabled{opacity:.5;cursor:wait}.founder-status{margin-top:14px;padding:12px;border:1px solid #30342d;background:#080a08;color:#b9bdb3;font:11px/1.55 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap}.founder-warning{margin-top:10px;color:#7f857a;font-size:10px}.founder-warning b{color:#c7ff3e}
 </style>
 <section class="founder-sim" id="founderSim">
   <div class="m4-kicker">Founder Simulation // Crybaby Tattoos</div>
   <h2>Controlled M4 Lab</h2>
-  <p>Long simulations and policy benchmarks execute as background jobs. The new decision policy learns relative customer ordering from historical outcomes, then competes against legacy M4 on identical future synthetic outcomes.</p>
+  <p>V2 remains the control. V3 adds weak demand, hidden budget and distance friction, short-notice readiness, offer fatigue, cold-start customers, hidden artist affinity, behavioral drift, and noisy signals.</p>
   <div class="founder-actions">
     <button class="primary" id="simInit" type="button">Initialize Simulation</button>
     <button id="simReset" type="button">Reset + Seed Crybaby</button>
@@ -40,10 +41,11 @@ def _founder_controls_html():
     <button id="sim30" type="button">Run 30 Cycles</button>
     <button id="sim180" type="button">Run 180 Cycles</button>
     <button class="decision" id="simBenchmark" type="button">Benchmark New M4</button>
+    <button class="stress" id="simStress" type="button">Stress Test V3</button>
     <button id="simStatus" type="button">Refresh Status</button>
   </div>
   <div class="founder-status" id="founderStatus">Ready. No simulation request runs automatically.</div>
-  <div class="founder-warning"><b>Benchmark:</b> 250 synthetic cycles per policy. Compares top-1, top-3, recovered revenue, contacts per booking, and revenue per contact. <b>Safety:</b> Blindwolf remains protected server-side.</div>
+  <div class="founder-warning"><b>V3:</b> 250 identical hard-world cycles per policy, including legitimate unfilled openings. <b>Safety:</b> Blindwolf remains protected server-side.</div>
 </section>
 <script>
 (()=>{
@@ -120,6 +122,31 @@ def _founder_controls_html():
      show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
    }finally{setBusy(false);}
  }
+ async function stressBenchmark(){
+   setBusy(true);
+   try{
+     const f=new FormData(); f.append('cycles','250');
+     const started=await jsonFetch('/api/m4-stress/benchmark-job',{method:'POST',body:f});
+     const jobId=started.job_id;
+     show({message:started.message,job_id:jobId,environment:'v3-adversarial',cycles_per_policy:250,status:'RUNNING'});
+     for(;;){
+       await new Promise(resolve=>setTimeout(resolve,1000));
+       const state=await jsonFetch('/api/m4-stress/benchmark-status?job_id='+encodeURIComponent(jobId));
+       const job=state.job;
+       if(job.status==='COMPLETED'){
+         show({ok:true,status:'COMPLETED',result:job.result});
+         break;
+       }
+       if(job.status==='FAILED'){
+         show({ok:false,status:'FAILED',error:job.error});
+         break;
+       }
+       show({job_id:job.id,status:job.status,cycles_per_policy:job.cycles,environment:'v3-adversarial',message:'Stress-testing weak demand, hidden friction, cold-start, fatigue and drift…'});
+     }
+   }catch(e){
+     show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
+   }finally{setBusy(false);}
+ }
  async function status(){
    setBusy(true); show('Loading status…');
    try{show(await jsonFetch('/api/founder-sim/status'));}
@@ -132,6 +159,7 @@ def _founder_controls_html():
  document.getElementById('sim30').onclick=()=>runJob(30);
  document.getElementById('sim180').onclick=()=>runJob(180);
  document.getElementById('simBenchmark').onclick=benchmark;
+ document.getElementById('simStress').onclick=stressBenchmark;
  document.getElementById('simStatus').onclick=status;
 })();
 </script>
