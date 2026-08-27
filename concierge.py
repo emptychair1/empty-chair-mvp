@@ -66,6 +66,8 @@ def concierge_profile(
     request: Request,
     shop_id: str = Form(""),
     session_id: str = Form(""),
+    campaign_id: str = Form(""),
+    acquisition_source: str = Form(""),
     name: str = Form(...),
     email: str = Form(""),
     phone: str = Form(...),
@@ -106,6 +108,8 @@ def concierge_profile(
         "artist_vibe": artist_vibe.strip(),
         "travel": travel.strip(),
         "location": location.strip(),
+        "campaign_id": campaign_id.strip(),
+        "acquisition_source": acquisition_source.strip(),
     }
     if not p["name"] or not p["phone"]:
         return JSONResponse({"error": "Name and phone are required to create your profile."}, status_code=400)
@@ -114,6 +118,16 @@ def concierge_profile(
     after = _profile_score(p)
     try:
         customer_id, lead_id = concierge_leads.save_concierge_profile(target_shop, p, after)
+        if p["campaign_id"] or p["acquisition_source"]:
+            try:
+                import demand_acquisition
+                attribution_conn = core.connect()
+                try:
+                    demand_acquisition.record_lead_attribution(attribution_conn, lead_id, p["campaign_id"], p["acquisition_source"])
+                finally:
+                    attribution_conn.close()
+            except Exception as exc:
+                core.event("acquisition.attribution_failed", "customer", customer_id, str(exc))
         demand_core.capture_concierge_profile(target_shop, customer_id, p)
         demand_core.sync_concierge_profile(target_shop, customer_id, p)
         contextual = None
@@ -148,6 +162,8 @@ def concierge_profile(
         "verified_customer": True,
         "verified_lead": True,
         "communication_consent": p["offer_opt_in"],
+        "campaign_id": p["campaign_id"],
+        "acquisition_source": p["acquisition_source"],
         "m4_confidence_before": before,
         "m4_confidence_after": after,
         "contextual_enrichment": contextual or {},
@@ -166,12 +182,16 @@ def concierge_profile(
 @core.app.get("/concierge", response_class=HTMLResponse)
 def concierge_page(request: Request):
     shop_id = _resolve_shop(request, request.query_params.get("shop_id") or "")
+    campaign_id = (request.query_params.get("campaign_id") or "").strip()
+    acquisition_source = (request.query_params.get("src") or "").strip()
     try:
         with open("templates/concierge_chat.html", "r", encoding="utf-8") as handle:
             html = handle.read()
         html = html.replace("{{ url_for('static', path='/concierge-chat.css') }}", "/static/concierge-chat.css")
         html = html.replace("{{ url_for('static', path='/concierge-chat.js') }}", "/static/concierge-chat.js")
         html = html.replace("{{ shop_id|tojson }}", json.dumps(shop_id))
+        html = html.replace("{{ campaign_id|tojson }}", json.dumps(campaign_id))
+        html = html.replace("{{ acquisition_source|tojson }}", json.dumps(acquisition_source))
         return HTMLResponse(html, headers={"Cache-Control": "no-store"})
     except Exception as exc:
         return HTMLResponse(
