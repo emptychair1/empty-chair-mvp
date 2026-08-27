@@ -51,7 +51,7 @@ def _founder_controls_html():
  const show=v=>{box.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)};
  async function jsonFetch(url,opts={}){
    const controller=new AbortController();
-   const timer=setTimeout(()=>controller.abort(),12000);
+   const timer=setTimeout(()=>controller.abort(),20000);
    try{
      const r=await fetch(url,{...opts,signal:controller.signal,cache:'no-store'});
      const text=await r.text();
@@ -76,13 +76,13 @@ def _founder_controls_html():
    let last=null;
    try{
      while(completed<total){
-       const chunk=Math.min(3,total-completed);
        show('Running '+completed+'/'+total+' cycles…');
        const f=new FormData();
-       f.append('cycles',String(chunk));
+       f.append('cycles','1');
        last=await jsonFetch('/api/founder-sim/run',{method:'POST',body:f});
-       completed+=chunk;
+       completed+=1;
        show({progress:completed+'/'+total,last:last});
+       await new Promise(resolve=>setTimeout(resolve,150));
      }
      const status=await jsonFetch('/api/founder-sim/status');
      show({ok:true,completed_cycles:completed,status:status,last:last});
