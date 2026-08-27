@@ -1,0 +1,61 @@
+{
+  "model_version": "m4-v1-fast-train-1-frozen",
+  "training_run_id": "m4_v1_train_7fc5c1afd09c4aaca5616ec4e87e4a91",
+  "final_evaluation_id": "m4_v1_final_eval_b89a3eaa02b84744856a53eb47d05bb5",
+  "simulator": "m4-v1-frozen-world-candidate-1",
+  "status": "FROZEN_AFTER_UNTOUCHED_PASS",
+  "feature_names": [
+    "bias",
+    "baseline_logit",
+    "distance_log",
+    "budget_log",
+    "short_notice_log",
+    "artist_affinity_log",
+    "fatigue_log",
+    "price_ratio",
+    "completed",
+    "cancellations",
+    "no_shows",
+    "style_fit",
+    "declared_artist_fit",
+    "normal_regime",
+    "hard_regime",
+    "baseline_x_budget",
+    "baseline_x_distance"
+  ],
+  "weights": [
+    -0.06811301397649772,
+    2.1633935268705735,
+    0.5365208120908578,
+    0.7917014570738228,
+    0.9315346750032585,
+    0.725644104012669,
+    0.7182824753388063,
+    -1.9450076775484018,
+    0.6509986661797664,
+    -1.675879722241177,
+    -2.1222677574298876,
+    1.5620538102183736,
+    0.0,
+    -0.4754194019757853,
+    -0.8512778365809276,
+    -0.6112477186067321,
+    -0.8126719976108965
+  ],
+  "final_untouched_evaluation": {
+    "rows": 250000,
+    "openings": 12500,
+    "top1_lift": 0.10888,
+    "top3_lift": 0.07248,
+    "contact_efficiency_gain": 0.0822673327365655,
+    "revenue_per_contact_gain": 0.08964193568686674,
+    "fill_delta": 0.0,
+    "decision": "FREEZE_M4_V1_SYNTHETIC_LEARNING_SUCCESS"
+  },
+  "production_policy": {
+    "required_observed_features": ["budget_fit", "distance_fit"],
+    "missing_optional_features": "neutral",
+    "fallback": "existing_m4_baseline",
+    "regime": "normal"
+  }
+}
