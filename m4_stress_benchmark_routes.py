@@ -7,6 +7,7 @@ import app as core
 import m4_stress_benchmark_jobs as jobs
 import m4_stress_benchmark_v3 as stress
 import m4_v1_training_routes  # noqa: F401,E402
+import m4_v1_final_evaluation_routes  # noqa: F401,E402
 from founder_simulation_safety import FounderSimulationSafetyError
 
 app = core.app
