@@ -84,8 +84,6 @@ def hidden_probability(shop_id, customer, opening, cycle, regime):
     odds = base_probability / max(1e-9, 1.0 - base_probability)
     logit = math.log(max(1e-9, odds))
 
-    # Opening-level demand jitter moves whole slates together instead of giving
-    # each customer independent luck. This preserves hard shared-market states.
     opening_jitter = 0.72 + 0.58 * _stable(
         shop_id, opening["id"], cycle // 5, regime, "opening_demand_jitter"
     )
@@ -99,18 +97,19 @@ def hidden_probability(shop_id, customer, opening, cycle, regime):
 
 
 def _load(conn, shop_id):
+    sim_pattern = "founder_sim_%"
     customers = [
         dict(row) for row in core.db_fetchall(
             conn,
-            "SELECT * FROM customers WHERE shop_id=? AND id LIKE 'founder_sim_%'",
-            (shop_id,),
+            "SELECT * FROM customers WHERE shop_id=? AND id LIKE ?",
+            (shop_id, sim_pattern),
         )
     ]
     openings = [
         dict(row) for row in core.db_fetchall(
             conn,
-            "SELECT * FROM openings WHERE shop_id=? AND id LIKE 'founder_sim_%' ORDER BY date,start_time",
-            (shop_id,),
+            "SELECT * FROM openings WHERE shop_id=? AND id LIKE ? ORDER BY date,start_time",
+            (shop_id, sim_pattern),
         )
     ]
     return customers, openings
