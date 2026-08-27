@@ -69,25 +69,78 @@ def _founder_controls_html():
 '''
 
 
-@app.get('/m4', response_class=HTMLResponse)
-def m4_page(request: Request):
-    user, redirect = core.login_required_redirect(request)
-    if redirect:
-        return redirect
+def _live_state(shop_id):
     conn = core.connect()
     try:
         if getattr(core, "USE_POSTGRES", False):
             core.db_execute(conn, "SET LOCAL statement_timeout = '5000ms'")
             core.db_execute(conn, "SET LOCAL lock_timeout = '2000ms'")
-        shop_row = core.db_fetchone(conn, 'SELECT * FROM shops WHERE id=? LIMIT 1', (user['shop_id'],))
+        shop_row = core.db_fetchone(conn, 'SELECT * FROM shops WHERE id=? LIMIT 1', (shop_id,))
         shop = dict(shop_row) if shop_row else None
-        customers = [dict(r) for r in core.db_fetchall(conn, 'SELECT * FROM customers WHERE shop_id=?', (user['shop_id'],))]
-        openings = [dict(r) for r in core.db_fetchall(conn, "SELECT o.*,a.name AS artist_name FROM openings o JOIN artists a ON a.id=o.artist_id WHERE o.shop_id=? AND o.status IN ('OPEN','RECOVERY_ACTIVE','NO_RECOVERY') ORDER BY o.date,o.start_time", (user['shop_id'],))]
+        customers = [dict(r) for r in core.db_fetchall(conn, 'SELECT * FROM customers WHERE shop_id=?', (shop_id,))]
+        openings = [dict(r) for r in core.db_fetchall(conn, "SELECT o.*,a.name AS artist_name FROM openings o JOIN artists a ON a.id=o.artist_id WHERE o.shop_id=? AND o.status IN ('OPEN','RECOVERY_ACTIVE','NO_RECOVERY') ORDER BY o.date,o.start_time", (shop_id,))]
     finally:
         conn.close()
-
     live = openings[0] if openings else None
     ranked = m4_runtime.rank(customers, live, 10) if live else []
+    return shop, customers, live, ranked
+
+
+def _generated_recommendation(live, ranked):
+    if not live or not ranked:
+        return None
+    top = ranked[0]
+    artist = str(live.get('artist_name') or 'the artist')
+    style = str(live.get('style') or live.get('service') or 'tattoo')
+    name = str(top.get('name') or 'this customer')
+    probability = float(top.get('booking_probability') or 0)
+    confidence = float(top.get('confidence') or 0)
+    expected_value = float(top.get('expected_value') or 0)
+    reasons = list(top.get('why') or [])[:3]
+    reason_text = '; '.join(reasons) if reasons else 'the current fit and behavior signals are strongest'
+    text = (
+        f"I recommend contacting {name} first for {artist}'s {style} opening on "
+        f"{live.get('date')} at {live.get('start_time')}. My current booking estimate is "
+        f"{probability:.0%}, with {confidence:.0%} confidence. The expected incremental value is "
+        f"about ${expected_value:.0f}. I'm choosing this customer because {reason_text}. "
+        "This is a prediction, not a guarantee, so I would measure the outcome and learn from it."
+    )
+    return {
+        'customer_name': name,
+        'artist_name': artist,
+        'style': style,
+        'service': str(live.get('service') or 'tattoo'),
+        'price': float(live.get('price') or 0),
+        'confidence': confidence,
+        'recommendation_text': text,
+        'voice_id': M4_VOICE_ID,
+        'source': 'live_m4',
+        'model_version': str(top.get('model_version') or getattr(m4_runtime, 'MODEL', {}).get('model_version', 'm4')),
+    }
+
+
+def _current_recommendation(shop_id, shop=None, live=None, ranked=None):
+    if shop is None or live is None or ranked is None:
+        shop, _, live, ranked = _live_state(shop_id)
+    if _is_crybaby(shop):
+        try:
+            simulated = founder_engine.latest_recommendation(shop_id)
+            if simulated:
+                simulated = dict(simulated)
+                simulated['source'] = 'founder_simulation'
+                return simulated
+        except Exception:
+            pass
+    return _generated_recommendation(live, ranked)
+
+
+@app.get('/m4', response_class=HTMLResponse)
+def m4_page(request: Request):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+
+    shop, customers, live, ranked = _live_state(user['shop_id'])
     consented = sum(1 for c in customers if c.get('communication_consent'))
     expected = sum(r['expected_value'] for r in ranked)
     avg_conf = sum(r['confidence'] for r in ranked) / len(ranked) if ranked else 0
@@ -100,13 +153,7 @@ def m4_page(request: Request):
             if style:
                 styles[style] = styles.get(style, 0) + 1
     demand = sorted(styles.items(), key=lambda x: x[1], reverse=True)[:8]
-
-    recommendation = None
-    if _is_crybaby(shop):
-        try:
-            recommendation = founder_engine.latest_recommendation(user['shop_id'])
-        except Exception:
-            recommendation = None
+    recommendation = _current_recommendation(user['shop_id'], shop, live, ranked)
 
     response = core.templates.TemplateResponse(
         request=request,
@@ -139,7 +186,7 @@ def m4_recommendation_audio(request: Request):
     if not user:
         return JSONResponse({'error': 'Sign in first.'}, status_code=401)
     try:
-        recommendation = founder_engine.latest_recommendation(user['shop_id'])
+        recommendation = _current_recommendation(user['shop_id'])
     except Exception as exc:
         return JSONResponse({'error': str(exc)}, status_code=503)
     if not recommendation:
@@ -149,8 +196,22 @@ def m4_recommendation_audio(request: Request):
 
     voice_id = recommendation.get('voice_id') or M4_VOICE_ID
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{urllib.parse.quote(voice_id)}?output_format=mp3_44100_128"
-    payload = {'text': recommendation['recommendation_text'], 'model_id': M4_VOICE_MODEL, 'voice_settings': {'stability': 0.34, 'similarity_boost': 0.76, 'style': 0.48, 'use_speaker_boost': True}}
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json'}, method='POST')
+    payload = {
+        'text': recommendation['recommendation_text'],
+        'model_id': M4_VOICE_MODEL,
+        'voice_settings': {
+            'stability': 0.34,
+            'similarity_boost': 0.76,
+            'style': 0.48,
+            'use_speaker_boost': True,
+        },
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json'},
+        method='POST',
+    )
     try:
         with urllib.request.urlopen(req, timeout=60) as response:
             audio = response.read()
