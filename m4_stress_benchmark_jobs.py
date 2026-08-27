@@ -1,4 +1,4 @@
-"""Background jobs for Simulation V3 M4 stress benchmarks."""
+"""Background jobs for frozen M4 V1 simulator validation."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import uuid
 
 import app as core
-import m4_signal_ablation_benchmark as stress
+import m4_frozen_simulator_v1 as stress
 from founder_simulation_safety import load_and_assert_founder_simulation_target
 
 
@@ -30,7 +30,7 @@ def ensure_table(conn):
 
 
 def create_job(shop_id, cycles=250):
-    cycles = max(50, min(int(cycles), 500))
+    cycles = max(100, min(int(cycles), 500))
     conn = core.connect()
     try:
         load_and_assert_founder_simulation_target(conn, core.db_fetchone, shop_id)
