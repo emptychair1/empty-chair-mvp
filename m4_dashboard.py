@@ -31,7 +31,7 @@ def _founder_controls_html():
 <section class="founder-sim" id="founderSim">
   <div class="m4-kicker">Founder Simulation // Crybaby Tattoos</div>
   <h2>Controlled M4 Lab</h2>
-  <p>Initialize the simulation schema first. Reset + Seed changes only founder_sim_* test records inside Crybaby and preserves normal Crybaby data and protected shops.</p>
+  <p>Long runs execute as background jobs. The page only polls progress, so 30/180-cycle simulations no longer hold an HTTP request open.</p>
   <div class="founder-actions">
     <button class="primary" id="simInit" type="button">Initialize Simulation</button>
     <button id="simReset" type="button">Reset + Seed Crybaby</button>
@@ -51,7 +51,7 @@ def _founder_controls_html():
  const show=v=>{box.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)};
  async function jsonFetch(url,opts={}){
    const controller=new AbortController();
-   const timer=setTimeout(()=>controller.abort(),20000);
+   const timer=setTimeout(()=>controller.abort(),15000);
    try{
      const r=await fetch(url,{...opts,signal:controller.signal,cache:'no-store'});
      const text=await r.text();
@@ -70,27 +70,28 @@ def _founder_controls_html():
    }catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}
    finally{setBusy(false);}
  }
- async function runBatched(total){
+ async function runJob(total){
    setBusy(true);
-   let completed=0;
-   let last=null;
    try{
-     while(completed<total){
-       show('Running '+completed+'/'+total+' cycles…');
-       const f=new FormData();
-       f.append('cycles','1');
-       last=await jsonFetch('/api/founder-sim/run',{method:'POST',body:f});
-       completed+=1;
-       show({progress:completed+'/'+total,last:last});
-       await new Promise(resolve=>setTimeout(resolve,150));
+     const f=new FormData(); f.append('cycles',String(total));
+     const started=await jsonFetch('/api/founder-sim/run-job',{method:'POST',body:f});
+     const jobId=started.job_id;
+     show({message:started.message,job_id:jobId,progress:'0/'+total});
+     for(;;){
+       await new Promise(resolve=>setTimeout(resolve,1000));
+       const state=await jsonFetch('/api/founder-sim/job-status?job_id='+encodeURIComponent(jobId));
+       const job=state.job;
+       show({job_id:job.id,status:job.status,progress:job.completed_cycles+'/'+job.requested_cycles,error:job.error||null});
+       if(job.status==='COMPLETED'){
+         const status=await jsonFetch('/api/founder-sim/status');
+         show({ok:true,job:job,status:status});
+         break;
+       }
+       if(job.status==='FAILED') break;
      }
-     const status=await jsonFetch('/api/founder-sim/status');
-     show({ok:true,completed_cycles:completed,status:status,last:last});
    }catch(e){
-     show('ERROR after '+completed+'/'+total+' cycles: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
-   }finally{
-     setBusy(false);
-   }
+     show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
+   }finally{setBusy(false);}
  }
  async function status(){
    setBusy(true); show('Loading status…');
@@ -101,8 +102,8 @@ def _founder_controls_html():
  document.getElementById('simInit').onclick=()=>call('/api/founder-sim/initialize');
  document.getElementById('simReset').onclick=()=>call('/api/founder-sim/reset');
  document.getElementById('sim1').onclick=()=>call('/api/founder-sim/run',1);
- document.getElementById('sim30').onclick=()=>runBatched(30);
- document.getElementById('sim180').onclick=()=>runBatched(180);
+ document.getElementById('sim30').onclick=()=>runJob(30);
+ document.getElementById('sim180').onclick=()=>runJob(180);
  document.getElementById('simStatus').onclick=status;
 })();
 </script>
