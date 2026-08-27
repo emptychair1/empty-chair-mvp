@@ -45,7 +45,7 @@ def _founder_controls_html():
     <button id="simStatus" type="button">Refresh Status</button>
   </div>
   <div class="founder-status" id="founderStatus">Ready. No simulation request runs automatically.</div>
-  <div class="founder-warning"><b>V3:</b> 250 identical hard-world cycles per policy, including legitimate unfilled openings. <b>Safety:</b> Blindwolf remains protected server-side.</div>
+  <div class="founder-warning"><b>V3:</b> 250 identical hard-world cycles per policy. <b>Safety:</b> Blindwolf remains protected server-side.</div>
 </section>
 <script>
 (()=>{
@@ -56,111 +56,14 @@ def _founder_controls_html():
  async function jsonFetch(url,opts={}){
    const controller=new AbortController();
    const timer=setTimeout(()=>controller.abort(),15000);
-   try{
-     const r=await fetch(url,{...opts,signal:controller.signal,cache:'no-store'});
-     const text=await r.text();
-     let j={};
-     try{j=text?JSON.parse(text):{};}catch(_){throw new Error('Invalid server response');}
-     if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
-     return j;
-   } finally { clearTimeout(timer); }
+   try{const r=await fetch(url,{...opts,signal:controller.signal,cache:'no-store'});const text=await r.text();let j={};try{j=text?JSON.parse(text):{};}catch(_){throw new Error('Invalid server response');}if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;}finally{clearTimeout(timer);}
  }
- async function call(url,cycles){
-   setBusy(true); show('Running…');
-   try{
-     const opts={method:'POST'};
-     if(cycles){const f=new FormData();f.append('cycles',String(cycles));opts.body=f;}
-     const j=await jsonFetch(url,opts); show(j);
-   }catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}
-   finally{setBusy(false);}
- }
- async function runJob(total){
-   setBusy(true);
-   try{
-     const f=new FormData(); f.append('cycles',String(total));
-     const started=await jsonFetch('/api/founder-sim/run-job',{method:'POST',body:f});
-     const jobId=started.job_id;
-     show({message:started.message,job_id:jobId,progress:'0/'+total});
-     for(;;){
-       await new Promise(resolve=>setTimeout(resolve,1000));
-       const state=await jsonFetch('/api/founder-sim/job-status?job_id='+encodeURIComponent(jobId));
-       const job=state.job;
-       show({job_id:job.id,status:job.status,progress:job.completed_cycles+'/'+job.requested_cycles,error:job.error||null});
-       if(job.status==='COMPLETED'){
-         const status=await jsonFetch('/api/founder-sim/status');
-         show({ok:true,job:job,status:status});
-         break;
-       }
-       if(job.status==='FAILED') break;
-     }
-   }catch(e){
-     show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
-   }finally{setBusy(false);}
- }
- async function benchmark(){
-   setBusy(true);
-   try{
-     const f=new FormData(); f.append('cycles','250');
-     const started=await jsonFetch('/api/m4-policy/benchmark-job',{method:'POST',body:f});
-     const jobId=started.job_id;
-     show({message:started.message,job_id:jobId,benchmark:'legacy vs decision',cycles_per_policy:250,status:'RUNNING'});
-     for(;;){
-       await new Promise(resolve=>setTimeout(resolve,1000));
-       const state=await jsonFetch('/api/m4-policy/benchmark-status?job_id='+encodeURIComponent(jobId));
-       const job=state.job;
-       if(job.status==='COMPLETED'){
-         show({ok:true,status:'COMPLETED',result:job.result});
-         break;
-       }
-       if(job.status==='FAILED'){
-         show({ok:false,status:'FAILED',error:job.error});
-         break;
-       }
-       show({job_id:job.id,status:job.status,cycles_per_policy:job.cycles,message:'Training pairwise ranking + evaluating both policies…'});
-     }
-   }catch(e){
-     show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
-   }finally{setBusy(false);}
- }
- async function stressBenchmark(){
-   setBusy(true);
-   try{
-     const f=new FormData(); f.append('cycles','250');
-     const started=await jsonFetch('/api/m4-stress/benchmark-job',{method:'POST',body:f});
-     const jobId=started.job_id;
-     show({message:started.message,job_id:jobId,environment:'v3-adversarial',cycles_per_policy:250,status:'RUNNING'});
-     for(;;){
-       await new Promise(resolve=>setTimeout(resolve,1000));
-       const state=await jsonFetch('/api/m4-stress/benchmark-status?job_id='+encodeURIComponent(jobId));
-       const job=state.job;
-       if(job.status==='COMPLETED'){
-         show({ok:true,status:'COMPLETED',result:job.result});
-         break;
-       }
-       if(job.status==='FAILED'){
-         show({ok:false,status:'FAILED',error:job.error});
-         break;
-       }
-       show({job_id:job.id,status:job.status,cycles_per_policy:job.cycles,environment:'v3-adversarial',message:'Stress-testing weak demand, hidden friction, cold-start, fatigue and drift…'});
-     }
-   }catch(e){
-     show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));
-   }finally{setBusy(false);}
- }
- async function status(){
-   setBusy(true); show('Loading status…');
-   try{show(await jsonFetch('/api/founder-sim/status'));}
-   catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}
-   finally{setBusy(false);}
- }
- document.getElementById('simInit').onclick=()=>call('/api/founder-sim/initialize');
- document.getElementById('simReset').onclick=()=>call('/api/founder-sim/reset');
- document.getElementById('sim1').onclick=()=>call('/api/founder-sim/run',1);
- document.getElementById('sim30').onclick=()=>runJob(30);
- document.getElementById('sim180').onclick=()=>runJob(180);
- document.getElementById('simBenchmark').onclick=benchmark;
- document.getElementById('simStress').onclick=stressBenchmark;
- document.getElementById('simStatus').onclick=status;
+ async function call(url,cycles){setBusy(true);show('Running…');try{const opts={method:'POST'};if(cycles){const f=new FormData();f.append('cycles',String(cycles));opts.body=f;}show(await jsonFetch(url,opts));}catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}finally{setBusy(false);}}
+ async function runJob(total){setBusy(true);try{const f=new FormData();f.append('cycles',String(total));const started=await jsonFetch('/api/founder-sim/run-job',{method:'POST',body:f});const jobId=started.job_id;show({message:started.message,job_id:jobId,progress:'0/'+total});for(;;){await new Promise(resolve=>setTimeout(resolve,1000));const state=await jsonFetch('/api/founder-sim/job-status?job_id='+encodeURIComponent(jobId));const job=state.job;show({job_id:job.id,status:job.status,progress:job.completed_cycles+'/'+job.requested_cycles,error:job.error||null});if(job.status==='COMPLETED'){show({ok:true,job:job,status:await jsonFetch('/api/founder-sim/status')});break;}if(job.status==='FAILED')break;}}catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}finally{setBusy(false);}}
+ async function benchmark(){setBusy(true);try{const f=new FormData();f.append('cycles','250');const started=await jsonFetch('/api/m4-policy/benchmark-job',{method:'POST',body:f});const jobId=started.job_id;show({message:started.message,job_id:jobId,benchmark:'legacy vs decision',cycles_per_policy:250,status:'RUNNING'});for(;;){await new Promise(resolve=>setTimeout(resolve,1000));const state=await jsonFetch('/api/m4-policy/benchmark-status?job_id='+encodeURIComponent(jobId));const job=state.job;if(job.status==='COMPLETED'){show({ok:true,status:'COMPLETED',result:job.result});break;}if(job.status==='FAILED'){show({ok:false,status:'FAILED',error:job.error});break;}show({job_id:job.id,status:job.status,cycles_per_policy:job.cycles,message:'Training pairwise ranking + evaluating both policies…'});}}catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}finally{setBusy(false);}}
+ async function stressBenchmark(){setBusy(true);try{const f=new FormData();f.append('cycles','250');const started=await jsonFetch('/api/m4-stress/benchmark-job',{method:'POST',body:f});const jobId=started.job_id;show({message:started.message,job_id:jobId,environment:'v3-adversarial',cycles_per_policy:250,status:'RUNNING'});for(;;){await new Promise(resolve=>setTimeout(resolve,1000));const state=await jsonFetch('/api/m4-stress/benchmark-status?job_id='+encodeURIComponent(jobId));const job=state.job;if(job.status==='COMPLETED'){show({ok:true,status:'COMPLETED',result:job.result});break;}if(job.status==='FAILED'){show({ok:false,status:'FAILED',error:job.error});break;}show({job_id:job.id,status:job.status,cycles_per_policy:job.cycles,environment:'v3-adversarial',message:'Stress-testing signal value and ranking performance…'});}}catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}finally{setBusy(false);}}
+ async function status(){setBusy(true);show('Loading status…');try{show(await jsonFetch('/api/founder-sim/status'));}catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}finally{setBusy(false);}}
+ document.getElementById('simInit').onclick=()=>call('/api/founder-sim/initialize');document.getElementById('simReset').onclick=()=>call('/api/founder-sim/reset');document.getElementById('sim1').onclick=()=>call('/api/founder-sim/run',1);document.getElementById('sim30').onclick=()=>runJob(30);document.getElementById('sim180').onclick=()=>runJob(180);document.getElementById('simBenchmark').onclick=benchmark;document.getElementById('simStress').onclick=stressBenchmark;document.getElementById('simStatus').onclick=status;
 })();
 </script>
 '''
@@ -198,6 +101,13 @@ def m4_page(request: Request):
                 styles[style] = styles.get(style, 0) + 1
     demand = sorted(styles.items(), key=lambda x: x[1], reverse=True)[:8]
 
+    recommendation = None
+    if _is_crybaby(shop):
+        try:
+            recommendation = founder_engine.latest_recommendation(user['shop_id'])
+        except Exception:
+            recommendation = None
+
     response = core.templates.TemplateResponse(
         request=request,
         name='m4.html',
@@ -211,7 +121,7 @@ def m4_page(request: Request):
             'avg_conf': avg_conf,
             'demand': demand,
             'model': m4_runtime.MODEL,
-            'recommendation': None,
+            'recommendation': recommendation,
             'm4_voice_id': M4_VOICE_ID,
         },
     )
@@ -219,10 +129,7 @@ def m4_page(request: Request):
     if _is_crybaby(shop):
         html = response.body.decode('utf-8')
         html = html.replace('</body>', _founder_controls_html() + '</body>')
-        return HTMLResponse(
-            html,
-            headers={'Cache-Control': 'no-store, no-cache, must-revalidate'},
-        )
+        return HTMLResponse(html, headers={'Cache-Control': 'no-store, no-cache, must-revalidate'})
     return response
 
 
@@ -242,30 +149,12 @@ def m4_recommendation_audio(request: Request):
 
     voice_id = recommendation.get('voice_id') or M4_VOICE_ID
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{urllib.parse.quote(voice_id)}?output_format=mp3_44100_128"
-    payload = {
-        'text': recommendation['recommendation_text'],
-        'model_id': M4_VOICE_MODEL,
-        'voice_settings': {
-            'stability': 0.34,
-            'similarity_boost': 0.76,
-            'style': 0.48,
-            'use_speaker_boost': True,
-        },
-    }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode('utf-8'),
-        headers={'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json'},
-        method='POST',
-    )
+    payload = {'text': recommendation['recommendation_text'], 'model_id': M4_VOICE_MODEL, 'voice_settings': {'stability': 0.34, 'similarity_boost': 0.76, 'style': 0.48, 'use_speaker_boost': True}}
+    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'xi-api-key': ELEVENLABS_API_KEY, 'Content-Type': 'application/json'}, method='POST')
     try:
         with urllib.request.urlopen(req, timeout=60) as response:
             audio = response.read()
-        return Response(
-            content=audio,
-            media_type='audio/mpeg',
-            headers={'Cache-Control': 'no-store, no-cache, must-revalidate'},
-        )
+        return Response(content=audio, media_type='audio/mpeg', headers={'Cache-Control': 'no-store, no-cache, must-revalidate'})
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode('utf-8', errors='replace')
         return JSONResponse({'error': f'ElevenLabs HTTP {exc.code}', 'detail': detail[:800]}, status_code=503)
