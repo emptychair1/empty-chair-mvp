@@ -20,6 +20,5 @@ import features  # noqa: E402,F401
 import pwa  # noqa: E402,F401
 import m4_dashboard  # noqa: E402,F401
 import demand_acquisition  # noqa: E402,F401
-import demand_pilot_bootstrap  # noqa: E402,F401
 
 app = legacy.app
