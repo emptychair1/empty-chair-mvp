@@ -4,7 +4,6 @@ Adds a narrated observable recovery cycle for the isolated demo shop. No externa
 recipient is contacted. The claim endpoint mutates only demo records so the UI can
 show offer -> claim -> booking -> calendar -> recovered revenue.
 """
-import os
 import uuid
 
 from fastapi import Form, Request
@@ -14,6 +13,8 @@ import app as core
 
 DEMO_SHOP_ID = "shop_live_demo"
 DEMO_USER_ID = "user_live_demo"
+M4_OPERATOR_VOICE_ID = "DSPOFq7nD22sXYn8JKlb"
+M4_OPERATOR_VOICE_MODEL = "eleven_multilingual_v2"
 
 NARRATION = {
     "scan": "I’m starting with the chair, not the customer list. Empty time is perishable inventory, so I’m looking for the highest-value gap first.",
@@ -41,12 +42,33 @@ def narrate_m4(request: Request, key: str = Form(...)):
         return JSONResponse({"error": "Unknown narration step."}, status_code=400)
     try:
         import meeting_v2
-        meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", meeting_v2.ELEVENLABS_VOICE_ID)
-        meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", meeting_v2.ELEVENLABS_MODEL_ID)
-        audio64 = meeting_v2._speak(text)
-        return JSONResponse({"ok": True, "text": text, "audio_base64": audio64}, headers={"Cache-Control": "no-store"})
+        # Operator narration deliberately ignores Render's legacy voice override.
+        # This is the custom M4 Voice Design identity previously approved for M4.
+        previous_voice = meeting_v2.ELEVENLABS_VOICE_ID
+        previous_model = meeting_v2.ELEVENLABS_MODEL_ID
+        try:
+            meeting_v2.ELEVENLABS_VOICE_ID = M4_OPERATOR_VOICE_ID
+            meeting_v2.ELEVENLABS_MODEL_ID = M4_OPERATOR_VOICE_MODEL
+            audio64 = meeting_v2._speak(text)
+        finally:
+            meeting_v2.ELEVENLABS_VOICE_ID = previous_voice
+            meeting_v2.ELEVENLABS_MODEL_ID = previous_model
+        return JSONResponse({
+            "ok": True,
+            "text": text,
+            "audio_base64": audio64,
+            "voice_id": M4_OPERATOR_VOICE_ID,
+            "voice_model": M4_OPERATOR_VOICE_MODEL,
+        }, headers={"Cache-Control": "no-store"})
     except Exception as exc:
-        return JSONResponse({"ok": True, "text": text, "audio_base64": None, "voice_error": str(exc)}, headers={"Cache-Control": "no-store"})
+        return JSONResponse({
+            "ok": True,
+            "text": text,
+            "audio_base64": None,
+            "voice_id": M4_OPERATOR_VOICE_ID,
+            "voice_model": M4_OPERATOR_VOICE_MODEL,
+            "voice_error": str(exc),
+        }, headers={"Cache-Control": "no-store"})
 
 
 @core.app.post("/api/m4/operator/demo-claim")
