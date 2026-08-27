@@ -65,18 +65,38 @@ def run_job(job_id, shop_id):
             conn.close()
 
 
+def _row_to_job(row):
+    if not row:
+        return None
+    result = dict(row)
+    if result.get("result_json"):
+        result["result"] = json.loads(result["result_json"])
+    result.pop("result_json", None)
+    return result
+
+
 def get_job(job_id, shop_id):
     conn = core.connect()
     try:
         ensure_table(conn)
         row = core.db_fetchone(conn, "SELECT * FROM m4_v1_training_jobs WHERE id=? AND shop_id=?", (job_id, shop_id))
         conn.rollback()
-        if not row:
-            return None
-        result = dict(row)
-        if result.get("result_json"):
-            result["result"] = json.loads(result["result_json"])
-        result.pop("result_json", None)
-        return result
+        return _row_to_job(row)
+    finally:
+        conn.close()
+
+
+def latest_job(shop_id):
+    """Return the latest persisted training job for this shop, including result."""
+    conn = core.connect()
+    try:
+        ensure_table(conn)
+        row = core.db_fetchone(
+            conn,
+            "SELECT * FROM m4_v1_training_jobs WHERE shop_id=? ORDER BY started_at DESC LIMIT 1",
+            (shop_id,),
+        )
+        conn.rollback()
+        return _row_to_job(row)
     finally:
         conn.close()
