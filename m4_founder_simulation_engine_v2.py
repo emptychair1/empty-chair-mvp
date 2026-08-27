@@ -1,9 +1,9 @@
 """Fast, cycle-continuing founder M4 simulation engine.
 
 This module preserves the existing synthetic behavior model but removes the
-per-candidate database round trips from the hot path. A cycle now loads the
-shop's synthetic customers/openings/learning state once, computes outcomes in
-memory, and persists outcomes + learning + recommendations in bulk.
+per-candidate database round trips from the hot path. A cycle loads the shop's
+synthetic customers/openings/learning state once, computes outcomes in memory,
+and persists outcomes + learning + recommendations in bulk.
 """
 
 from __future__ import annotations
@@ -19,8 +19,32 @@ from founder_simulation_safety import load_and_assert_founder_simulation_target
 SIM_PREFIX = "founder_sim_"
 
 
+def ensure_tables(conn):
+    """Create founder simulation tables plus indexes needed for long runs."""
+    legacy.ensure_tables(conn)
+    core.db_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_founder_sim_metrics_shop_cycle ON founder_sim_metrics(shop_id, cycle)",
+    )
+    core.db_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_founder_sim_outcomes_shop_cycle ON founder_sim_outcomes(shop_id, cycle)",
+    )
+    core.db_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_founder_sim_outcomes_shop_customer ON founder_sim_outcomes(shop_id, customer_id)",
+    )
+    core.db_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_founder_sim_recommendations_shop_created ON founder_sim_recommendations(shop_id, created_at)",
+    )
+    core.db_execute(
+        conn,
+        "CREATE INDEX IF NOT EXISTS idx_founder_sim_learning_shop ON founder_sim_customer_learning(shop_id)",
+    )
+
+
 # Public helpers used by routes/dashboard.
-ensure_tables = legacy.ensure_tables
 latest_recommendation = legacy.latest_recommendation
 hidden_probability = legacy.hidden_probability
 
