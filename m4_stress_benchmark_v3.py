@@ -59,34 +59,20 @@ def _latent_environment(shop_id, opening, customer, cycle):
     """Hidden world state intentionally unavailable to either ranking policy."""
     opening_id = opening["id"]
     customer_id = customer["id"]
-
-    # 28% of opening/cycle pairs are weak-demand windows. Another 14% are very
-    # weak. This makes "no recovery" a legitimate outcome.
     demand_roll = _stable(shop_id, opening_id, cycle, "v3_demand")
     if demand_roll < 0.14:
-        demand_multiplier = 0.24
-        demand_regime = "very_weak"
+        demand_multiplier, demand_regime = 0.24, "very_weak"
     elif demand_roll < 0.42:
-        demand_multiplier = 0.52
-        demand_regime = "weak"
+        demand_multiplier, demand_regime = 0.52, "weak"
     elif demand_roll > 0.90:
-        demand_multiplier = 1.18
-        demand_regime = "hot"
+        demand_multiplier, demand_regime = 1.18, "hot"
     else:
-        demand_multiplier = 0.82
-        demand_regime = "normal"
+        demand_multiplier, demand_regime = 0.82, "normal"
 
-    # Stable hidden travel tolerance and actual distance. These are correlated
-    # only weakly with observed customer history.
     distance_miles = 3.0 + 72.0 * _stable(shop_id, customer_id, opening_id, "v3_distance")
     travel_tolerance = 8.0 + 55.0 * _stable(shop_id, customer_id, "v3_travel_tolerance")
-    if distance_miles <= travel_tolerance:
-        distance_multiplier = 1.0
-    else:
-        distance_multiplier = max(0.20, math.exp(-(distance_miles - travel_tolerance) / 24.0))
+    distance_multiplier = 1.0 if distance_miles <= travel_tolerance else max(0.20, math.exp(-(distance_miles - travel_tolerance) / 24.0))
 
-    # Hidden willingness-to-pay varies around observed average spend. Some
-    # customers stretch for the right project; others do not.
     observed_spend = max(100.0, float(customer.get("average_spend") or 350.0))
     hidden_budget = observed_spend * (0.72 + 0.75 * _stable(customer_id, "v3_budget"))
     price = max(1.0, float(opening.get("price") or 350.0))
@@ -100,35 +86,20 @@ def _latent_environment(shop_id, opening, customer, cycle):
     else:
         budget_multiplier = 0.12
 
-    # Short-notice readiness is latent and changes slowly over time.
     short_notice = _stable(opening_id, cycle, "v3_short_notice") < 0.46
     readiness = _stable(customer_id, cycle // 12, "v3_readiness")
-    if short_notice:
-        short_notice_multiplier = 0.35 + 0.85 * readiness
-    else:
-        short_notice_multiplier = 0.82 + 0.30 * readiness
+    short_notice_multiplier = (0.35 + 0.85 * readiness) if short_notice else (0.82 + 0.30 * readiness)
 
-    # Offer fatigue grows over consecutive synthetic periods, but partially
-    # recovers every 15 cycles.
     fatigue_trait = _stable(customer_id, "v3_fatigue_trait")
     fatigue_phase = cycle % 15
     fatigue_multiplier = max(0.42, 1.0 - fatigue_trait * (fatigue_phase / 28.0))
-
-    # Cold-start customers have little observable history even though their true
-    # preferences can be strong. Roughly 22% are treated as cold-start.
     cold_start = _stable(customer_id, "v3_cold_start") < 0.22
     cold_start_multiplier = 0.88 if cold_start else 1.0
-
-    # Hidden artist affinity can conflict with declared/observed preference.
     artist_affinity = _stable(customer_id, opening.get("artist_id"), "v3_artist_affinity")
     artist_multiplier = 0.62 + 0.78 * artist_affinity
-
-    # Behavioral drift changes latent taste in four broad eras.
     era = cycle // 40
     drift = (_stable(customer_id, era, "v3_drift") - 0.5) * 0.90
     drift_multiplier = math.exp(drift)
-
-    # Small adversarial noise means apparently identical customers can differ.
     noise = (_stable(customer_id, opening_id, cycle, "v3_noise") - 0.5) * 0.48
     noise_multiplier = math.exp(noise)
 
@@ -152,68 +123,25 @@ def _latent_environment(shop_id, opening, customer, cycle):
 
 
 def hidden_probability_v3(shop_id, customer, opening, cycle):
-    # Start from the older synthetic truth, then make the environment materially
-    # harder and partially unobservable.
     base = legacy.hidden_probability(customer, opening)
     env = _latent_environment(shop_id, opening, customer, cycle)
-
     odds = base / max(1e-9, 1.0 - base)
     logit = math.log(max(1e-9, odds))
     multiplier = (
-        env["demand_multiplier"]
-        * env["distance_multiplier"]
-        * env["budget_multiplier"]
-        * env["short_notice_multiplier"]
-        * env["fatigue_multiplier"]
-        * env["cold_start_multiplier"]
-        * env["artist_multiplier"]
-        * env["drift_multiplier"]
-        * env["noise_multiplier"]
+        env["demand_multiplier"] * env["distance_multiplier"] * env["budget_multiplier"]
+        * env["short_notice_multiplier"] * env["fatigue_multiplier"]
+        * env["cold_start_multiplier"] * env["artist_multiplier"]
+        * env["drift_multiplier"] * env["noise_multiplier"]
     )
-    # Multiplicative friction acts on odds, not raw probability.
     p = _sigmoid(logit + math.log(max(1e-6, multiplier)))
     return _clamp(p, 0.003, 0.93), env
 
 
 def _load_state(conn, shop_id):
-    customers = [
-        dict(r)
-        for r in core.db_fetchall(
-            conn,
-            "SELECT * FROM customers WHERE shop_id=? AND id LIKE ?",
-            (shop_id, SIM_PREFIX + "%"),
-        )
-    ]
-    openings = [
-        dict(r)
-        for r in core.db_fetchall(
-            conn,
-            "SELECT * FROM openings WHERE shop_id=? AND id LIKE ? ORDER BY date,start_time",
-            (shop_id, SIM_PREFIX + "%"),
-        )
-    ]
-    learning = {
-        r["customer_id"]: float(r.get("calibration_delta") or 0.0)
-        for r in [
-            dict(x)
-            for x in core.db_fetchall(
-                conn,
-                "SELECT customer_id,calibration_delta FROM founder_sim_customer_learning WHERE shop_id=?",
-                (shop_id,),
-            )
-        ]
-    }
-    pairwise = {
-        r["customer_id"]: float(r.get("pairwise_delta") or 0.0)
-        for r in [
-            dict(x)
-            for x in core.db_fetchall(
-                conn,
-                "SELECT customer_id,pairwise_delta FROM founder_sim_pairwise_learning WHERE shop_id=?",
-                (shop_id,),
-            )
-        ]
-    }
+    customers = [dict(r) for r in core.db_fetchall(conn, "SELECT * FROM customers WHERE shop_id=? AND id LIKE ?", (shop_id, SIM_PREFIX + "%"))]
+    openings = [dict(r) for r in core.db_fetchall(conn, "SELECT * FROM openings WHERE shop_id=? AND id LIKE ? ORDER BY date,start_time", (shop_id, SIM_PREFIX + "%"))]
+    learning = {r["customer_id"]: float(r.get("calibration_delta") or 0.0) for r in [dict(x) for x in core.db_fetchall(conn, "SELECT customer_id,calibration_delta FROM founder_sim_customer_learning WHERE shop_id=?", (shop_id,))]}
+    pairwise = {r["customer_id"]: float(r.get("pairwise_delta") or 0.0) for r in [dict(x) for x in core.db_fetchall(conn, "SELECT customer_id,pairwise_delta FROM founder_sim_pairwise_learning WHERE shop_id=?", (shop_id,))]}
     return customers, openings, learning, pairwise
 
 
@@ -222,61 +150,26 @@ def _ordered(policy_name, customers, opening, learning, pairwise):
         ranked = m4_runtime.rank(customers, opening, len(customers))
         by_id = {c["id"]: c for c in customers}
         return [by_id[row["customer_id"]] for row in ranked]
-    return sorted(
-        customers,
-        key=lambda c: decision.decision_score(
-            c,
-            opening,
-            learning.get(c["id"], 0.0),
-            pairwise.get(c["id"], 0.0),
-        ),
-        reverse=True,
-    )
+    return sorted(customers, key=lambda c: decision.decision_score(c, opening, learning.get(c["id"], 0.0), pairwise.get(c["id"], 0.0)), reverse=True)
 
 
 def _evaluate(shop_id, cycles, policy_name, customers, openings, learning, pairwise, seed_offset):
-    totals = {
-        "cycles": cycles,
-        "openings": 0,
-        "top1_bookings": 0,
-        "top3_bookings": 0,
-        "bookings": 0,
-        "unfilled_openings": 0,
-        "contacts": 0,
-        "recovered_revenue": 0.0,
-        "weak_demand_openings": 0,
-        "very_weak_demand_openings": 0,
-        "cold_start_contacts": 0,
-        "budget_blocked_contacts": 0,
-        "distance_blocked_contacts": 0,
-    }
-
+    totals = {"cycles": cycles, "openings": 0, "top1_bookings": 0, "top3_bookings": 0, "bookings": 0, "unfilled_openings": 0, "contacts": 0, "recovered_revenue": 0.0, "weak_demand_openings": 0, "very_weak_demand_openings": 0, "cold_start_contacts": 0, "budget_blocked_contacts": 0, "distance_blocked_contacts": 0}
     for i in range(1, cycles + 1):
         cycle = seed_offset + i
         for opening in openings:
             totals["openings"] += 1
             ordered = _ordered(policy_name, customers, opening, learning, pairwise)
-            accepted_flags = []
-            envs = []
+            accepted_flags, envs = [], []
             for customer in ordered:
                 truth, env = hidden_probability_v3(shop_id, customer, opening, cycle)
-                accepted = _stable(shop_id, opening["id"], customer["id"], cycle, "v3_accept") < truth
-                accepted_flags.append(bool(accepted))
+                accepted_flags.append(_stable(shop_id, opening["id"], customer["id"], cycle, "v3_accept") < truth)
                 envs.append(env)
-
-            # Opening-level demand regime is shared by every customer because the
-            # demand seed excludes customer id.
             if envs:
-                if envs[0]["demand_regime"] == "weak":
-                    totals["weak_demand_openings"] += 1
-                elif envs[0]["demand_regime"] == "very_weak":
-                    totals["very_weak_demand_openings"] += 1
-
-            if accepted_flags and accepted_flags[0]:
-                totals["top1_bookings"] += 1
-            if any(accepted_flags[:3]):
-                totals["top3_bookings"] += 1
-
+                if envs[0]["demand_regime"] == "weak": totals["weak_demand_openings"] += 1
+                elif envs[0]["demand_regime"] == "very_weak": totals["very_weak_demand_openings"] += 1
+            if accepted_flags and accepted_flags[0]: totals["top1_bookings"] += 1
+            if any(accepted_flags[:3]): totals["top3_bookings"] += 1
             booked_index = next((idx for idx, yes in enumerate(accepted_flags) if yes), None)
             if booked_index is None:
                 totals["unfilled_openings"] += 1
@@ -287,19 +180,12 @@ def _evaluate(shop_id, cycles, policy_name, customers, openings, learning, pairw
                 totals["contacts"] += booked_index + 1
                 totals["recovered_revenue"] += float(opening.get("price") or 0.0)
                 contact_range = range(booked_index + 1)
-
             for idx in contact_range:
                 env = envs[idx]
-                if env["cold_start"]:
-                    totals["cold_start_contacts"] += 1
-                if env["budget_multiplier"] <= 0.38:
-                    totals["budget_blocked_contacts"] += 1
-                if env["distance_multiplier"] <= 0.45:
-                    totals["distance_blocked_contacts"] += 1
-
-    n_openings = max(1, totals["openings"])
-    n_bookings = max(1, totals["bookings"])
-    n_contacts = max(1, totals["contacts"])
+                if env["cold_start"]: totals["cold_start_contacts"] += 1
+                if env["budget_multiplier"] <= 0.38: totals["budget_blocked_contacts"] += 1
+                if env["distance_multiplier"] <= 0.45: totals["distance_blocked_contacts"] += 1
+    n_openings, n_bookings, n_contacts = max(1, totals["openings"]), max(1, totals["bookings"]), max(1, totals["contacts"])
     totals["top1_rate"] = totals["top1_bookings"] / n_openings
     totals["top3_rate"] = totals["top3_bookings"] / n_openings
     totals["booking_rate"] = totals["bookings"] / n_openings
@@ -312,20 +198,19 @@ def _evaluate(shop_id, cycles, policy_name, customers, openings, learning, pairw
 def run_benchmark(shop_id, cycles=250):
     cycles = max(50, min(int(cycles), 500))
     pairwise_training = decision.rebuild_pairwise_learning(shop_id)
-
     conn = core.connect()
     try:
         load_and_assert_founder_simulation_target(conn, core.db_fetchone, shop_id)
         decision.ensure_tables(conn)
         ensure_tables(conn)
+        # DDL must be committed before we close this connection. Previously this
+        # transaction was rolled back after reading MAX(cycle), so the final
+        # result insert could not see founder_sim_v3_benchmarks on first run.
+        conn.commit()
         customers, openings, learning, pairwise = _load_state(conn, shop_id)
         if not customers or not openings:
             raise RuntimeError("Crybaby founder simulation must be seeded before V3 benchmarking.")
-        row = core.db_fetchone(
-            conn,
-            "SELECT MAX(cycle) AS max_cycle FROM founder_sim_metrics WHERE shop_id=?",
-            (shop_id,),
-        )
+        row = core.db_fetchone(conn, "SELECT MAX(cycle) AS max_cycle FROM founder_sim_metrics WHERE shop_id=?", (shop_id,))
         conn.rollback()
     finally:
         conn.close()
@@ -333,7 +218,6 @@ def run_benchmark(shop_id, cycles=250):
     seed_offset = int(row["max_cycle"] or 0) + 30000 if row else 30000
     baseline = _evaluate(shop_id, cycles, "baseline", customers, openings, learning, pairwise, seed_offset)
     new_policy = _evaluate(shop_id, cycles, "decision", customers, openings, learning, pairwise, seed_offset)
-
     lift = {
         "top1_rate": new_policy["top1_rate"] - baseline["top1_rate"],
         "top3_rate": new_policy["top3_rate"] - baseline["top3_rate"],
@@ -343,66 +227,22 @@ def run_benchmark(shop_id, cycles=250):
         "contacts_per_booking": new_policy["contacts_per_booking"] - baseline["contacts_per_booking"],
         "revenue_per_contact": new_policy["revenue_per_contact"] - baseline["revenue_per_contact"],
     }
-
-    if new_policy["revenue_per_contact"] > baseline["revenue_per_contact"] * 1.005:
-        winner = "decision"
-    elif baseline["revenue_per_contact"] > new_policy["revenue_per_contact"] * 1.005:
-        winner = "baseline"
-    elif new_policy["top1_rate"] > baseline["top1_rate"]:
-        winner = "decision"
-    elif baseline["top1_rate"] > new_policy["top1_rate"]:
-        winner = "baseline"
-    else:
-        winner = "tie"
-
-    environment = {
-        "version": "v3-adversarial",
-        "weak_demand_share_target": 0.28,
-        "very_weak_demand_share_target": 0.14,
-        "cold_start_share_target": 0.22,
-        "features": [
-            "weak_demand",
-            "ambiguous_candidates",
-            "hidden_budget",
-            "distance_friction",
-            "short_notice_readiness",
-            "offer_fatigue",
-            "cold_start",
-            "hidden_artist_affinity",
-            "behavioral_drift",
-            "adversarial_noise",
-        ],
-    }
-
-    result = {
-        "environment": environment,
-        "cycles_per_policy": cycles,
-        "pairwise_training": pairwise_training,
-        "baseline": baseline,
-        "decision": new_policy,
-        "lift": lift,
-        "winner": winner,
-    }
+    if new_policy["revenue_per_contact"] > baseline["revenue_per_contact"] * 1.005: winner = "decision"
+    elif baseline["revenue_per_contact"] > new_policy["revenue_per_contact"] * 1.005: winner = "baseline"
+    elif new_policy["top1_rate"] > baseline["top1_rate"]: winner = "decision"
+    elif baseline["top1_rate"] > new_policy["top1_rate"]: winner = "baseline"
+    else: winner = "tie"
+    environment = {"version": "v3-adversarial", "weak_demand_share_target": 0.28, "very_weak_demand_share_target": 0.14, "cold_start_share_target": 0.22, "features": ["weak_demand", "ambiguous_candidates", "hidden_budget", "distance_friction", "short_notice_readiness", "offer_fatigue", "cold_start", "hidden_artist_affinity", "behavioral_drift", "adversarial_noise"]}
+    result = {"environment": environment, "cycles_per_policy": cycles, "pairwise_training": pairwise_training, "baseline": baseline, "decision": new_policy, "lift": lift, "winner": winner}
 
     conn = core.connect()
     try:
+        # Defensive/idempotent: guarantees the result table exists even if a
+        # deployment or database transaction interrupted the earlier setup.
+        ensure_tables(conn)
+        conn.commit()
         benchmark_id = "founder_sim_v3_benchmark_" + uuid.uuid4().hex
-        core.db_execute(
-            conn,
-            """INSERT INTO founder_sim_v3_benchmarks(
-                id,shop_id,cycles,baseline_json,decision_json,environment_json,winner,created_at
-            ) VALUES (?,?,?,?,?,?,?,?)""",
-            (
-                benchmark_id,
-                shop_id,
-                cycles,
-                json.dumps(baseline),
-                json.dumps(new_policy),
-                json.dumps(environment),
-                winner,
-                core.now_iso(),
-            ),
-        )
+        core.db_execute(conn, """INSERT INTO founder_sim_v3_benchmarks(id,shop_id,cycles,baseline_json,decision_json,environment_json,winner,created_at) VALUES (?,?,?,?,?,?,?,?)""", (benchmark_id, shop_id, cycles, json.dumps(baseline), json.dumps(new_policy), json.dumps(environment), winner, core.now_iso()))
         conn.commit()
         result["benchmark_id"] = benchmark_id
         return result
@@ -416,14 +256,11 @@ def run_benchmark(shop_id, cycles=250):
 def latest_benchmark(shop_id):
     conn = core.connect()
     try:
-        row = core.db_fetchone(
-            conn,
-            "SELECT * FROM founder_sim_v3_benchmarks WHERE shop_id=? ORDER BY created_at DESC LIMIT 1",
-            (shop_id,),
-        )
+        ensure_tables(conn)
+        conn.commit()
+        row = core.db_fetchone(conn, "SELECT * FROM founder_sim_v3_benchmarks WHERE shop_id=? ORDER BY created_at DESC LIMIT 1", (shop_id,))
         conn.rollback()
-        if not row:
-            return None
+        if not row: return None
         item = dict(row)
         item["baseline"] = json.loads(item.pop("baseline_json"))
         item["decision"] = json.loads(item.pop("decision_json"))
