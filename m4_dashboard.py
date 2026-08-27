@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, Response, JSONResponse
 import app as core
 import m4_runtime
 import m4_founder_simulation_engine as founder_engine
+import founder_simulation_routes  # noqa: F401,E402
 
 app = core.app
 M4_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "Ss7hQAiJNG6a81OU5k51")
