@@ -31,7 +31,7 @@ def _founder_controls_html():
 <section class="founder-sim" id="founderSim">
   <div class="m4-kicker">Founder Simulation // Crybaby Tattoos</div>
   <h2>Controlled M4 Lab</h2>
-  <p>Reset Crybaby to the deterministic synthetic dataset, then run M4 through repeated decision/outcome/learning cycles. Blindwolf is blocked by the server-side safety guard.</p>
+  <p>Founder simulation controls are isolated from normal M4 page loading. Blindwolf remains protected by the server-side safety guard.</p>
   <div class="founder-actions">
     <button class="primary" id="simReset" type="button">Reset + Seed Crybaby</button>
     <button id="sim1" type="button">Run 1 Cycle</button>
@@ -39,8 +39,8 @@ def _founder_controls_html():
     <button id="sim180" type="button">Run 180 Cycles</button>
     <button id="simStatus" type="button">Refresh Status</button>
   </div>
-  <div class="founder-status" id="founderStatus">Ready. Reset + Seed Crybaby first.</div>
-  <div class="founder-warning"><b>Safety:</b> these controls call authenticated Crybaby-only endpoints. The founder account and shop record are preserved.</div>
+  <div class="founder-status" id="founderStatus">Ready. No simulation request runs automatically.</div>
+  <div class="founder-warning"><b>Safety:</b> normal /m4 page loads do not touch founder simulation tables.</div>
 </section>
 <script>
 (()=>{
@@ -48,28 +48,38 @@ def _founder_controls_html():
  const buttons=[...document.querySelectorAll('#founderSim button')];
  const setBusy=v=>buttons.forEach(b=>b.disabled=v);
  const show=v=>{box.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)};
+ async function jsonFetch(url,opts={}){
+   const controller=new AbortController();
+   const timer=setTimeout(()=>controller.abort(),8000);
+   try{
+     const r=await fetch(url,{...opts,signal:controller.signal,cache:'no-store'});
+     const text=await r.text();
+     let j={};
+     try{j=text?JSON.parse(text):{};}catch(_){throw new Error('Invalid server response');}
+     if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+     return j;
+   } finally { clearTimeout(timer); }
+ }
  async function call(url,cycles){
    setBusy(true); show('Running…');
    try{
-     const opts={method:'POST',cache:'no-store',headers:{}};
+     const opts={method:'POST'};
      if(cycles){const f=new FormData();f.append('cycles',String(cycles));opts.body=f;}
-     const r=await fetch(url,opts),j=await r.json();
-     if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
-     show(j);
-     if(url.includes('/run')||url.includes('/reset')) setTimeout(()=>location.reload(),650);
-   }catch(e){show('ERROR: '+(e.message||e));}
+     const j=await jsonFetch(url,opts); show(j);
+   }catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}
    finally{setBusy(false);}
  }
  async function status(){
    setBusy(true); show('Loading status…');
-   try{const r=await fetch('/api/founder-sim/status',{cache:'no-store'}),j=await r.json();if(!r.ok)throw new Error(j.error||('HTTP '+r.status));show(j);}catch(e){show('ERROR: '+(e.message||e));}finally{setBusy(false);}
+   try{show(await jsonFetch('/api/founder-sim/status'));}
+   catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}
+   finally{setBusy(false);}
  }
  document.getElementById('simReset').onclick=()=>call('/api/founder-sim/reset');
  document.getElementById('sim1').onclick=()=>call('/api/founder-sim/run',1);
  document.getElementById('sim30').onclick=()=>call('/api/founder-sim/run',30);
  document.getElementById('sim180').onclick=()=>call('/api/founder-sim/run',180);
  document.getElementById('simStatus').onclick=status;
- status();
 })();
 </script>
 '''
@@ -81,11 +91,17 @@ def m4_page(request: Request):
     if redirect:
         return redirect
     conn = core.connect()
-    shop_row = core.db_fetchone(conn, 'SELECT * FROM shops WHERE id=? LIMIT 1', (user['shop_id'],))
-    shop = dict(shop_row) if shop_row else None
-    customers = [dict(r) for r in core.db_fetchall(conn, 'SELECT * FROM customers WHERE shop_id=?', (user['shop_id'],))]
-    openings = [dict(r) for r in core.db_fetchall(conn, "SELECT o.*,a.name AS artist_name FROM openings o JOIN artists a ON a.id=o.artist_id WHERE o.shop_id=? AND o.status IN ('OPEN','RECOVERY_ACTIVE','NO_RECOVERY') ORDER BY o.date,o.start_time", (user['shop_id'],))]
-    conn.close()
+    try:
+        if getattr(core, "USE_POSTGRES", False):
+            core.db_execute(conn, "SET LOCAL statement_timeout = '5000ms'")
+            core.db_execute(conn, "SET LOCAL lock_timeout = '2000ms'")
+        shop_row = core.db_fetchone(conn, 'SELECT * FROM shops WHERE id=? LIMIT 1', (user['shop_id'],))
+        shop = dict(shop_row) if shop_row else None
+        customers = [dict(r) for r in core.db_fetchall(conn, 'SELECT * FROM customers WHERE shop_id=?', (user['shop_id'],))]
+        openings = [dict(r) for r in core.db_fetchall(conn, "SELECT o.*,a.name AS artist_name FROM openings o JOIN artists a ON a.id=o.artist_id WHERE o.shop_id=? AND o.status IN ('OPEN','RECOVERY_ACTIVE','NO_RECOVERY') ORDER BY o.date,o.start_time", (user['shop_id'],))]
+    finally:
+        conn.close()
+
     live = openings[0] if openings else None
     ranked = m4_runtime.rank(customers, live, 10) if live else []
     consented = sum(1 for c in customers if c.get('communication_consent'))
@@ -100,11 +116,6 @@ def m4_page(request: Request):
             if style:
                 styles[style] = styles.get(style, 0) + 1
     demand = sorted(styles.items(), key=lambda x: x[1], reverse=True)[:8]
-    recommendation = None
-    try:
-        recommendation = founder_engine.latest_recommendation(user['shop_id'])
-    except Exception:
-        recommendation = None
 
     response = core.templates.TemplateResponse(
         request=request,
@@ -119,7 +130,7 @@ def m4_page(request: Request):
             'avg_conf': avg_conf,
             'demand': demand,
             'model': m4_runtime.MODEL,
-            'recommendation': recommendation,
+            'recommendation': None,
             'm4_voice_id': M4_VOICE_ID,
         },
     )
