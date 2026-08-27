@@ -4,6 +4,7 @@ from fastapi import Form, Request
 from fastapi.responses import JSONResponse
 
 import app as core
+import founder_simulation_staged
 import m4_founder_simulation_engine as engine
 from founder_simulation_safety import (
     FounderSimulationSafetyError,
@@ -11,8 +12,6 @@ from founder_simulation_safety import (
 )
 
 app = core.app
-
-RESET_TEMPORARILY_DISABLED = True
 
 
 def _user(request):
@@ -98,7 +97,7 @@ def founder_sim_initialize(request: Request):
                 "ok": True,
                 "initialized": True,
                 "message": "Founder simulation tables initialized. No shop, customer, lead, artist, opening, or booking data was changed.",
-                "reset_enabled": False,
+                "reset_enabled": True,
             },
             headers={"Cache-Control": "no-store"},
         )
@@ -131,21 +130,24 @@ def founder_sim_reset(request: Request):
     user, error = _user(request)
     if error:
         return error
-
-    if RESET_TEMPORARILY_DISABLED:
+    try:
+        summary = founder_simulation_staged.reset_and_seed_crybaby_staged(user["shop_id"])
         return JSONResponse(
-            {
-                "error": "Founder simulation reset is temporarily disabled while the reset path is being hardened. No data was changed by this request."
-            },
+            {"ok": True, "summary": summary, "reset_enabled": True},
+            headers={"Cache-Control": "no-store"},
+        )
+    except FounderSimulationSafetyError as exc:
+        return JSONResponse(
+            {"error": str(exc)},
+            status_code=403,
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {"error": f"Founder simulation staged reset failed: {exc}"},
             status_code=503,
             headers={"Cache-Control": "no-store"},
         )
-
-    return JSONResponse(
-        {"error": "Founder simulation reset unavailable."},
-        status_code=503,
-        headers={"Cache-Control": "no-store"},
-    )
 
 
 @app.post("/api/founder-sim/run")
@@ -215,16 +217,23 @@ def founder_sim_status(request: Request):
             "SELECT * FROM founder_sim_recommendations WHERE shop_id=? ORDER BY created_at DESC LIMIT 1",
             (user["shop_id"],),
         )
+        run_row = core.db_fetchone(
+            conn,
+            "SELECT * FROM founder_sim_runs WHERE shop_id=? ORDER BY created_at DESC LIMIT 1",
+            (user["shop_id"],),
+        )
         conn.rollback()
 
         return JSONResponse(
             {
                 "ok": True,
                 "initialized": True,
+                "seeded": bool(run_row),
+                "seed_version": run_row["seed_version"] if run_row else None,
                 "latest_metric": dict(latest_metric) if latest_metric else None,
                 "customers_with_learning": int(learning_count["n"]) if learning_count else 0,
                 "recommendation": dict(recommendation_row) if recommendation_row else None,
-                "reset_enabled": False,
+                "reset_enabled": True,
             },
             headers={"Cache-Control": "no-store"},
         )
