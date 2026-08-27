@@ -3,19 +3,24 @@
 The production queue calls ``core.recovery_score(customer, opening, artist)``.
 Replacing that hook preserves the existing consent, cooldown, sequential delivery,
 claim, booking, and calendar safeguards while letting M4 use Tattoo DNA, practical
-fit, enrichment context, and Artist DNA when that evidence exists.
+fit, enrichment context, Artist DNA, and the frozen M4 V1 learned ranking policy.
 """
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 
 import app as core
 import enrichment_v1
 import m4_runtime
 
 LEGACY_RECOVERY_SCORE = core.recovery_score
+FROZEN_V1 = json.loads((Path(__file__).parent / "m4_v1_frozen_model.json").read_text())
+FROZEN_V1_WEIGHTS = [float(value) for value in FROZEN_V1["weights"]]
+FROZEN_V1_VERSION = FROZEN_V1["model_version"]
 
 
 def _json(value):
@@ -261,6 +266,64 @@ def _component_score(components):
     return sum(value * weight for value, weight in available) / total
 
 
+def _clip_probability(value):
+    return max(1e-5, min(1.0 - 1e-5, float(value)))
+
+
+def _trained_v1_probability(customer, opening, baseline_probability, style_fit, artist_fit, budget_fit, distance_fit, short_notice_fit):
+    """Score one real production candidate with the frozen V1 learned policy.
+
+    Budget and drive-distance evidence are required because signal ablation found
+    them to be the highest-value practical inputs. If either is absent, callers
+    must keep the existing M4 baseline rather than fabricate evidence.
+    """
+    if budget_fit is None or distance_fit is None:
+        return None
+
+    baseline_p = _clip_probability(baseline_probability)
+    baseline_logit = math.log(baseline_p / (1.0 - baseline_p)) / 4.0
+    distance = max(0.20, min(1.05, float(distance_fit)))
+    budget = max(0.12, min(1.08, float(budget_fit)))
+    short_notice = 1.0 if short_notice_fit is None else max(0.30, min(1.22, float(short_notice_fit)))
+    artist_affinity = max(0.55, min(1.45, 0.55 + 0.90 * float(artist_fit)))
+    fatigue = 1.0
+
+    spend = max(100.0, float(customer.get("average_spend") or opening.get("price") or 350.0))
+    price_ratio = max(0.25, min(3.0, float(opening.get("price") or 350.0) / spend)) / 3.0
+    completed = min(10.0, float(customer.get("completed_count") or 0.0)) / 10.0
+    cancellations = min(5.0, float(customer.get("cancellation_count") or 0.0)) / 5.0
+    no_shows = min(5.0, float(customer.get("no_show_count") or 0.0)) / 5.0
+
+    dlog = math.log(max(0.05, distance))
+    blog = math.log(max(0.05, budget))
+    slog = math.log(max(0.05, short_notice))
+    alog = math.log(max(0.05, artist_affinity))
+    flog = math.log(max(0.05, fatigue))
+
+    features = (
+        1.0,
+        baseline_logit,
+        dlog,
+        blog,
+        slog,
+        alog,
+        flog,
+        price_ratio,
+        completed,
+        cancellations,
+        no_shows,
+        1.0 if float(style_fit) >= 0.90 else 0.0,
+        1.0 if float(artist_fit) >= 0.99 else 0.0,
+        1.0,
+        0.0,
+        baseline_logit * blog,
+        baseline_logit * dlog,
+    )
+    z = sum(weight * feature for weight, feature in zip(FROZEN_V1_WEIGHTS, features))
+    z = max(-25.0, min(25.0, z))
+    return 1.0 / (1.0 + math.exp(-z))
+
+
 def m4_recovery_breakdown(customer, opening, artist):
     customer_dict = dict(customer)
     opening_dict = dict(opening)
@@ -285,7 +348,7 @@ def m4_recovery_breakdown(customer, opening, artist):
     visual_match = _visual_match(tattoo, artist_dna)
 
     dna_weight = 0.18 * graph_confidence if visual_match is not None else 0.0
-    score = (base_score * (1.0 - dna_weight)) + (100.0 * visual_match * dna_weight) if dna_weight else base_score
+    baseline_score = (base_score * (1.0 - dna_weight)) + (100.0 * visual_match * dna_weight) if dna_weight else base_score
 
     budget_fit = _budget_fit(practical.get("budget"), opening_dict.get("price"))
     placement_fit = _placement_fit(practical.get("placement"), context)
@@ -301,7 +364,20 @@ def m4_recovery_breakdown(customer, opening, artist):
     ])
     practical_weight = min(0.22, 0.22 * graph_confidence) if practical_score is not None else 0.0
     if practical_weight:
-        score = (score * (1.0 - practical_weight)) + (100.0 * practical_score * practical_weight)
+        baseline_score = (baseline_score * (1.0 - practical_weight)) + (100.0 * practical_score * practical_weight)
+
+    trained_probability = _trained_v1_probability(
+        customer_dict,
+        opening_dict,
+        result.get("booking_probability", 0.0),
+        result.get("style_fit", 0.0),
+        artist_fit,
+        budget_fit,
+        distance_fit,
+        short_notice_fit,
+    )
+    trained_active = trained_probability is not None
+    score = (100.0 * trained_probability) if trained_active else baseline_score
 
     why = list(result.get("why") or [])
     if visual_match is not None:
@@ -318,10 +394,18 @@ def m4_recovery_breakdown(customer, opening, artist):
             why.append(f"Practical {label} fit {round(value * 100)}%")
     if artist_fit >= 0.99:
         why.append("Declared artist preference matches this opening")
+    if trained_active:
+        why.append(f"Frozen M4 V1 learned booking rank {trained_probability:.1%}")
+    else:
+        why.append("Safe baseline used: budget + drive-distance evidence incomplete")
 
     return {
         "score": max(0.0, min(100.0, score)),
         "base_score": max(0.0, min(100.0, base_score)),
+        "baseline_score": max(0.0, min(100.0, baseline_score)),
+        "ranking_policy": "trained_m4_v1" if trained_active else "safe_baseline",
+        "trained_model_version": FROZEN_V1_VERSION,
+        "trained_booking_probability": trained_probability,
         "booking_probability": float(result.get("booking_probability", 0)),
         "incremental_uplift": float(result.get("incremental_uplift", 0)),
         "confidence": float(result.get("confidence", 0)),
