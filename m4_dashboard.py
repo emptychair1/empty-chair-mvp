@@ -31,22 +31,24 @@ def _founder_controls_html():
 <section class="founder-sim" id="founderSim">
   <div class="m4-kicker">Founder Simulation // Crybaby Tattoos</div>
   <h2>Controlled M4 Lab</h2>
-  <p>Founder simulation controls are isolated from normal M4 page loading. Blindwolf remains protected by the server-side safety guard.</p>
+  <p>Initialize the simulation schema first. This creates only founder-simulation tables and does not delete or replace any Crybaby or Blindwolf data.</p>
   <div class="founder-actions">
-    <button class="primary" id="simReset" type="button">Reset + Seed Crybaby</button>
+    <button class="primary" id="simInit" type="button">Initialize Simulation</button>
+    <button id="simReset" type="button" disabled>Reset + Seed Crybaby</button>
     <button id="sim1" type="button">Run 1 Cycle</button>
     <button id="sim30" type="button">Run 30 Cycles</button>
     <button id="sim180" type="button">Run 180 Cycles</button>
     <button id="simStatus" type="button">Refresh Status</button>
   </div>
   <div class="founder-status" id="founderStatus">Ready. No simulation request runs automatically.</div>
-  <div class="founder-warning"><b>Safety:</b> normal /m4 page loads do not touch founder simulation tables.</div>
+  <div class="founder-warning"><b>Safety:</b> Reset remains disabled while we validate initialization and status independently.</div>
 </section>
 <script>
 (()=>{
  const box=document.getElementById('founderStatus');
  const buttons=[...document.querySelectorAll('#founderSim button')];
- const setBusy=v=>buttons.forEach(b=>b.disabled=v);
+ const reset=document.getElementById('simReset');
+ const setBusy=v=>buttons.forEach(b=>{if(b!==reset)b.disabled=v;});
  const show=v=>{box.textContent=typeof v==='string'?v:JSON.stringify(v,null,2)};
  async function jsonFetch(url,opts={}){
    const controller=new AbortController();
@@ -75,7 +77,7 @@ def _founder_controls_html():
    catch(e){show('ERROR: '+(e.name==='AbortError'?'request timed out':(e.message||e)));}
    finally{setBusy(false);}
  }
- document.getElementById('simReset').onclick=()=>call('/api/founder-sim/reset');
+ document.getElementById('simInit').onclick=()=>call('/api/founder-sim/initialize');
  document.getElementById('sim1').onclick=()=>call('/api/founder-sim/run',1);
  document.getElementById('sim30').onclick=()=>call('/api/founder-sim/run',30);
  document.getElementById('sim180').onclick=()=>call('/api/founder-sim/run',180);
