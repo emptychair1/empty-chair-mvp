@@ -5,22 +5,19 @@
     shop_id:cfg.shopId||'shop_live_demo',session_id:sessionId,
     project:'',styles:'',placement:'',budget:'',timing:'',short_notice:'',artist_vibe:'',travel:'',location:'',
     name:'',phone:'',email:'',contact_preference:'',offer_consent:'',step:0,
-    vision:false,visionSummary:'',visionTokens:[]
+    vision:false,visionSummary:'',visionTokens:[],activeQuestion:null,activeLearningAsked:[]
   };
   const thread=document.getElementById('thread'),input=document.getElementById('answer'),send=document.getElementById('send'),quick=document.getElementById('quick');
   const pct=document.getElementById('confidence'),bar=document.getElementById('confidenceBar'),gift=document.getElementById('gift'),giftBody=document.getElementById('giftBody'),giftId=document.getElementById('giftId');
   const inspirationInput=document.getElementById('inspirationInput'),analyzeImages=document.getElementById('analyzeImages'),visionStatus=document.getElementById('visionStatus'),visionChips=document.getElementById('visionChips');
   const fields={project:'Project',styles:'Style',placement:'Placement',budget:'Budget',timing:'Timing',short_notice:'Short notice',artist_vibe:'Artist fit',travel:'Travel',location:'Location',name:'Name',phone:'Phone',email:'Email',contact_preference:'Contact preference',offer_consent:'Offer consent'};
-  const questions=[
+  const discovery=[
     {key:'project',ask:"Tell me what you're actually thinking about getting. Rough idea is fine — I don't need a polished brief.",placeholder:'Describe the tattoo idea…',visualSkip:true},
-    {key:'styles',ask:'What style feels closest to it?',placeholder:'Traditional, black & gray, fine line…',options:['Traditional','Black & gray','Fine line','Blackwork','Realism','Anime','Not sure yet'],visualSkip:true},
     {key:'placement',ask:'Where do you want it on your body?',placeholder:'Forearm, thigh, ribs…'},
-    {key:'budget',ask:'What budget would feel comfortable if the right artist and opening appeared?',placeholder:'Choose or type a range…',options:['$150–300','$300–600','$600–1,000','$1,000+','Flexible']},
     {key:'timing',ask:'How soon would you actually move on the right tattoo?',placeholder:'Choose or describe…',options:['Today','This week','This month','Next 3 months','Just exploring']},
-    {key:'short_notice',ask:'If a strong match had a cancellation tomorrow, would you want to know?',placeholder:'Choose one…',options:['Yes — I can move fast','Maybe, with 2–3 days notice','No — I need to plan ahead']},
-    {key:'artist_vibe',ask:'Anything important about the artist or appointment vibe?',placeholder:'Collaborative, quiet, specialist…'},
-    {key:'travel',ask:'How far would you go for the right artist?',placeholder:'Choose or type…',options:['15 miles','30 miles','60 miles','Worth traveling for']},
-    {key:'location',ask:'What city or ZIP are you usually coming from? This is only for travel-time matching.',placeholder:'City, state or ZIP'},
+    {key:'location',ask:'What city or ZIP are you usually coming from? This is only for travel-time matching.',placeholder:'City, state or ZIP'}
+  ];
+  const identity=[
     {key:'name',ask:"What's your name so I can make this an actual profile?",placeholder:'Your name'},
     {key:'phone',ask:'What mobile number should belong to the profile?',placeholder:'Mobile number'},
     {key:'email',ask:"Email too, if you want it attached. You can type 'skip'.",placeholder:'Email or skip'},
@@ -30,7 +27,7 @@
   function bubble(text,who='concierge',small=''){
     const d=document.createElement('div');d.className='message '+who;d.innerHTML=text+(small?`<small>${small}</small>`:'');thread.appendChild(d);thread.scrollTop=thread.scrollHeight;return d;
   }
-  function typing(){const d=bubble('<span class="typing"><i></i><i></i><i></i></span>','concierge');return d}
+  function typing(){return bubble('<span class="typing"><i></i><i></i><i></i></span>','concierge')}
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   function confidence(){
     const keys=['project','styles','placement','budget','timing','short_notice','artist_vibe','travel','location'];
@@ -41,19 +38,34 @@
     Object.keys(fields).forEach(k=>{const el=document.querySelector(`[data-signal="${k}"]`);if(!el)return;const b=el.querySelector('b');let v=state[k];if(k==='offer_consent')v=v==='yes'?'YES':v==='no'?'NO':'';b.textContent=v||'unknown';el.classList.toggle('learned',!!v)});
   }
   function setQuick(q){quick.innerHTML='';(q.options||[]).forEach(opt=>{const b=document.createElement('button');b.type='button';b.textContent=opt;b.onclick=()=>answer(opt);quick.appendChild(b)})}
-  function nextQuestion(){
-    while(state.step<questions.length){const q=questions[state.step];if(q.visualSkip&&state.vision&&state[q.key]){state.step++;continue}return q}return null;
+  function firstMissing(list){return list.find(q=>!state[q.key]&&!(q.visualSkip&&state.vision))||null}
+  async function m4Question(){
+    const profile={};Object.keys(fields).forEach(k=>profile[k]=state[k]||'');
+    state.activeLearningAsked.forEach(k=>{if(!profile[k])profile[k]='__asked__'});
+    try{
+      const r=await fetch('/api/m4/active-learning/next',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile}),cache:'no-store'});
+      const j=await r.json();if(!r.ok||!j.question)return null;
+      return {...j.question,m4:true};
+    }catch(e){return null}
+  }
+  async function nextQuestion(){
+    let q=firstMissing(discovery);if(q)return q;
+    q=await m4Question();if(q)return q;
+    return firstMissing(identity);
   }
   async function ask(){
-    const q=nextQuestion();if(!q)return finish();
+    const q=await nextQuestion();state.activeQuestion=q;if(!q)return finish();
     input.placeholder=q.placeholder||'Type your answer…';input.disabled=false;send.disabled=false;setQuick(q);
-    const t=typing();await sleep(220);t.remove();bubble(q.ask,'concierge',q.key==='offer_consent'?'Your permission controls whether this profile can receive automated offers.':q.key==='location'?'Used for geocoding and drive-time only; area statistics are never treated as facts about you.':'Concierge // only what the images cannot tell me');input.focus();
+    const t=typing();await sleep(220);t.remove();
+    const note=q.m4?`M4 chose this question next · ${q.reason}`:q.key==='offer_consent'?'Your permission controls whether this profile can receive automated offers.':q.key==='location'?'Used for geocoding and drive-time only; area statistics are never treated as facts about you.':'Concierge // building your Tattoo DNA';
+    bubble(q.ask,'concierge',note);input.focus();
   }
   async function answer(raw){
-    if(send.disabled)return;const q=nextQuestion();if(!q)return finish();let v=String(raw||'').trim();if(!v)return;
+    if(send.disabled)return;const q=state.activeQuestion;if(!q)return;let v=String(raw||'').trim();if(!v)return;
     if(q.key==='email'&&v.toLowerCase()==='skip')v='';
     if(q.key==='offer_consent')v=v.toLowerCase().startsWith('yes')?'yes':'no';
-    state[q.key]=v;bubble(raw,'user');input.value='';input.disabled=true;send.disabled=true;quick.innerHTML='';updateSignals();state.step++;
+    state[q.key]=v;if(q.m4&&!state.activeLearningAsked.includes(q.key))state.activeLearningAsked.push(q.key);
+    bubble(raw,'user');input.value='';input.disabled=true;send.disabled=true;quick.innerHTML='';updateSignals();state.activeQuestion=null;
     await sleep(150);await ask();
   }
   function renderVision(analysis){
@@ -74,7 +86,7 @@
         state.visionTokens.push(j.attach_token);const a=j.analysis||{};merged.styles.push(...(a.styles||[]));merged.motifs.push(...(a.motifs||[]));merged.palette.push(...(a.palette||[]));if(!merged.summary&&a.summary)merged.summary=a.summary;completed++;
       }catch(e){visionStatus.textContent='One image could not be analyzed: '+e.message}
     }
-    if(completed){merged.styles=[...new Set(merged.styles)];merged.motifs=[...new Set(merged.motifs)];renderVision(merged);visionStatus.classList.add('learned');visionStatus.textContent=`Tattoo DNA started from ${completed} image${completed>1?'s':''}. I’ll only ask for the missing practical pieces.`;bubble(`I can already see the pattern${merged.styles.length?': '+merged.styles.slice(0,3).join(', '):''}. I'll use that instead of making you translate the pictures into tattoo jargon.`,'concierge','Vision → Tattoo DNA');}
+    if(completed){merged.styles=[...new Set(merged.styles)];merged.motifs=[...new Set(merged.motifs)];renderVision(merged);visionStatus.classList.add('learned');visionStatus.textContent=`Tattoo DNA started from ${completed} image${completed>1?'s':''}. M4 will choose the most useful missing practical question next.`;bubble(`I can already see the pattern${merged.styles.length?': '+merged.styles.slice(0,3).join(', '):''}. M4 will use that and spend its questions on what it still needs to know.`,'concierge','Vision → Tattoo DNA → Active Learning');}
     analyzeImages.disabled=false;
   }
   async function finish(){
