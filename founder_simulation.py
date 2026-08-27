@@ -74,7 +74,6 @@ def _reset_shop_data(conn, shop_id):
     """Delete Crybaby child/simulation data only. Never delete shops/users."""
     opening_ids = []
     artist_ids = []
-    customer_ids = []
 
     if _table_exists(conn, "openings"):
         opening_ids = [
@@ -86,20 +85,20 @@ def _reset_shop_data(conn, shop_id):
             row["id"]
             for row in core.db_fetchall(conn, "SELECT id FROM artists WHERE shop_id=?", (shop_id,))
         ]
-    if _table_exists(conn, "customers"):
-        customer_ids = [
-            row["id"]
-            for row in core.db_fetchall(conn, "SELECT id FROM customers WHERE shop_id=?", (shop_id,))
-        ]
 
     _delete_opening_dependents(conn, opening_ids)
 
-    # Tables with direct shop ownership.
+    # Tables with direct shop ownership. The founder-simulation learning tables
+    # are intentionally reset too so every seed begins from a clean M4 mind.
     direct_shop_tables = (
         "concierge_leads",
         "autopilot_campaigns",
         "founder_sim_artist_portfolios",
         "founder_sim_runs",
+        "founder_sim_customer_learning",
+        "founder_sim_outcomes",
+        "founder_sim_metrics",
+        "founder_sim_recommendations",
     )
     for table in direct_shop_tables:
         if _table_exists(conn, table):
