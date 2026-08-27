@@ -2,6 +2,28 @@
 
 This is the frozen MVP completion scope for the private tattoo-shop demand intelligence system.
 
+## M4 V1 — Definition of done
+
+No new M4 V1 work is added unless it closes one of these gates. Everything else goes to M4 V2.
+
+- [x] Realistic customer + artist founder simulation exists.
+- [x] Credible adversarial ranking baseline established (~67% top-1 in V3).
+- [x] Learning demonstrates useful signal in calibration, shortlist quality and contact efficiency.
+- [x] Safe ranking architecture protects baseline #1 when learned override evidence is insufficient.
+- [x] Signal-ablation benchmark identifies budget and distance as high-value simulated inputs.
+- [x] M4 Advisor recommendation UI exists and can speak evidence-backed recommendations with the configured M4 voice.
+- [x] Public sales-site benchmark section exists with explicit simulation disclosure.
+- [ ] Freeze realistic simulator with non-trivial unfilled openings across easy / normal / hard demand regimes.
+- [ ] Generate large synthetic training corpus using the frozen simulator and measured high-value signals.
+- [ ] Train M4 V1 against booking probability, top-1/top-3 quality, contacts-to-book and recovered value.
+- [ ] Run one untouched holdout benchmark with no post-result tuning.
+- [ ] Freeze V1 acceptance bar and select the winning production policy; if training does not beat the safe baseline, ship the safe baseline/hybrid architecture.
+- [ ] Wire the winning policy into production M4 recommendations and recovery ranking.
+- [ ] Complete real outcome feedback loop for accept / decline / ignore / book / cancel / completed outcomes.
+- [ ] Run pilot shadow-mode validation and compare predictions with real outcomes.
+- [ ] Publish real-world benchmark separately from simulation results when sample size is sufficient.
+- [ ] Declare M4 V1 DONE and move all further intelligence experiments to M4 V2.
+
 ## P0 — Data spine
 
 - [x] Core tenant model: shops, artists, customers, openings, offers, bookings, events.
