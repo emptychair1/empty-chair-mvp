@@ -33,8 +33,9 @@ def _demo_user(request):
 
 @core.app.post("/api/m4/operator/narrate")
 def narrate_m4(request: Request, key: str = Form(...)):
-    if not _demo_user(request):
-        return JSONResponse({"error": "Demo account required."}, status_code=403)
+    user = core.get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Sign in first."}, status_code=401)
     text = NARRATION.get((key or "").strip())
     if not text:
         return JSONResponse({"error": "Unknown narration step."}, status_code=400)
