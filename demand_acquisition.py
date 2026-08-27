@@ -9,6 +9,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import app as core
 
 
+STARTER_CAMPAIGNS = [
+    ("Traditional Animals", "Traditional animal tattoo concepts — snakes, birds, panthers and creatures"),
+    ("Weird / Psychedelic", "Weird and psychedelic tattoo concepts — mushrooms, frogs and surreal imagery"),
+    ("Moths / Bugs / Nature", "Nature-inspired tattoo concepts — moths, insects, flowers and botanical imagery"),
+    ("Dark Traditional", "Dark traditional tattoo concepts — skulls, daggers and occult-inspired imagery"),
+    ("Custom Traditional", "Custom traditional and neo-traditional tattoo concepts built around your idea"),
+]
+
+
 def _e(value):
     return html.escape(str(value or ""), quote=True)
 
@@ -158,11 +167,13 @@ def demand_acquisition_dashboard(request: Request):
     body = "".join(campaign_cards) or "<p class='empty'>No campaigns yet.</p>"
 
     campaign_form = ""
+    starter_form = ""
     if identities:
         campaign_form = f"""<form method='post' action='/demand-acquisition/campaigns'><h2>Create campaign</h2><label>ARTIST IDENTITY</label><select name='identity_id' required>{identity_options}</select><label>CAMPAIGN NAME</label><input name='name' required placeholder='Traditional tattoos — Athens'><label>CHANNEL</label><select name='channel'><option value='facebook_marketplace'>Facebook Marketplace</option><option value='facebook_group'>Facebook Group</option><option value='instagram'>Instagram</option><option value='qr'>QR / Physical</option><option value='other'>Other</option></select><label>HOOK / OFFER</label><textarea name='hook' required placeholder='Traditional tattoo openings — custom or flash'></textarea><button>Create tracked campaign</button></form>"""
+        starter_form = f"""<form method='post' action='/demand-acquisition/starter-campaigns'><h2>Create starter campaigns</h2><p>Create five tracked Facebook Marketplace demand hypotheses using the existing campaign schema.</p><label>ARTIST IDENTITY</label><select name='identity_id' required>{identity_options}</select><button>Create 5 starter campaigns</button></form>"""
 
     return HTMLResponse(f"""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>Demand Acquisition · Empty Chair</title><style>
-body{{margin:0;background:#080a08;color:#f0eadf;font-family:Inter,system-ui,sans-serif}}main{{max-width:1000px;margin:auto;padding:30px}}h1{{font-size:42px;margin:5px 0}}h2{{margin-top:0}}.ey{{color:#d8ff45;font:700 11px monospace;letter-spacing:.15em}}form,article{{border:1px solid #30362e;background:#0e110e;padding:18px;margin:14px 0}}label{{display:block;font-size:11px;color:#9ba197;margin-top:12px}}input,select,textarea{{box-sizing:border-box;width:100%;padding:11px;margin-top:5px;background:#090b09;color:#f0eadf;border:1px solid #353c33}}button{{margin-top:15px;padding:12px 18px;background:#d8ff45;border:0;font-weight:900}}article span{{float:right;color:#d8ff45;font:700 11px monospace;text-transform:uppercase}}article input{{font:11px monospace}}small,.owner{{color:#9ba197}}.owner{{margin-top:6px;font-size:12px}}a{{color:#d8ff45}}.empty{{color:#9ba197}}</style></head><body><main><a href='/'>← App</a><div class='ey'>M4 · CUSTOMER ACQUISITION</div><h1>Demand Acquisition</h1><p>Artist identities let you acquire customers for a working location without requiring that studio to own an Empty Chair login.</p><form method='post' action='/demand-acquisition/identities'><h2>Artist acquisition identity</h2><label>ARTIST NAME</label><input name='artist_name' required value='Josh Daniels'><label>WORKING STUDIO</label><input name='studio_name' required value='Blind Wolf Tattoo'><label>STUDIO ADDRESS</label><input name='studio_address' required value='50 Gaines School Rd Ste 13, Athens, GA 30605'><label>MINIMUM PRICE</label><input name='minimum_price' type='number' min='0' value='100'><label>PRICING MODEL</label><input name='pricing_model' value='Hand-size / palm-size pricing'><label>PRIMARY STYLES</label><input name='styles' value='American Traditional, Neo-Traditional'><label>SUBJECTS</label><input name='subjects' placeholder='We will fill this from portfolio analysis'><button>Create artist identity</button></form><section>{identity_cards}</section>{campaign_form}<section>{body}</section></main></body></html>""", headers={"Cache-Control":"no-store"})
+body{{margin:0;background:#080a08;color:#f0eadf;font-family:Inter,system-ui,sans-serif}}main{{max-width:1000px;margin:auto;padding:30px}}h1{{font-size:42px;margin:5px 0}}h2{{margin-top:0}}.ey{{color:#d8ff45;font:700 11px monospace;letter-spacing:.15em}}form,article{{border:1px solid #30362e;background:#0e110e;padding:18px;margin:14px 0}}label{{display:block;font-size:11px;color:#9ba197;margin-top:12px}}input,select,textarea{{box-sizing:border-box;width:100%;padding:11px;margin-top:5px;background:#090b09;color:#f0eadf;border:1px solid #353c33}}button{{margin-top:15px;padding:12px 18px;background:#d8ff45;border:0;font-weight:900}}article span{{float:right;color:#d8ff45;font:700 11px monospace;text-transform:uppercase}}article input{{font:11px monospace}}small,.owner{{color:#9ba197}}.owner{{margin-top:6px;font-size:12px}}a{{color:#d8ff45}}.empty{{color:#9ba197}}</style></head><body><main><a href='/'>← App</a><div class='ey'>M4 · CUSTOMER ACQUISITION</div><h1>Demand Acquisition</h1><p>Artist identities let you acquire customers for a working location without requiring that studio to own an Empty Chair login.</p><form method='post' action='/demand-acquisition/identities'><h2>Artist acquisition identity</h2><label>ARTIST NAME</label><input name='artist_name' required value='Josh Daniels'><label>WORKING STUDIO</label><input name='studio_name' required value='Blind Wolf Tattoo'><label>STUDIO ADDRESS</label><input name='studio_address' required value='50 Gaines School Rd Ste 13, Athens, GA 30605'><label>MINIMUM PRICE</label><input name='minimum_price' type='number' min='0' value='100'><label>PRICING MODEL</label><input name='pricing_model' value='Hand-size / palm-size pricing'><label>PRIMARY STYLES</label><input name='styles' value='American Traditional, Neo-Traditional'><label>SUBJECTS</label><input name='subjects' placeholder='We will fill this from portfolio analysis'><button>Create artist identity</button></form><section>{identity_cards}</section>{starter_form}{campaign_form}<section>{body}</section></main></body></html>""", headers={"Cache-Control":"no-store"})
 
 
 @core.app.post("/demand-acquisition/identities")
@@ -213,6 +224,44 @@ def create_acquisition_campaign(request: Request, name: str = Form(...), channel
         core.db_execute(conn, "INSERT INTO acquisition_campaigns(id,shop_id,artist_id,identity_id,name,channel,hook,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)", (
             campaign_id, user["shop_id"], None, identity_id.strip(), name.strip(), channel.strip(), hook.strip(), "active", now, now
         ))
+        conn.commit()
+    finally:
+        conn.close()
+    return RedirectResponse("/demand-acquisition", status_code=303)
+
+
+@core.app.post("/demand-acquisition/starter-campaigns")
+def create_starter_campaigns(request: Request, identity_id: str = Form(...)):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+    now = core.now_iso()
+    conn = core.connect()
+    try:
+        _ensure_tables(conn)
+        identity = core.db_fetchone(
+            conn,
+            "SELECT id FROM acquisition_identities WHERE id=? AND owner_shop_id=? AND status='active'",
+            (identity_id.strip(), user["shop_id"]),
+        )
+        if not identity:
+            return HTMLResponse("Invalid artist acquisition identity.", status_code=400)
+        for name, hook in STARTER_CAMPAIGNS:
+            existing = core.db_fetchone(
+                conn,
+                "SELECT id FROM acquisition_campaigns WHERE shop_id=? AND identity_id=? AND name=? AND channel='facebook_marketplace'",
+                (user["shop_id"], identity_id.strip(), name),
+            )
+            if existing:
+                continue
+            core.db_execute(
+                conn,
+                "INSERT INTO acquisition_campaigns(id,shop_id,artist_id,identity_id,name,channel,hook,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    f"camp_{uuid.uuid4().hex[:12]}", user["shop_id"], None, identity_id.strip(),
+                    name, "facebook_marketplace", hook, "active", now, now,
+                ),
+            )
         conn.commit()
     finally:
         conn.close()
