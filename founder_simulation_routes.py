@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 import app as core
 import founder_simulation_staged
-import m4_founder_simulation_engine as engine
+import m4_founder_simulation_engine_v2 as engine
 from founder_simulation_safety import (
     FounderSimulationSafetyError,
     load_and_assert_founder_simulation_target,
