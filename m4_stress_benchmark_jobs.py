@@ -6,7 +6,7 @@ import json
 import uuid
 
 import app as core
-import m4_stress_benchmark_v3 as stress
+import m4_top1_specialist_benchmark as stress
 from founder_simulation_safety import load_and_assert_founder_simulation_target
 
 
