@@ -19,6 +19,28 @@ def _user(request):
     return user, None
 
 
+def _table_exists(conn, table_name):
+    if getattr(core, "USE_POSTGRES", False):
+        row = core.db_fetchone(
+            conn,
+            "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=?",
+            (table_name,),
+        )
+        return bool(row)
+    row = core.db_fetchone(
+        conn,
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table_name,),
+    )
+    return bool(row)
+
+
+def _set_read_timeout(conn):
+    if getattr(core, "USE_POSTGRES", False):
+        core.db_execute(conn, "SET LOCAL statement_timeout = '2500ms'")
+        core.db_execute(conn, "SET LOCAL lock_timeout = '1000ms'")
+
+
 @app.post("/api/founder-sim/reset")
 def founder_sim_reset(request: Request):
     user, error = _user(request)
@@ -64,9 +86,32 @@ def founder_sim_status(request: Request):
     user, error = _user(request)
     if error:
         return error
+
     conn = core.connect()
     try:
-        engine.ensure_tables(conn)
+        _set_read_timeout(conn)
+
+        required_tables = (
+            "founder_sim_metrics",
+            "founder_sim_customer_learning",
+            "founder_sim_recommendations",
+        )
+        missing = [table for table in required_tables if not _table_exists(conn, table)]
+        if missing:
+            conn.rollback()
+            return JSONResponse(
+                {
+                    "ok": True,
+                    "initialized": False,
+                    "latest_metric": None,
+                    "customers_with_learning": 0,
+                    "recommendation": None,
+                    "reset_enabled": False,
+                    "message": "Founder simulation has not been initialized yet.",
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+
         latest_metric = core.db_fetchone(
             conn,
             "SELECT * FROM founder_sim_metrics WHERE shop_id=? ORDER BY cycle DESC LIMIT 1",
@@ -77,18 +122,33 @@ def founder_sim_status(request: Request):
             "SELECT COUNT(*) AS n FROM founder_sim_customer_learning WHERE shop_id=?",
             (user["shop_id"],),
         )
-        recommendation = engine.latest_recommendation(user["shop_id"])
+        recommendation_row = core.db_fetchone(
+            conn,
+            "SELECT * FROM founder_sim_recommendations WHERE shop_id=? ORDER BY created_at DESC LIMIT 1",
+            (user["shop_id"],),
+        )
+        conn.rollback()
+
         return JSONResponse(
             {
                 "ok": True,
+                "initialized": True,
                 "latest_metric": dict(latest_metric) if latest_metric else None,
                 "customers_with_learning": int(learning_count["n"]) if learning_count else 0,
-                "recommendation": recommendation,
+                "recommendation": dict(recommendation_row) if recommendation_row else None,
                 "reset_enabled": False,
             },
             headers={"Cache-Control": "no-store"},
         )
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return JSONResponse(
+            {"error": f"Founder simulation status unavailable: {exc}"},
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
+        )
     finally:
         conn.close()
