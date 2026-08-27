@@ -1,6 +1,6 @@
 """Final deterministic M4 operator route.
 
-Loaded last by bootstrap. Wraps v2 with:
+Loaded last by the Concierge bootstrap chain. Wraps v2 with:
 - the exact production logo asset plus text fallback;
 - a visible build marker so deployed code is obvious;
 - preview fallback across available openings so one bad opening cannot stop the run;
@@ -57,3 +57,6 @@ def install():
             route.endpoint = page
             replaced = True
     return replaced
+
+
+INSTALLED = install()
