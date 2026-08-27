@@ -75,14 +75,20 @@ def _ensure_tables(conn):
     conn.commit()
 
 
+def _ensure_lead_attribution_columns(conn):
+    """Keep acquisition dashboard queries compatible before the first attributed lead arrives."""
+    _ensure_column(conn, "concierge_leads", "campaign_id", "TEXT")
+    _ensure_column(conn, "concierge_leads", "acquisition_source", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "concierge_leads", "acquisition_identity_id", "TEXT")
+    conn.commit()
+
+
 def record_lead_attribution(conn, lead_id, campaign_id, source):
     """Attach channel, campaign, and artist identity provenance to a Concierge lead."""
     if not campaign_id and not source:
         return
     _ensure_tables(conn)
-    _ensure_column(conn, "concierge_leads", "campaign_id", "TEXT")
-    _ensure_column(conn, "concierge_leads", "acquisition_source", "TEXT NOT NULL DEFAULT ''")
-    _ensure_column(conn, "concierge_leads", "acquisition_identity_id", "TEXT")
+    _ensure_lead_attribution_columns(conn)
     identity_id = None
     if campaign_id:
         campaign = core.db_fetchone(conn, "SELECT identity_id FROM acquisition_campaigns WHERE id=?", (campaign_id,))
@@ -133,15 +139,28 @@ def demand_acquisition_dashboard(request: Request):
     try:
         _ensure_tables(conn)
         identities = core.db_fetchall(conn, "SELECT * FROM acquisition_identities WHERE owner_shop_id=? AND status='active' ORDER BY created_at DESC", (user["shop_id"],))
-        campaigns = core.db_fetchall(conn, """
-            SELECT c.*, i.artist_name, i.studio_name,
-                   (SELECT COUNT(*) FROM acquisition_visits v WHERE v.campaign_id=c.id) AS visits,
-                   (SELECT COUNT(*) FROM concierge_leads l WHERE l.shop_id=c.shop_id AND l.campaign_id=c.id) AS leads
-            FROM acquisition_campaigns c
-            LEFT JOIN acquisition_identities i ON i.id=c.identity_id
-            WHERE c.shop_id=?
-            ORDER BY c.created_at DESC
-        """, (user["shop_id"],))
+        try:
+            _ensure_lead_attribution_columns(conn)
+            campaigns = core.db_fetchall(conn, """
+                SELECT c.*, i.artist_name, i.studio_name,
+                       (SELECT COUNT(*) FROM acquisition_visits v WHERE v.campaign_id=c.id) AS visits,
+                       (SELECT COUNT(*) FROM concierge_leads l WHERE l.shop_id=c.shop_id AND l.campaign_id=c.id) AS leads
+                FROM acquisition_campaigns c
+                LEFT JOIN acquisition_identities i ON i.id=c.identity_id
+                WHERE c.shop_id=?
+                ORDER BY c.created_at DESC
+            """, (user["shop_id"],))
+        except Exception:
+            conn.rollback()
+            campaigns = core.db_fetchall(conn, """
+                SELECT c.*, i.artist_name, i.studio_name,
+                       (SELECT COUNT(*) FROM acquisition_visits v WHERE v.campaign_id=c.id) AS visits,
+                       0 AS leads
+                FROM acquisition_campaigns c
+                LEFT JOIN acquisition_identities i ON i.id=c.identity_id
+                WHERE c.shop_id=?
+                ORDER BY c.created_at DESC
+            """, (user["shop_id"],))
     except Exception:
         conn.rollback()
         identities, campaigns = [], []
