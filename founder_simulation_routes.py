@@ -4,7 +4,7 @@ from fastapi import Form, Request
 from fastapi.responses import JSONResponse
 
 import app as core
-import founder_simulation
+import founder_simulation_safe as founder_simulation
 import m4_founder_simulation_engine as engine
 from founder_simulation_safety import FounderSimulationSafetyError
 
