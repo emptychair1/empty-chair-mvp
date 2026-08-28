@@ -23,11 +23,11 @@
   <main class="main">
     <header class="topbar">
       <div class="topbar-left"><div><div class="page-title">Demand Engine</div><div class="page-subtitle">Create demand. Capture intent. Fill chairs.</div></div></div>
-      <div class="top-actions"><div class="top-actions-row"><a class="button secondary" href="/demand-acquisition/compliance">Launch Packages</a><a class="button" href="#new-campaign">New Campaign</a></div></div>
+      <div class="top-actions"><div class="top-actions-row"><a class="button secondary" href="/demand-acquisition/launch">Launch Console</a><a class="button" href="#new-campaign">New Campaign</a></div></div>
     </header>
     <div class="content">
       <section class="de-shell">
-        <section class="de-hero"><div class="de-hero-copy"><div class="de-kicker">Demand Engine</div><h1>Bring demand to the chair.</h1><p>Launch tracked acquisition campaigns, send every response into Concierge, and let real visits and leads tell M4 what the market wants.</p><div class="de-hero-actions"><a class="button" href="#new-campaign">Create Campaign</a><a class="button secondary" href="/demand-acquisition/compliance">Ready-to-post Packages</a></div></div></section>
+        <section class="de-hero"><div class="de-hero-copy"><div class="de-kicker">Demand Engine</div><h1>Bring demand to the chair.</h1><p>Launch tracked acquisition campaigns, send every response into Concierge, and let real visits and leads tell M4 what the market wants.</p><div class="de-hero-actions"><a class="button" href="#new-campaign">Create Campaign</a><a class="button secondary" href="/demand-acquisition/launch">Open Launch Console</a></div></div></section>
 
         <section class="metric-grid">
           <div class="metric-card"><div class="metric-icon"><img src="/static/52F34B1D-6A21-4981-B14E-DB534834F7D2.png" alt="" style="width:30px;height:30px;object-fit:contain"></div><div class="metric-label">Active Campaigns</div><div class="metric-value">{{ metrics.active_campaigns }}</div><div class="metric-sub">Tracked acquisition campaigns live now</div></div>
@@ -38,7 +38,7 @@
 
         <section class="de-layout">
           <article class="panel">
-            <div class="panel-head"><div><div class="kicker">Live acquisition</div><h2 class="panel-title">Campaigns</h2></div><a class="button secondary compact" href="/demand-acquisition/compliance">Launch Packages</a></div>
+            <div class="panel-head"><div><div class="kicker">Live acquisition</div><h2 class="panel-title">Campaigns</h2></div><a class="button secondary compact" href="/demand-acquisition/launch">Launch Console</a></div>
             {% if campaigns %}<div class="de-table-wrap"><table class="de-table"><thead><tr><th>Campaign</th><th>Channel</th><th>Visits</th><th>Leads</th><th>Tracked link</th></tr></thead><tbody>{% for c in campaigns %}<tr><td><strong>{{ c.name }}</strong><small>{{ c.hook }}</small>{% if c.artist_name %}<small>{{ c.artist_name }} @ {{ c.studio_name or 'independent' }}</small>{% endif %}</td><td><span class="de-channel">{{ c.channel.replace('_',' ') }}</span></td><td>{{ c.visits or 0 }}</td><td>{{ c.leads or 0 }}</td><td><input class="de-url" value="{{ c.tracked_url }}" readonly onclick="this.select()"><button class="button secondary de-copy-btn" type="button" onclick="navigator.clipboard.writeText(this.previousElementSibling.value)">Copy link</button></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="de-empty">No campaigns yet.</div>{% endif %}
           </article>
 
