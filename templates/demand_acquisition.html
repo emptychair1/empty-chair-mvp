@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Demand Engine · Empty Chair</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', path='/favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .de-hero{position:relative;min-height:470px;overflow:hidden;border:1px solid var(--line);margin-bottom:18px;background:#050605 url('/static/demand-engine-hero.jpg?v=1') center/cover no-repeat;box-shadow:6px 6px 0 #000}
+    .de-hero:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,6,5,.02) 0%,rgba(5,6,5,.08) 48%,rgba(5,6,5,.7) 76%,rgba(5,6,5,.95) 100%);pointer-events:none}
+    .de-copy-card{position:absolute;z-index:2;right:28px;bottom:28px;width:min(510px,46%);padding:24px;border:1px solid rgba(242,236,222,.42);background:rgba(8,9,8,.9);box-shadow:5px 5px 0 #000}
+    .de-kicker,.de-cap{color:var(--signal);font-family:var(--cartoon);font-size:15px;text-transform:uppercase}
+    .de-title{margin:9px 0 10px;font-family:var(--display);font-size:clamp(44px,5vw,72px);font-weight:400;line-height:.88;text-transform:uppercase}
+    .de-copy{color:var(--cream-dim);font-size:13px;line-height:1.55}
+    .de-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+    .de-section-head{display:flex;justify-content:space-between;align-items:end;gap:20px;margin:30px 0 14px}.de-section-head h2{margin:3px 0 0;font-family:var(--display);font-size:43px;font-weight:400;line-height:.9;text-transform:uppercase}.de-section-head small{color:var(--muted);font-size:11px}
+    .de-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:18px}.de-stack{display:grid;gap:18px}
+    .de-card{padding:20px;border:1px solid var(--line);background:#0d0f0d;box-shadow:4px 4px 0 #000}.de-card h2{margin:0 0 14px;font-family:var(--cartoon);font-size:28px;font-weight:400;text-transform:uppercase}.de-card p{color:var(--muted);font-size:12px;line-height:1.55}.de-card form{display:grid;gap:12px}.de-card textarea{min-height:100px}.de-card .button{width:max-content}
+    .identity-list,.campaign-list{display:grid;gap:8px}.identity-row,.campaign-row{padding:14px;border:1px solid var(--line-soft);background:#090b09}.identity-top,.campaign-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.identity-name,.campaign-name{font-family:var(--cartoon);font-size:19px;text-transform:uppercase}.identity-meta,.campaign-meta,.campaign-hook{margin-top:5px;color:var(--muted);font-size:11px;line-height:1.5}.campaign-counts{color:var(--signal);font-family:var(--cartoon);font-size:13px;text-transform:uppercase;white-space:nowrap}.campaign-link{margin-top:10px;font-family:monospace;font-size:10px}.empty{padding:18px;border:1px dashed var(--line);color:var(--muted);font-size:12px}
+    .de-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.de-form-grid .full{grid-column:1/-1}
+    @media(max-width:1100px){.de-copy-card{width:min(560px,58%)}.de-grid{grid-template-columns:1fr}}
+    @media(max-width:760px){.content{padding-top:12px!important}.topbar{min-height:auto;align-items:center;gap:8px;padding:12px 14px}.page-title{font-size:31px!important}.page-subtitle{display:none}.top-actions{flex-direction:row;gap:6px}.top-actions .button{min-height:36px;padding:0 9px;font-size:8px;white-space:nowrap}.de-hero{min-height:0;padding-top:58%;background-position:center top;box-shadow:none}.de-hero:after{background:linear-gradient(180deg,rgba(5,6,5,.02) 0%,rgba(5,6,5,.06) 46%,rgba(5,6,5,.88) 70%,#080908 100%)}.de-copy-card{position:relative;right:auto;bottom:auto;width:100%;padding:17px 16px 19px;border:0;border-top:1px solid var(--line);box-shadow:none;background:linear-gradient(180deg,rgba(8,9,8,.76),#080908)}.de-kicker{font-size:12px}.de-title{font-size:38px}.de-section-head{align-items:flex-start;flex-direction:column;gap:5px}.de-section-head h2{font-size:36px}.de-card{padding:16px;box-shadow:none}.de-form-grid{grid-template-columns:1fr}.de-form-grid .full{grid-column:auto}.identity-top,.campaign-top{display:block}.campaign-counts{margin-top:8px;display:block}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page='demand_acquisition' %}{% include '_sidebar.html' %}
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left"><div><div class="page-title">Demand Engine</div><div class="page-subtitle">Create demand. Capture leads. Fill chairs.</div></div></div>
+      <div class="top-actions"><div class="top-actions-row"><a class="button secondary" href="/demand-acquisition/compliance">Launch Packages</a><a class="button" href="#create-campaign">New Campaign</a></div></div>
+    </header>
+    <div class="content">
+      <section class="de-hero"><div class="de-copy-card"><div class="de-kicker">M4 · Customer Acquisition</div><h1 class="de-title">Create demand before the chair is empty.</h1><div class="de-copy">Launch tracked campaigns, send every prospect into Concierge, and learn which tattoo ideas actually create demand.</div><div class="de-actions"><a class="button" href="#create-campaign">Create Campaign</a><a class="button secondary" href="/demand-acquisition/compliance">Open Launch Packages</a></div></div></section>
+
+      <section class="metric-grid">
+        <div class="metric-card"><div class="metric-icon">◎</div><div class="metric-label">Campaigns</div><div class="metric-value">{{ total_campaigns }}</div><div class="metric-sub">{{ active_campaigns }} active</div></div>
+        <div class="metric-card"><div class="metric-icon">↗</div><div class="metric-label">Visits</div><div class="metric-value">{{ total_visits }}</div><div class="metric-sub">Tracked acquisition visits</div></div>
+        <div class="metric-card"><div class="metric-icon">+</div><div class="metric-label">Leads</div><div class="metric-value">{{ total_leads }}</div><div class="metric-sub">Attributed Concierge leads</div></div>
+        <div class="metric-card"><div class="metric-icon">ID</div><div class="metric-label">Artist Identities</div><div class="metric-value">{{ identities|length }}</div><div class="metric-sub">Active acquisition identities</div></div>
+      </section>
+
+      <div class="de-section-head"><div><div class="de-cap">Live acquisition</div><h2>Campaigns</h2></div><small>Only real tracked visits and leads are shown.</small></div>
+      <section class="de-grid">
+        <div class="de-card">
+          <div class="campaign-list">
+            {% for c in campaigns %}
+            <article class="campaign-row"><div class="campaign-top"><div><div class="campaign-name">{{ c['name'] }}</div><div class="campaign-meta">{{ (c['channel'] or '').replace('_',' ')|title }}{% if c['artist_name'] %} · {{ c['artist_name'] }} @ {{ c['studio_name'] or 'Independent' }}{% endif %}</div></div><div class="campaign-counts">{{ c['visits'] or 0 }} visits · {{ c['leads'] or 0 }} leads</div></div><div class="campaign-hook">{{ c['hook'] }}</div><input class="campaign-link" value="{{ request.base_url|string|trim('/') }}/a/{{ c['id'] }}?shop_id={{ c['shop_id'] }}&campaign_id={{ c['id'] }}&src={{ c['channel'] }}" readonly onclick="this.select()"></article>
+            {% else %}<div class="empty">No campaigns yet.</div>{% endfor %}
+          </div>
+        </div>
+
+        <div class="de-stack">
+          <section class="de-card"><h2>Artist Identity</h2>{% if identities %}<div class="identity-list">{% for i in identities %}<article class="identity-row"><div class="identity-top"><div><div class="identity-name">{{ i['artist_name'] }}</div><div class="identity-meta">{{ i['studio_name'] }}<br>{{ i['studio_address'] }}</div></div><div class="campaign-counts">${{ i['minimum_price'] or 0 }} min</div></div><div class="identity-meta">{{ i['pricing_model'] }} · {{ i['styles'] }}</div></article>{% endfor %}</div>{% else %}<div class="empty">No artist acquisition identity yet.</div>{% endif %}</section>
+
+          {% if identities %}<section class="de-card"><h2>Create Starter Set</h2><p>Create the five current Marketplace demand hypotheses without duplicating campaigns that already exist.</p><form method="post" action="/demand-acquisition/starter-campaigns"><label>Artist Identity<select name="identity_id" required>{% for i in identities %}<option value="{{ i['id'] }}">{{ i['artist_name'] }} @ {{ i['studio_name'] or 'Independent' }}</option>{% endfor %}</select></label><button class="button" type="submit">Create 5 Starter Campaigns</button></form></section>{% endif %}
+        </div>
+      </section>
+
+      <div class="de-section-head" id="create-campaign"><div><div class="de-cap">Controls</div><h2>Create Demand</h2></div><small>Use the same acquisition system already feeding Concierge.</small></div>
+      <section class="de-grid">
+        <section class="de-card"><h2>Create Campaign</h2>{% if identities %}<form method="post" action="/demand-acquisition/campaigns"><div class="de-form-grid"><label>Artist Identity<select name="identity_id" required>{% for i in identities %}<option value="{{ i['id'] }}">{{ i['artist_name'] }} @ {{ i['studio_name'] or 'Independent' }}</option>{% endfor %}</select></label><label>Channel<select name="channel"><option value="facebook_marketplace">Facebook Marketplace</option><option value="facebook_group">Facebook Group</option><option value="instagram">Instagram</option><option value="qr">QR / Physical</option><option value="other">Other</option></select></label><label class="full">Campaign Name<input name="name" required placeholder="Traditional tattoos — Athens"></label><label class="full">Hook / Offer<textarea name="hook" required placeholder="Traditional tattoo openings — custom or flash"></textarea></label></div><button class="button" type="submit">Create Tracked Campaign</button></form>{% else %}<div class="empty">Create an artist acquisition identity first.</div>{% endif %}</section>
+
+        <section class="de-card"><h2>Artist Acquisition Identity</h2><form method="post" action="/demand-acquisition/identities"><div class="de-form-grid"><label>Artist Name<input name="artist_name" required value="Josh Daniels"></label><label>Working Studio<input name="studio_name" required value="Blind Wolf Tattoo"></label><label class="full">Studio Address<input name="studio_address" required value="50 Gaines School Rd Ste 13, Athens, GA 30605"></label><label>Minimum Price<input name="minimum_price" type="number" min="0" value="100"></label><label>Pricing Model<input name="pricing_model" value="Hand-size / palm-size pricing"></label><label class="full">Primary Styles<input name="styles" value="American Traditional, Neo-Traditional"></label><label class="full">Subjects<input name="subjects" placeholder="Portfolio-derived subject inventory"></label></div><button class="button" type="submit">Create Artist Identity</button></form></section>
+      </section>
+    </div>
+  </main>
+</div>
+</body>
+</html>
