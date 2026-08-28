@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
   <style>
     .de-shell{display:grid;gap:18px}
-    .de-hero{position:relative;min-height:430px;overflow:hidden;border:1px solid var(--line);background:#050605 url('/static/demand-engine-hero.jpg?v=1') center/cover no-repeat;box-shadow:6px 6px 0 #000}
+    .de-hero{position:relative;min-height:430px;overflow:hidden;border:1px solid var(--line);background:#050605 url('/static/07A8CBCA-3D2A-4C87-BEA8-D08F41376E35.png?v=1') center/cover no-repeat;box-shadow:6px 6px 0 #000}
     .de-hero:after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,6,5,.08) 0%,rgba(5,6,5,.05) 48%,rgba(5,6,5,.58) 78%,rgba(5,6,5,.9) 100%);pointer-events:none}
     .de-hero-copy{position:absolute;z-index:2;right:28px;bottom:28px;width:min(500px,46%);padding:22px;border:1px solid rgba(242,236,222,.42);background:rgba(8,9,8,.9);box-shadow:5px 5px 0 #000}
     .de-kicker{color:var(--signal);font-family:var(--cartoon);font-size:15px;text-transform:uppercase}.de-hero h1{margin:8px 0 10px;font-family:var(--cartoon);font-size:clamp(44px,5vw,72px);font-weight:400;line-height:.88;text-transform:uppercase}.de-hero p{margin:0;color:var(--cream-dim);font-size:13px;line-height:1.55}.de-hero-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
@@ -30,7 +30,7 @@
         <section class="de-hero"><div class="de-hero-copy"><div class="de-kicker">Demand Engine</div><h1>Bring demand to the chair.</h1><p>Launch tracked acquisition campaigns, send every response into Concierge, and let real visits and leads tell M4 what the market wants.</p><div class="de-hero-actions"><a class="button" href="#new-campaign">Create Campaign</a><a class="button secondary" href="/demand-acquisition/compliance">Ready-to-post Packages</a></div></div></section>
 
         <section class="metric-grid">
-          <div class="metric-card"><div class="metric-icon"><img src="/static/demand-engine.svg" alt="" style="width:30px;height:30px"></div><div class="metric-label">Active Campaigns</div><div class="metric-value">{{ metrics.active_campaigns }}</div><div class="metric-sub">Tracked acquisition campaigns live now</div></div>
+          <div class="metric-card"><div class="metric-icon"><img src="/static/52F34B1D-6A21-4981-B14E-DB534834F7D2.png" alt="" style="width:30px;height:30px;object-fit:contain"></div><div class="metric-label">Active Campaigns</div><div class="metric-value">{{ metrics.active_campaigns }}</div><div class="metric-sub">Tracked acquisition campaigns live now</div></div>
           <div class="metric-card"><div class="metric-icon">↗</div><div class="metric-label">Visits</div><div class="metric-value">{{ metrics.visits }}</div><div class="metric-sub">Tracked campaign entrances</div></div>
           <div class="metric-card"><div class="metric-icon">◎</div><div class="metric-label">Leads</div><div class="metric-value">{{ metrics.leads }}</div><div class="metric-sub">Concierge leads attributed to campaigns</div></div>
           <div class="metric-card"><div class="metric-icon">ID</div><div class="metric-label">Artist Identities</div><div class="metric-value">{{ metrics.identities }}</div><div class="metric-sub">Acquisition identities owned by this account</div></div>
@@ -61,7 +61,7 @@
   </main>
 </div>
 <script>
-(()=>{document.querySelectorAll('a[href="/demand-acquisition"] img').forEach(img=>img.src='/static/demand-engine.svg');})();
+(()=>{document.querySelectorAll('a[href="/demand-acquisition"] img').forEach(img=>img.src='/static/52F34B1D-6A21-4981-B14E-DB534834F7D2.png');})();
 </script>
 </body>
 </html>
