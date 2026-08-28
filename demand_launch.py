@@ -28,6 +28,32 @@ def _e(value):
     return html.escape(str(value or ""), quote=True)
 
 
+def _contest_copy(campaign, artist, studio, tracked_url):
+    """Create a no-purchase, skill-based tattoo concept contest package.
+
+    The winner is selected for concept/portfolio fit rather than by chance. This avoids
+    presenting the promotion as a raffle or random drawing. Final posted rules still need
+    the sponsor's dates, physical address, prize retail value and any other local disclosures.
+    """
+    concept = campaign["name"]
+    hook = campaign["hook"] or concept
+    title = f"FREE {concept.upper()} TATTOO CONTEST — ATHENS"
+    copy = (
+        f"I'm {artist}, tattooing at {studio} in Athens, and I'm choosing one concept for a free tattoo in the {concept} category. "
+        f"{hook}. Submit the tattoo idea you want, placement and approximate size through Tattoo Concierge. "
+        "I'll select the concept that is the strongest fit for this campaign and my portfolio. "
+        "No purchase necessary. Entry is free. Must be 18+ and able to be tattooed in Athens, Georgia. "
+        "This is a judged concept contest, not a random drawing or raffle."
+    )
+    cta = f"Enter here: {tracked_url}"
+    guidance = (
+        "Before posting, add the contest start/end date, sponsor/promoter full physical address, prize retail value, "
+        "selection date and any additional eligibility limits. Post only where promotional/self-promotional posts are allowed."
+    )
+    full = f"{title}\n\n{copy}\n\n{cta}"
+    return title, copy, cta, guidance, full
+
+
 def _package(campaign, tracked_url):
     artist = campaign["artist_name"] or "the artist"
     studio = campaign["studio_name"] or "the studio"
@@ -37,22 +63,16 @@ def _package(campaign, tracked_url):
 
     if channel == "facebook_marketplace":
         copy = (
-            f"{hook}. Work by {artist}, currently tattooing at {studio} in Athens. "
-            "Send your idea, placement, approximate size, budget and timing through Tattoo Concierge to see if it is a fit."
+            "Do not use this campaign to advertise a tattoo service or tattoo giveaway as a Marketplace item. "
+            "Use the same campaign through Facebook Groups, your Facebook profile, Instagram or another channel that permits promotional posts instead."
         )
-        cta = f"Interested? Go to {tracked_url.replace('https://', '').replace('http://', '')} and tell me what you want."
-        guidance = "Use the title, description and tracked link in the listing. Marketplace review and category eligibility still apply."
-    elif channel == "facebook_group":
-        copy = (
-            f"Athens — {hook}. I'm {artist}, tattooing at {studio}. "
-            "If you've been thinking about getting tattooed, send the idea, placement, size, budget and timing through my Tattoo Concierge."
+        cta = f"Tracked campaign link: {tracked_url}"
+        guidance = (
+            "Marketplace is designed for eligible items and Meta applies Commerce Policies to listings. "
+            "Empty Chair will not generate a tattoo-service giveaway listing for Marketplace. Clone this concept into Facebook Groups or Facebook Profile for the free tattoo contest package."
         )
-        cta = f"Start here: {tracked_url}"
-        guidance = "Post only in groups where self-promotion or local service posts are allowed. Follow each group's rules."
-    elif channel == "facebook_profile":
-        copy = f"Athens friends: {hook}. I'm taking tattoo inquiries at {studio}. Tell me what you want and I'll see if it's a fit."
-        cta = f"Tattoo Concierge: {tracked_url}"
-        guidance = "Best for your own profile or page. Pair it with one strong portfolio image that matches the campaign concept."
+    elif channel in {"facebook_group", "facebook_profile"}:
+        return _contest_copy(campaign, artist, studio, tracked_url)
     elif channel == "instagram_post":
         copy = f"{hook}. Athens, GA · {artist} @ {studio}. Custom and flash inquiries welcome."
         cta = f"Tattoo Concierge: {tracked_url}"
@@ -155,7 +175,7 @@ def demand_launch_console(request: Request):
     return HTMLResponse(f"""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><title>Launch Console · Empty Chair</title>
     <style>
     body{{margin:0;background:#080a08;color:#f0eadf;font-family:Inter,system-ui,sans-serif}}main{{max-width:1100px;margin:auto;padding:28px}}a{{color:inherit;text-decoration:none}}h1{{font-size:44px;margin:6px 0 8px}}h2{{font-size:30px;margin:5px 0 12px}}h3{{margin:3px 0 0;font-size:21px}}.kicker{{color:#d8ff45;font:800 10px monospace;letter-spacing:.12em;text-transform:uppercase}}.note,.guidance,.empty{{color:#9ba197;font-size:12px;line-height:1.5}}.channel-section{{margin:28px 0}}.section-head{{border-bottom:1px solid #30362e;margin-bottom:12px}}.launch-card{{padding:18px;margin:12px 0;border:1px solid #30362e;background:#0e110e;box-shadow:4px 4px 0 #000}}.launch-top{{display:flex;justify-content:space-between;gap:12px}}.counts{{color:#d8ff45;font:800 10px monospace}}label{{display:block;margin-top:12px;color:#9ba197;font-size:10px;text-transform:uppercase}}input,textarea{{box-sizing:border-box;width:100%;margin-top:5px;padding:11px;border:1px solid #30362e;background:#090b09;color:#f0eadf;font:12px/1.45 Inter,system-ui,sans-serif}}.launch-actions{{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}}.button{{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border:1px solid #d8ff45;background:#d8ff45;color:#080a08;font-weight:900;cursor:pointer}}.button.secondary{{border-color:#3a4038;background:#171a17;color:#f0eadf}}.hidden-copy{{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}}.back{{display:inline-block;margin-bottom:10px;color:#d8ff45;font-weight:800;font-size:12px}}@media(max-width:650px){{main{{padding:18px}}h1{{font-size:36px}}.launch-card{{box-shadow:none}}.launch-actions{{display:grid}}.button{{width:100%}}}}
-    </style></head><body><main><a class='back' href='/demand-acquisition'>← Demand Engine</a><div class='kicker'>Assisted multichannel distribution</div><h1>Launch Console</h1><p class='note'>Every package keeps its own tracked campaign link. Copy it, use the native Share sheet, or open the destination channel. Empty Chair does not post into third-party accounts without an authorized platform connection.</p>{body}</main>
+    </style></head><body><main><a class='back' href='/demand-acquisition'>← Demand Engine</a><div class='kicker'>Assisted multichannel distribution</div><h1>Launch Console</h1><p class='note'>Every package keeps its own tracked campaign link. Copy it, use the native Share sheet, or open the destination channel. Empty Chair does not post into third-party accounts without an authorized platform connection. Facebook Groups/Profile packages use a judged, no-purchase tattoo concept contest rather than a raffle or random drawing.</p>{body}</main>
     <script>
     async function copyField(id,button){{const field=document.getElementById(id);if(!field)return;const original=button.textContent;try{{await navigator.clipboard.writeText(field.value)}}catch(err){{field.focus();field.select();document.execCommand('copy')}}button.textContent='Copied';setTimeout(()=>button.textContent=original,1200)}}
     async function sharePackage(titleId,fullId){{const title=document.getElementById(titleId)?.value||'Tattoo inquiry';const text=document.getElementById(fullId)?.value||'';if(navigator.share){{try{{await navigator.share({{title,text}});return}}catch(err){{if(err.name==='AbortError')return}}}}try{{await navigator.clipboard.writeText(text);alert('Package copied. Paste it into the channel you want to use.')}}catch(err){{alert('Use Copy Full Package instead.')}}}}
