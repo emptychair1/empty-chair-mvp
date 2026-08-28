@@ -9,6 +9,7 @@
 <nav class="sidebar-nav" aria-label="Primary navigation">
 <a class="nav-link desktop-primary {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon"><img src="/static/shop-intelligence.png" alt=""></span><span>Shop Intelligence</span></a>
 <a class="nav-link desktop-primary {{ 'active' if active_page == 'demand_graph' else '' }}" href="/demand-graph"><span class="nav-icon"><img src="/static/demand-graph.png" alt=""></span><span>Demand Graph</span></a>
+<a class="nav-link desktop-primary {{ 'active' if active_page == 'demand_acquisition' else '' }}" href="/demand-acquisition"><span class="nav-icon"><img src="/static/demand-graph.png" alt=""></span><span>Demand Engine</span></a>
 <a class="nav-link desktop-primary {{ 'active' if active_page == 'm4' else '' }}" href="/m4"><span class="nav-icon"><img src="/static/m4-intelligence.png" alt=""></span><span>M4 Intelligence</span></a>
 {% if is_platform_admin(user) %}<a class="nav-link desktop-primary {{ 'active' if active_page == 'owner' else '' }}" href="/owner"><span class="nav-icon"><img src="/static/platform-intelligence.png" alt=""></span><span>Platform Intelligence</span></a>{% endif %}
 <a class="nav-link desktop-primary {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon"><img src="/static/openings-recovery.png" alt=""></span><span>Openings</span></a>
@@ -29,8 +30,9 @@
 </div></details>
 {% if user and user.id == 'user_live_demo' %}<a class="nav-link desktop-primary {{ 'active' if active_page == 'demo' else '' }}" href="/demo"><span class="nav-icon"><img src="/static/demo-guide.png" alt=""></span><span>Demo Guide</span></a>{% endif %}
 
-<details class="mobile-more {{ 'active' if active_page in ['artists','customers','operations','settings','setup','support','concierge_leads','demand_graph','m4','owner','demo'] else '' }}"><summary><span class="nav-icon"><img src="/static/settings.png" alt=""></span><span>More</span></summary><div class="mobile-more-sheet">
+<details class="mobile-more {{ 'active' if active_page in ['artists','customers','operations','settings','setup','support','concierge_leads','demand_graph','demand_acquisition','m4','owner','demo'] else '' }}"><summary><span class="nav-icon"><img src="/static/settings.png" alt=""></span><span>More</span></summary><div class="mobile-more-sheet">
 <a href="/demand-graph"><span><img class="menu-icon" src="/static/demand-graph.png" alt=""></span><strong>Demand Graph</strong></a>
+<a href="/demand-acquisition"><span><img class="menu-icon" src="/static/demand-graph.png" alt=""></span><strong>Demand Engine</strong></a>
 <a href="/m4"><span><img class="menu-icon" src="/static/m4-intelligence.png" alt=""></span><strong>M4 Intelligence</strong></a>
 {% if is_platform_admin(user) %}<a href="/owner"><span><img class="menu-icon" src="/static/platform-intelligence.png" alt=""></span><strong>Platform Intelligence</strong></a>{% endif %}
 <a href="/concierge-leads"><span><img class="menu-icon" src="/static/concierge-leads.png" alt=""></span><strong>Concierge Leads</strong></a>
