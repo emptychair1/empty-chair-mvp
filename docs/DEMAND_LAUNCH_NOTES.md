@@ -1,0 +1,1 @@
+Demand Engine launch console is intentionally assisted distribution first. It prepares channel-specific copy, preserves tracked attribution, supports native sharing, and opens destination channels. Direct third-party publishing should only be added per platform after an authorized connection and current API/policy validation.
