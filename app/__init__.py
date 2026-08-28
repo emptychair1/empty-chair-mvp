@@ -20,6 +20,7 @@ import features  # noqa: E402,F401
 import pwa  # noqa: E402,F401
 import m4_dashboard  # noqa: E402,F401
 import demand_acquisition  # noqa: E402,F401
+import demand_channels  # noqa: E402,F401
 import demand_compliance  # noqa: E402,F401
 import demand_shortlinks  # noqa: E402,F401
 import demand_ui  # noqa: E402,F401
