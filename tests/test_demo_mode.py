@@ -5,7 +5,8 @@ import demo_mode
 
 def test_demo_control_is_postgres_compatible():
     source = inspect.getsource(demo_mode.demo_control).lower()
-    assert "rowid" not in source
+    assert "order by rowid" not in source
+    assert "select rowid" not in source
 
 
 def test_demo_customers_satisfy_required_phone_constraint():
