@@ -8,6 +8,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 
 import bootstrap
+import demand_tattoo_finder  # noqa: F401,E402
 
 
 app = bootstrap.app
