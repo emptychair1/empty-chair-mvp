@@ -24,3 +24,7 @@ Athens is the first market because an active acquisition identity already exists
 ## Boundaries
 
 Tattoo Finder captures demand. It does not claim a booking, price, artist match, or availability. Matching and downstream conversion remain responsibilities of M4 / Concierge / Apprentice workflows.
+
+## Validation
+
+This branch is intended to run against the repaired repository CI suite before merge.
