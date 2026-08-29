@@ -21,7 +21,7 @@ register_demand_engine(
 
 
 @app.post("/settings/test-sms")
-def test_sms_delivery(
+def send_test_sms_delivery(
     request: Request,
     phone: str = Form(...),
 ):
