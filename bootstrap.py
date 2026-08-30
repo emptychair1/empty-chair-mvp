@@ -46,6 +46,7 @@ import m4_human_judgment_routes  # noqa: F401,E402
 import concierge  # noqa: F401,E402
 import attribution_runtime  # noqa: F401,E402
 import crybaby_cleanup_once  # noqa: F401,E402
+import crybaby_cleanup_fk_patch  # noqa: F401,E402
 
 meeting_v2 = None
 meeting_import_error = None
