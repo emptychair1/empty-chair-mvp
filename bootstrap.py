@@ -48,6 +48,7 @@ import attribution_runtime  # noqa: F401,E402
 import crybaby_cleanup_once  # noqa: F401,E402
 import crybaby_cleanup_fk_patch  # noqa: F401,E402
 import customer_bulk_delete  # noqa: F401,E402
+import contest  # noqa: F401,E402
 
 meeting_v2 = None
 meeting_import_error = None
