@@ -20,9 +20,10 @@
     meta.content = content;
   }
 
+  ensureLink('icon', '/static/icons/empty-chair-mascot-favicon.svg', { type: 'image/svg+xml' });
   ensureLink('manifest', '/manifest.webmanifest');
-  ensureLink('apple-touch-icon', '/static/icons/ec-icon-192.png', { sizes: '192x192' });
-  ensureMeta('theme-color', '#070707');
+  ensureLink('apple-touch-icon', '/pwa-icon.png', { sizes: '192x192' });
+  ensureMeta('theme-color', '#b8ff00');
   ensureMeta('apple-mobile-web-app-capable', 'yes');
   ensureMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
   ensureMeta('apple-mobile-web-app-title', 'Empty Chair');
