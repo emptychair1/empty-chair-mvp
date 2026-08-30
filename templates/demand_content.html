@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Content Library · Demand Engine</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <style>
+    .cl-shell{display:grid;gap:16px;max-width:1180px;margin:0 auto}.cl-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end}.cl-head h1{margin:0;font-family:var(--cartoon);font-size:42px;font-weight:400;text-transform:uppercase}.cl-head p{margin:5px 0 0;color:var(--muted);font-size:11px}.cl-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.cl-metric{padding:14px;border:1px solid var(--line);background:#080908}.cl-metric b{display:block;font-size:26px}.cl-metric span{color:var(--muted);font-size:9px;text-transform:uppercase}.cl-grid{display:grid;grid-template-columns:1.5fr .7fr;gap:14px}.cl-panel{border:1px solid var(--line);background:#080908}.cl-panel-head{padding:15px 16px;border-bottom:1px solid var(--line-soft);font-family:var(--cartoon);font-size:22px;text-transform:uppercase}.cl-list{display:grid}.cl-item{display:grid;grid-template-columns:1fr auto;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line-soft)}.cl-item:last-child{border-bottom:0}.cl-title{font-weight:900}.cl-meta{margin-top:5px;color:var(--muted);font-size:10px;text-transform:capitalize}.cl-status{display:flex;gap:6px;align-items:center}.cl-status select{min-width:110px;margin:0}.cl-form{padding:16px}.cl-form label{display:block;margin-bottom:11px}.cl-form input,.cl-form select,.cl-form textarea{width:100%}.cl-empty{padding:18px;color:var(--muted);font-size:11px}@media(max-width:760px){.cl-head{align-items:flex-start;flex-direction:column}.cl-grid{grid-template-columns:1fr}.cl-metrics{grid-template-columns:repeat(3,1fr)}.cl-item{grid-template-columns:1fr}.cl-status form{width:100%;display:grid;grid-template-columns:1fr auto;gap:7px}}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  {% set active_page='demand_acquisition' %}{% include '_sidebar.html' %}
+  <main class="main">
+    <header class="topbar"><div class="topbar-left"><div><div class="page-title">Demand Engine</div><div class="page-subtitle">Content Library</div></div></div></header>
+    <div class="content"><section class="cl-shell">
+      <div class="cl-head"><div><div class="kicker">Acquisition Inventory</div><h1>Content Library</h1><p>Move artwork from inventory → queue → published content.</p></div><a class="button secondary" href="/demand-acquisition">Back to Demand Engine</a></div>
+      <section class="cl-metrics"><div class="cl-metric"><b>{{ counts.unused }}</b><span>Unused</span></div><div class="cl-metric"><b>{{ counts.queued }}</b><span>Queued</span></div><div class="cl-metric"><b>{{ counts.published }}</b><span>Published</span></div></section>
+      <section class="cl-grid">
+        <div class="cl-panel"><div class="cl-panel-head">Artwork Inventory</div>{% if assets %}<div class="cl-list">{% for a in assets %}<article class="cl-item"><div><div class="cl-title">{{ a.title }}</div><div class="cl-meta">{{ a.asset_type }} · {{ a.theme }}{% if a.source_name %} · {{ a.source_name }}{% endif %}</div>{% if a.notes %}<div class="cl-meta">{{ a.notes }}</div>{% endif %}</div><div class="cl-status"><form method="post" action="/demand-acquisition/content/{{ a.id }}/status"><select name="status"><option value="unused" {% if a.status=='unused' %}selected{% endif %}>Unused</option><option value="queued" {% if a.status=='queued' %}selected{% endif %}>Queued</option><option value="published" {% if a.status=='published' %}selected{% endif %}>Published</option></select><button class="button secondary" type="submit">Save</button></form></div></article>{% endfor %}</div>{% else %}<div class="cl-empty">No artwork in the library yet. Add the first asset here.</div>{% endif %}</div>
+        <aside class="cl-panel"><div class="cl-panel-head">Add Artwork</div><form class="cl-form" method="post" action="/demand-acquisition/content"><label>Title<input name="title" required placeholder="Rabbit + roses"></label><label>Type<select name="asset_type"><option value="flash">Flash / design</option><option value="finished_tattoo">Finished tattoo</option><option value="photo">Photo</option><option value="video">Video</option></select></label><label>Theme<select name="theme"><option value="traditional">Traditional / neo-traditional</option><option value="weird_playful">Weird / playful</option><option value="dark_occult">Dark / occult</option><option value="nature_animals">Nature / animals</option><option value="pop_culture">Pop culture / nostalgia</option><option value="other">Other</option></select></label><label>Source filename<input name="source_name" placeholder="Untitled_Artwork 58.jpg"></label><label>Notes<textarea name="notes" rows="3" placeholder="Strong hero post; color piece"></textarea></label><button class="button" type="submit">Add to Library</button></form></aside>
+      </section>
+    </section></div>
+  </main>
+</div>
+</body>
+</html>
