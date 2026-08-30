@@ -1,0 +1,95 @@
+name: Migrate Render PostgreSQL to Neon V2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RENDER_DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - name: Verify required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RENDER_DATABASE_URL" || { echo "RENDER_DATABASE_URL is missing"; exit 1; }
+          test -n "$NEON_DATABASE_URL" || { echo "NEON_DATABASE_URL is missing"; exit 1; }
+
+      - name: Verify PostgreSQL 18 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm postgres:18 pg_dump --version
+          docker run --rm postgres:18 pg_restore --version
+
+      - name: Check source database
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -e DB_URL="$RENDER_DATABASE_URL" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT '\''source_ok'\'', current_database(), version();"'
+          docker run --rm -e DB_URL="$RENDER_DATABASE_URL" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT '\''source_tables'\'', count(*) FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_type='\''BASE TABLE'\'';"'
+
+      - name: Dump Render production database
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e DB_URL="$RENDER_DATABASE_URL" \
+            -v /tmp:/dump \
+            postgres:18 \
+            bash -lc 'pg_dump "$DB_URL" --format=custom --no-owner --no-privileges --file=/dump/empty-chair-production.dump'
+          test -s /tmp/empty-chair-production.dump
+          echo "Production dump created successfully."
+
+      - name: Prepare Neon destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -e DB_URL="$NEON_DATABASE_URL" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"'
+
+      - name: Restore into Neon
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e DB_URL="$NEON_DATABASE_URL" \
+            -v /tmp:/dump \
+            postgres:18 \
+            bash -lc 'pg_restore --dbname="$DB_URL" --no-owner --no-privileges --exit-on-error /dump/empty-chair-production.dump'
+
+      - name: Verify schema and table row counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_TABLES="$(docker run --rm -e DB_URL="$RENDER_DATABASE_URL" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_type='\''BASE TABLE'\'';"')"
+          DST_TABLES="$(docker run --rm -e DB_URL="$NEON_DATABASE_URL" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='\''public'\'' AND table_type='\''BASE TABLE'\'';"')"
+          echo "Source tables: $SRC_TABLES"
+          echo "Neon tables:   $DST_TABLES"
+          test "$SRC_TABLES" = "$DST_TABLES" || { echo "Table-count mismatch"; exit 1; }
+
+          docker run --rm -e DB_URL="$RENDER_DATABASE_URL" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='\''public'\'' ORDER BY tablename"' > /tmp/source_tables.txt
+          docker run --rm -e DB_URL="$NEON_DATABASE_URL" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='\''public'\'' ORDER BY tablename"' > /tmp/neon_tables.txt
+          diff -u /tmp/source_tables.txt /tmp/neon_tables.txt
+
+          while IFS= read -r table; do
+            src_count="$(docker run --rm -e DB_URL="$RENDER_DATABASE_URL" -e TABLE="$table" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$TABLE\";"')"
+            dst_count="$(docker run --rm -e DB_URL="$NEON_DATABASE_URL" -e TABLE="$table" postgres:18 bash -lc 'psql "$DB_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$TABLE\";"')"
+            if [ "$src_count" != "$dst_count" ]; then
+              echo "ROW COUNT MISMATCH: $table source=$src_count neon=$dst_count"
+              exit 1
+            fi
+            echo "verified $table: $src_count rows"
+          done < /tmp/source_tables.txt
+
+          echo "Migration verification passed: table names and row counts match."
+
+      - name: Remove temporary dump
+        if: always()
+        shell: bash
+        run: rm -f /tmp/empty-chair-production.dump /tmp/source_tables.txt /tmp/neon_tables.txt
