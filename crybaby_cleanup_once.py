@@ -11,7 +11,7 @@ import html
 import json
 
 from fastapi import Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
 import app as core
 from founder_simulation_safety import load_and_assert_founder_simulation_target
@@ -66,21 +66,39 @@ def _assert_signed_in_crybaby(conn, user):
     return shop
 
 
-def _resolve_founder_artist(conn, shop_id: str):
-    users = core.db_fetchall(
-        conn,
-        "SELECT id,name,email FROM users WHERE shop_id=? AND is_active=1 ORDER BY created_at ASC",
-        (shop_id,),
-    )
-    artists = core.db_fetchall(
-        conn,
-        "SELECT id,name,email FROM artists WHERE shop_id=? ORDER BY id",
-        (shop_id,),
-    )
+def _artists_for_shop(conn, shop_id: str) -> list[dict]:
+    return [
+        dict(row)
+        for row in core.db_fetchall(
+            conn,
+            "SELECT id,name,email FROM artists WHERE shop_id=? ORDER BY name,id",
+            (shop_id,),
+        )
+    ]
+
+
+def _resolve_founder_artist(conn, shop_id: str, selected_artist_id: str | None = None):
+    users = [
+        dict(row)
+        for row in core.db_fetchall(
+            conn,
+            "SELECT id,name,email FROM users WHERE shop_id=? AND is_active=1 ORDER BY created_at ASC",
+            (shop_id,),
+        )
+    ]
+    artists = _artists_for_shop(conn, shop_id)
+
     if not users:
         raise RuntimeError("Crybaby cleanup refused: no active Crybaby user account found")
 
-    matches = {}
+    if selected_artist_id:
+        selected_artist_id = str(selected_artist_id).strip()
+        selected = next((row for row in artists if str(row.get("id")) == selected_artist_id), None)
+        if not selected:
+            raise RuntimeError("Selected founder artist does not belong to this Crybaby shop")
+        return selected
+
+    matches: dict[str, dict] = {}
     for artist in artists:
         artist_name = _normalized(artist.get("name"))
         artist_email = _normalized(artist.get("email"))
@@ -88,40 +106,37 @@ def _resolve_founder_artist(conn, shop_id: str):
             user_name = _normalized(user.get("name"))
             user_email = _normalized(user.get("email"))
             if artist_email and user_email and artist_email == user_email:
-                matches[artist["id"]] = artist
+                matches[str(artist["id"])] = artist
                 break
             if artist_name and user_name and artist_name == user_name:
-                matches[artist["id"]] = artist
+                matches[str(artist["id"])] = artist
                 break
         if artist_name in {"josh daniels", "joshua daniels"}:
-            matches[artist["id"]] = artist
+            matches[str(artist["id"])] = artist
 
     if len(matches) == 1:
         return next(iter(matches.values()))
     if len(matches) > 1:
-        named = [row for row in matches.values() if _normalized(row.get("name")) in {"josh daniels", "joshua daniels"}]
+        named = [
+            row
+            for row in matches.values()
+            if _normalized(row.get("name")) in {"josh daniels", "joshua daniels"}
+        ]
         if len(named) == 1:
             return named[0]
-        raise RuntimeError("Crybaby cleanup refused: multiple founder artist matches found")
+        return None
 
     non_sim = [
-        row for row in artists
+        row
+        for row in artists
         if not str(row.get("id") or "").lower().startswith((SIM_PREFIX, "test_", "demo_"))
     ]
     if len(non_sim) == 1:
         return non_sim[0]
     if len(non_sim) > 1:
-        raise RuntimeError("Crybaby cleanup refused: founder artist is ambiguous")
+        return None
 
-    user = users[0]
-    artist_id = "artist_crybaby_founder"
-    core.db_execute(
-        conn,
-        """INSERT INTO artists(id,shop_id,name,email,phone,styles,services,active)
-           VALUES (?,?,?,?,?,?,?,1)""",
-        (artist_id, shop_id, user["name"], user.get("email"), None, "", "tattoo"),
-    )
-    return {"id": artist_id, "name": user["name"], "email": user.get("email")}
+    return None
 
 
 def _customer_is_test(row) -> bool:
@@ -169,13 +184,16 @@ def _delete_by_ids(conn, table: str, column: str, ids: list[str]) -> int:
     return max(int(getattr(cursor, "rowcount", 0) or 0), 0)
 
 
-def preview_cleanup(conn, user) -> dict:
+def preview_cleanup(conn, user, selected_artist_id: str | None = None) -> dict:
     shop = _assert_signed_in_crybaby(conn, user)
     shop_id = shop["id"]
-    founder_artist = _resolve_founder_artist(conn, shop_id)
+    artists = _artists_for_shop(conn, shop_id)
+    founder_artist = _resolve_founder_artist(conn, shop_id, selected_artist_id)
 
-    artists = core.db_fetchall(conn, "SELECT id,name FROM artists WHERE shop_id=? ORDER BY name", (shop_id,))
-    remove_artists = [dict(row) for row in artists if row["id"] != founder_artist["id"]]
+    if founder_artist:
+        remove_artists = [row for row in artists if row["id"] != founder_artist["id"]]
+    else:
+        remove_artists = []
 
     customers = core.db_fetchall(
         conn,
@@ -196,15 +214,20 @@ def preview_cleanup(conn, user) -> dict:
 
     return {
         "shop": dict(shop),
-        "founder_artist": dict(founder_artist),
+        "artists": artists,
+        "founder_artist": dict(founder_artist) if founder_artist else None,
         "remove_artists": remove_artists,
         "test_customers": test_customers,
         "test_leads": test_leads,
+        "selected_artist_id": selected_artist_id or "",
     }
 
 
-def execute_cleanup(conn, user) -> dict:
-    preview = preview_cleanup(conn, user)
+def execute_cleanup(conn, user, selected_artist_id: str) -> dict:
+    preview = preview_cleanup(conn, user, selected_artist_id)
+    if not preview["founder_artist"]:
+        raise RuntimeError("Choose the Crybaby artist record that should be kept")
+
     shop_id = preview["shop"]["id"]
     keep_artist_id = preview["founder_artist"]["id"]
     remove_artist_ids = [row["id"] for row in preview["remove_artists"]]
@@ -266,7 +289,11 @@ def execute_cleanup(conn, user) -> dict:
 
     conn.commit()
 
-    remaining_artists = core.db_fetchall(conn, "SELECT id,name FROM artists WHERE shop_id=? ORDER BY name", (shop_id,))
+    remaining_artists = core.db_fetchall(
+        conn,
+        "SELECT id,name FROM artists WHERE shop_id=? ORDER BY name",
+        (shop_id,),
+    )
     remaining_test_customers = core.db_fetchall(
         conn,
         "SELECT id,name,phone,email FROM customers WHERE shop_id=?",
@@ -302,24 +329,47 @@ def _e(value) -> str:
 
 
 def _page(preview: dict, result: dict | None = None, error: str = "") -> str:
-    founder = preview["founder_artist"]
-    artist_rows = "".join(f"<li>{_e(row['name'])} <code>{_e(row['id'])}</code></li>" for row in preview["remove_artists"]) or "<li>None</li>"
-    customer_rows = "".join(f"<li>{_e(row['name'])} <code>{_e(row['id'])}</code></li>" for row in preview["test_customers"][:100]) or "<li>None</li>"
+    founder = preview.get("founder_artist")
+    artist_options = "".join(
+        f"<label class='artist-option'><input type='radio' name='keep_artist_id' value='{_e(row['id'])}' {'checked' if founder and row['id'] == founder['id'] else ''} required><span><b>{_e(row.get('name') or 'Unnamed artist')}</b><small>{_e(row.get('email') or '')}<br><code>{_e(row['id'])}</code></small></span></label>"
+        for row in preview["artists"]
+    ) or "<p>No artist records were found.</p>"
+
+    artist_rows = "".join(
+        f"<li>{_e(row['name'])} <code>{_e(row['id'])}</code></li>"
+        for row in preview["remove_artists"]
+    ) or "<li>None</li>"
+    customer_rows = "".join(
+        f"<li>{_e(row['name'])} <code>{_e(row['id'])}</code></li>"
+        for row in preview["test_customers"][:100]
+    ) or "<li>None</li>"
+
     result_html = ""
     if result:
         result_html = f"""
         <section class='ok'><h2>Cleanup completed</h2>
+        <p>Kept artist: <b>{_e(result['kept_artist_name'])}</b></p>
         <p>Removed artists: <b>{result['removed_artists']}</b> · Test customers: <b>{result['removed_test_customers']}</b> · Test Concierge leads: <b>{result['removed_test_concierge_leads']}</b></p>
         <p>Remaining artists: <b>{len(result['remaining_artists'])}</b> · Remaining detected test customers: <b>{result['remaining_test_customers']}</b> · Remaining detected test leads: <b>{result['remaining_test_concierge_leads']}</b></p></section>"""
     error_html = f"<section class='bad'><b>{_e(error)}</b></section>" if error else ""
+
+    if founder:
+        keep_summary = f"<p><b>{_e(founder['name'])}</b> <code>{_e(founder['id'])}</code></p>"
+        removal_summary = f"<section class='card'><h2>Other Crybaby artists to remove ({len(preview['remove_artists'])})</h2><ul>{artist_rows}</ul></section>"
+    else:
+        keep_summary = "<p>We could not safely determine which artist record is yours. Select it below.</p>"
+        removal_summary = ""
+
     return f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Crybaby Cleanup · Empty Chair</title>
-    <style>body{{margin:0;background:#080a08;color:#f0eadf;font-family:Inter,system-ui,sans-serif}}main{{max-width:880px;margin:auto;padding:28px}}h1{{font-size:38px;margin:6px 0 8px}}h2{{font-size:18px}}.ey{{color:#d8ff45;font:700 11px ui-monospace,monospace;letter-spacing:.12em}}.card,.ok,.bad{{border:1px solid #30362e;background:#0f120f;padding:18px;margin:14px 0}}.ok{{border-color:#7aa321}}.bad{{border-color:#b94d4d}}code{{color:#aab3a7;font-size:11px}}ul{{line-height:1.7}}input{{width:100%;box-sizing:border-box;background:#090b09;color:#fff;border:1px solid #3a4237;padding:13px;margin:8px 0 12px}}button{{background:#d8ff45;color:#10130f;border:0;padding:13px 16px;font-weight:900;cursor:pointer}}a{{color:#d8ff45}}</style></head><body><main>
+    <style>
+    body{{margin:0;background:#080a08;color:#f0eadf;font-family:Inter,system-ui,sans-serif}}main{{max-width:880px;margin:auto;padding:28px}}h1{{font-size:38px;margin:6px 0 8px}}h2{{font-size:18px}}.ey{{color:#d8ff45;font:700 11px ui-monospace,monospace;letter-spacing:.12em}}.card,.ok,.bad{{border:1px solid #30362e;background:#0f120f;padding:18px;margin:14px 0}}.ok{{border-color:#7aa321}}.bad{{border-color:#b94d4d}}code{{color:#aab3a7;font-size:11px}}ul{{line-height:1.7}}input[type=text]{{width:100%;box-sizing:border-box;background:#090b09;color:#fff;border:1px solid #3a4237;padding:13px;margin:8px 0 12px}}button{{background:#d8ff45;color:#10130f;border:0;padding:13px 16px;font-weight:900;cursor:pointer}}a{{color:#d8ff45}}.artist-option{{display:flex;gap:12px;align-items:flex-start;border:1px solid #30362e;padding:14px;margin:10px 0;cursor:pointer}}.artist-option input{{margin-top:5px;transform:scale(1.25)}}.artist-option span{{display:block}}.artist-option small{{display:block;color:#aab3a7;margin-top:4px;line-height:1.4}}
+    </style></head><body><main>
     <div class='ey'>FOUNDER MAINTENANCE</div><h1>Crybaby Cleanup</h1><p>Signed-in shop: <b>{_e(preview['shop']['name'])}</b></p>{error_html}{result_html}
-    <section class='card'><h2>Artist that will be kept</h2><p><b>{_e(founder['name'])}</b> <code>{_e(founder['id'])}</code></p></section>
-    <section class='card'><h2>Other Crybaby artists to remove ({len(preview['remove_artists'])})</h2><ul>{artist_rows}</ul></section>
+    <section class='card'><h2>Choose the artist record to keep</h2>{keep_summary}<form method='post'>{artist_options}</section>
+    {removal_summary}
     <section class='card'><h2>Detected sim/test customers ({len(preview['test_customers'])})</h2><ul>{customer_rows}</ul><p>Detected sim/test Concierge leads: <b>{len(preview['test_leads'])}</b></p></section>
-    <section class='card'><h2>Run cleanup</h2><p>This only affects the signed-in Crybaby shop. Real customers not matching the test/simulation markers are left alone.</p>
-    <form method='post'><label>Type <b>{CONFIRM_PHRASE}</b> to confirm.</label><input name='confirmation' autocomplete='off' required><button type='submit'>Clean Crybaby Data</button></form></section>
+    <section class='card'><h2>Run cleanup</h2><p>This only affects the signed-in Crybaby shop. The artist you select is preserved. Real customers not matching the test/simulation markers are left alone.</p>
+    <label>Type <b>{CONFIRM_PHRASE}</b> to confirm.</label><input type='text' name='confirmation' autocomplete='off' required><button type='submit'>Clean Crybaby Data</button></form></section>
     <p><a href='/'>← Back to Empty Chair</a></p></main></body></html>"""
 
 
@@ -331,7 +381,7 @@ def crybaby_cleanup_screen(request: Request):
     conn = core.connect()
     try:
         preview = preview_cleanup(conn, user)
-        conn.rollback()  # preview may create a founder artist only in the no-artist edge case; never mutate on GET.
+        conn.rollback()
         return HTMLResponse(_page(preview), headers={"Cache-Control": "no-store"})
     except Exception as exc:
         conn.rollback()
@@ -345,26 +395,38 @@ def crybaby_cleanup_screen(request: Request):
 
 
 @core.app.post("/admin/crybaby-cleanup", response_class=HTMLResponse)
-def crybaby_cleanup_execute(request: Request, confirmation: str = Form(...)):
+def crybaby_cleanup_execute(
+    request: Request,
+    confirmation: str = Form(...),
+    keep_artist_id: str = Form(...),
+):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
     conn = core.connect()
     try:
-        preview = preview_cleanup(conn, user)
+        preview = preview_cleanup(conn, user, keep_artist_id)
         if str(confirmation or "").strip().upper() != CONFIRM_PHRASE:
             conn.rollback()
-            return HTMLResponse(_page(preview, error="Confirmation phrase did not match. Nothing was deleted."), status_code=400, headers={"Cache-Control": "no-store"})
-        result = execute_cleanup(conn, user)
-        refreshed = preview_cleanup(conn, user)
+            return HTMLResponse(
+                _page(preview, error="Confirmation phrase did not match. Nothing was deleted."),
+                status_code=400,
+                headers={"Cache-Control": "no-store"},
+            )
+        result = execute_cleanup(conn, user, keep_artist_id)
+        refreshed = preview_cleanup(conn, user, keep_artist_id)
         conn.rollback()
         return HTMLResponse(_page(refreshed, result=result), headers={"Cache-Control": "no-store"})
     except Exception as exc:
         conn.rollback()
         try:
-            preview = preview_cleanup(conn, user)
+            preview = preview_cleanup(conn, user, keep_artist_id)
             conn.rollback()
-            return HTMLResponse(_page(preview, error=type(exc).__name__ + ": " + str(exc)), status_code=500, headers={"Cache-Control": "no-store"})
+            return HTMLResponse(
+                _page(preview, error=type(exc).__name__ + ": " + str(exc)),
+                status_code=500,
+                headers={"Cache-Control": "no-store"},
+            )
         except Exception:
             return HTMLResponse(
                 f"<html><body style='background:#080a08;color:#fff;font-family:system-ui;padding:30px'><h1>Crybaby cleanup failed</h1><pre>{_e(type(exc).__name__ + ': ' + str(exc))}</pre><a style='color:#d8ff45' href='/'>Back</a></body></html>",
