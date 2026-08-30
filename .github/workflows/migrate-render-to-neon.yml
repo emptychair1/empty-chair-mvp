@@ -21,27 +21,27 @@ jobs:
           test -n "$RENDER_DATABASE_URL" || { echo "RENDER_DATABASE_URL is missing"; exit 1; }
           test -n "$NEON_DATABASE_URL" || { echo "NEON_DATABASE_URL is missing"; exit 1; }
 
-      - name: Install PostgreSQL client
+      - name: Install PostgreSQL 18 client
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
-          pg_dump --version
-          pg_restore --version
+          sudo apt-get install -y postgresql-client-18
+          /usr/lib/postgresql/18/bin/pg_dump --version
+          /usr/lib/postgresql/18/bin/pg_restore --version
 
       - name: Check source database
         shell: bash
         run: |
           set -euo pipefail
-          psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT 'source_ok', current_database(), version();"
-          psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT 'source_tables', count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
+          /usr/lib/postgresql/18/bin/psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT 'source_ok', current_database(), version();"
+          /usr/lib/postgresql/18/bin/psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT 'source_tables', count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
 
       - name: Dump Render production database
         shell: bash
         run: |
           set -euo pipefail
-          pg_dump "$RENDER_DATABASE_URL" \
+          /usr/lib/postgresql/18/bin/pg_dump "$RENDER_DATABASE_URL" \
             --format=custom \
             --no-owner \
             --no-privileges \
@@ -53,13 +53,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+          /usr/lib/postgresql/18/bin/psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
 
       - name: Restore into Neon
         shell: bash
         run: |
           set -euo pipefail
-          pg_restore \
+          /usr/lib/postgresql/18/bin/pg_restore \
             --dbname="$NEON_DATABASE_URL" \
             --no-owner \
             --no-privileges \
@@ -70,19 +70,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SRC_TABLES="$(psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
-          DST_TABLES="$(psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
+          PSQL=/usr/lib/postgresql/18/bin/psql
+          SRC_TABLES="$($PSQL "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
+          DST_TABLES="$($PSQL "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
           echo "Source tables: $SRC_TABLES"
           echo "Neon tables:   $DST_TABLES"
           test "$SRC_TABLES" = "$DST_TABLES" || { echo "Table-count mismatch"; exit 1; }
 
-          psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename" > /tmp/source_tables.txt
-          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename" > /tmp/neon_tables.txt
+          $PSQL "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename" > /tmp/source_tables.txt
+          $PSQL "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename" > /tmp/neon_tables.txt
           diff -u /tmp/source_tables.txt /tmp/neon_tables.txt
 
           while IFS= read -r table; do
-            src_count="$(psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$table\";")"
-            dst_count="$(psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$table\";")"
+            src_count="$($PSQL "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$table\";")"
+            dst_count="$($PSQL "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$table\";")"
             if [ "$src_count" != "$dst_count" ]; then
               echo "ROW COUNT MISMATCH: $table source=$src_count neon=$dst_count"
               exit 1
