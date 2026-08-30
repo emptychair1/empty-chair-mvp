@@ -1,19 +1,23 @@
-"""One-time Crybaby Tattoos production cleanup.
+"""Authenticated Crybaby Tattoos cleanup tool.
 
-This module is intentionally narrow: it only targets the Crybaby founder shop,
-keeps the founder's real artist record, and removes clearly synthetic/test
-records. It records completion in the database so restarts are idempotent.
+This module never mutates data on import. It registers a small authenticated
+maintenance screen that previews clearly synthetic/test records and only
+executes after an explicit POST confirmation from a signed-in Crybaby user.
 """
 
 from __future__ import annotations
 
+import html
 import json
+
+from fastapi import Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 import app as core
 from founder_simulation_safety import load_and_assert_founder_simulation_target
 
-CLEANUP_KEY = "crybaby_live_cleanup_v1"
 SIM_PREFIX = "founder_sim_"
+CONFIRM_PHRASE = "CLEAN CRYBABY"
 
 
 def _table_exists(conn, table_name: str) -> bool:
@@ -32,73 +36,51 @@ def _table_exists(conn, table_name: str) -> bool:
     return bool(row)
 
 
-def _ensure_audit_table(conn) -> None:
-    core.db_execute(
-        conn,
-        """
-        CREATE TABLE IF NOT EXISTS maintenance_runs (
-            id TEXT PRIMARY KEY,
-            scope TEXT NOT NULL,
-            summary_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL
+def _column_exists(conn, table_name: str, column_name: str) -> bool:
+    if not _table_exists(conn, table_name):
+        return False
+    if getattr(core, "USE_POSTGRES", False):
+        row = core.db_fetchone(
+            conn,
+            """SELECT 1 FROM information_schema.columns
+               WHERE table_schema='public' AND table_name=? AND column_name=?""",
+            (table_name, column_name),
         )
-        """,
-    )
+        return bool(row)
+    rows = core.db_fetchall(conn, f"PRAGMA table_info({table_name})")
+    return any(str(row[1]) == column_name for row in rows)
 
 
 def _normalized(value) -> str:
     return " ".join(str(value or "").strip().lower().split())
 
 
-def _as_dict(row):
-    return dict(row) if row is not None else None
-
-
-def _find_crybaby_shop(conn):
-    rows = [
-        _as_dict(row)
-        for row in core.db_fetchall(
-            conn,
-            "SELECT id,name FROM shops WHERE LOWER(name) IN ('crybaby tattoos','crybaby tattoo')",
-        )
-    ]
-    if len(rows) != 1:
-        raise RuntimeError(
-            f"Crybaby cleanup refused: expected exactly one Crybaby shop, found {len(rows)}"
-        )
-    shop = rows[0]
-    load_and_assert_founder_simulation_target(
-        conn,
-        core.db_fetchone,
-        shop["id"],
-    )
+def _assert_signed_in_crybaby(conn, user):
+    if not user or not user.get("shop_id"):
+        raise RuntimeError("Crybaby cleanup refused: signed-in shop is required")
+    shop_id = str(user["shop_id"])
+    load_and_assert_founder_simulation_target(conn, core.db_fetchone, shop_id)
+    shop = core.db_fetchone(conn, "SELECT id,name FROM shops WHERE id=?", (shop_id,))
+    if not shop:
+        raise RuntimeError("Crybaby cleanup refused: shop was not found")
     return shop
 
 
 def _resolve_founder_artist(conn, shop_id: str):
-    users = [
-        _as_dict(row)
-        for row in core.db_fetchall(
-            conn,
-            "SELECT id,name,email FROM users WHERE shop_id=? AND is_active=1 ORDER BY created_at ASC",
-            (shop_id,),
-        )
-    ]
-    artists = [
-        _as_dict(row)
-        for row in core.db_fetchall(
-            conn,
-            "SELECT id,name,email FROM artists WHERE shop_id=? ORDER BY id",
-            (shop_id,),
-        )
-    ]
-
+    users = core.db_fetchall(
+        conn,
+        "SELECT id,name,email FROM users WHERE shop_id=? AND is_active=1 ORDER BY created_at ASC",
+        (shop_id,),
+    )
+    artists = core.db_fetchall(
+        conn,
+        "SELECT id,name,email FROM artists WHERE shop_id=? ORDER BY id",
+        (shop_id,),
+    )
     if not users:
-        raise RuntimeError(
-            "Crybaby cleanup refused: no active Crybaby user account found"
-        )
+        raise RuntimeError("Crybaby cleanup refused: no active Crybaby user account found")
 
-    matches = []
+    matches = {}
     for artist in artists:
         artist_name = _normalized(artist.get("name"))
         artist_email = _normalized(artist.get("email"))
@@ -106,78 +88,52 @@ def _resolve_founder_artist(conn, shop_id: str):
             user_name = _normalized(user.get("name"))
             user_email = _normalized(user.get("email"))
             if artist_email and user_email and artist_email == user_email:
-                matches.append(artist)
+                matches[artist["id"]] = artist
                 break
             if artist_name and user_name and artist_name == user_name:
-                matches.append(artist)
+                matches[artist["id"]] = artist
                 break
-            if artist_name in {"josh daniels", "joshua daniels"}:
-                matches.append(artist)
-                break
+        if artist_name in {"josh daniels", "joshua daniels"}:
+            matches[artist["id"]] = artist
 
-    unique_matches = {row["id"]: row for row in matches}
-    if len(unique_matches) == 1:
-        return next(iter(unique_matches.values()))
-    if len(unique_matches) > 1:
-        raise RuntimeError(
-            "Crybaby cleanup refused: multiple founder artist matches found"
-        )
+    if len(matches) == 1:
+        return next(iter(matches.values()))
+    if len(matches) > 1:
+        named = [row for row in matches.values() if _normalized(row.get("name")) in {"josh daniels", "joshua daniels"}]
+        if len(named) == 1:
+            return named[0]
+        raise RuntimeError("Crybaby cleanup refused: multiple founder artist matches found")
 
     non_sim = [
-        row
-        for row in artists
-        if not str(row["id"] or "").startswith(SIM_PREFIX)
-        and not str(row["id"] or "").lower().startswith(("test_", "demo_"))
+        row for row in artists
+        if not str(row.get("id") or "").lower().startswith((SIM_PREFIX, "test_", "demo_"))
     ]
     if len(non_sim) == 1:
         return non_sim[0]
     if len(non_sim) > 1:
-        raise RuntimeError(
-            "Crybaby cleanup refused: founder artist is ambiguous"
-        )
+        raise RuntimeError("Crybaby cleanup refused: founder artist is ambiguous")
 
     user = users[0]
     artist_id = "artist_crybaby_founder"
     core.db_execute(
         conn,
-        """
-        INSERT INTO artists(id,shop_id,name,email,phone,styles,services,active)
-        VALUES (?,?,?,?,?,?,?,1)
-        """,
-        (
-            artist_id,
-            shop_id,
-            user["name"],
-            user.get("email"),
-            None,
-            "",
-            "tattoo",
-        ),
+        """INSERT INTO artists(id,shop_id,name,email,phone,styles,services,active)
+           VALUES (?,?,?,?,?,?,?,1)""",
+        (artist_id, shop_id, user["name"], user.get("email"), None, "", "tattoo"),
     )
-    return {
-        "id": artist_id,
-        "name": user["name"],
-        "email": user.get("email"),
-    }
+    return {"id": artist_id, "name": user["name"], "email": user.get("email")}
 
 
 def _customer_is_test(row) -> bool:
-    row = _as_dict(row)
     customer_id = str(row.get("id") or "").lower()
     name = _normalized(row.get("name"))
     email = _normalized(row.get("email"))
     phone = str(row.get("phone") or "").strip().lower()
-
     if customer_id.startswith((SIM_PREFIX, "test_", "demo_")):
         return True
     if name.startswith("sim customer "):
         return True
-    if name in {
-        "test",
-        "test customer",
-        "demo customer",
-        "simulation customer",
-    }:
+    if name in {"test", "test customer", "demo customer", "simulation customer"}:
         return True
     if name.startswith("test ") or name.startswith("demo test "):
         return True
@@ -189,24 +145,15 @@ def _customer_is_test(row) -> bool:
 
 
 def _lead_is_test(row, test_customer_ids: set[str]) -> bool:
-    row = _as_dict(row)
     lead_id = str(row.get("id") or "").lower()
     source = _normalized(row.get("source"))
     customer_id = str(row.get("customer_id") or "")
-
     if customer_id in test_customer_ids:
         return True
     if lead_id.startswith((SIM_PREFIX, "test_", "demo_")):
         return True
-    if source in {
-        "founder_simulation",
-        "simulation",
-        "sim",
-        "test",
-        "demo",
-    }:
+    if source in {"founder_simulation", "simulation", "sim", "test", "demo"}:
         return True
-
     try:
         profile = json.loads(row.get("profile_json") or "{}")
     except Exception:
@@ -215,233 +162,214 @@ def _lead_is_test(row, test_customer_ids: set[str]) -> bool:
 
 
 def _delete_by_ids(conn, table: str, column: str, ids: list[str]) -> int:
-    if not ids or not _table_exists(conn, table):
+    if not ids or not _column_exists(conn, table, column):
         return 0
     marks = ",".join("?" for _ in ids)
-    cursor = core.db_execute(
+    cursor = core.db_execute(conn, f"DELETE FROM {table} WHERE {column} IN ({marks})", ids)
+    return max(int(getattr(cursor, "rowcount", 0) or 0), 0)
+
+
+def preview_cleanup(conn, user) -> dict:
+    shop = _assert_signed_in_crybaby(conn, user)
+    shop_id = shop["id"]
+    founder_artist = _resolve_founder_artist(conn, shop_id)
+
+    artists = core.db_fetchall(conn, "SELECT id,name FROM artists WHERE shop_id=? ORDER BY name", (shop_id,))
+    remove_artists = [dict(row) for row in artists if row["id"] != founder_artist["id"]]
+
+    customers = core.db_fetchall(
         conn,
-        f"DELETE FROM {table} WHERE {column} IN ({marks})",
-        ids,
+        "SELECT id,name,phone,email FROM customers WHERE shop_id=? ORDER BY name",
+        (shop_id,),
     )
-    return int(getattr(cursor, "rowcount", 0) or 0)
+    test_customers = [dict(row) for row in customers if _customer_is_test(row)]
+    test_customer_ids = {row["id"] for row in test_customers}
 
-
-def run_once() -> dict:
-    conn = core.connect()
-    try:
-        _ensure_audit_table(conn)
-        existing = core.db_fetchone(
+    leads = []
+    if _table_exists(conn, "concierge_leads"):
+        leads = core.db_fetchall(
             conn,
-            "SELECT id,summary_json FROM maintenance_runs WHERE id=?",
-            (CLEANUP_KEY,),
-        )
-        if existing:
-            existing = _as_dict(existing)
-            try:
-                return json.loads(existing.get("summary_json") or "{}")
-            except Exception:
-                return {"status": "already_completed"}
-
-        shop = _find_crybaby_shop(conn)
-        shop_id = shop["id"]
-        founder_artist = _resolve_founder_artist(conn, shop_id)
-        keep_artist_id = founder_artist["id"]
-
-        artist_rows = [
-            _as_dict(row)
-            for row in core.db_fetchall(
-                conn,
-                "SELECT id,name FROM artists WHERE shop_id=?",
-                (shop_id,),
-            )
-        ]
-        remove_artist_ids = [
-            row["id"] for row in artist_rows if row["id"] != keep_artist_id
-        ]
-
-        opening_ids = []
-        if remove_artist_ids and _table_exists(conn, "openings"):
-            marks = ",".join("?" for _ in remove_artist_ids)
-            opening_ids = [
-                _as_dict(row)["id"]
-                for row in core.db_fetchall(
-                    conn,
-                    f"SELECT id FROM openings WHERE shop_id=? AND artist_id IN ({marks})",
-                    [shop_id, *remove_artist_ids],
-                )
-            ]
-
-        if opening_ids:
-            if (
-                _table_exists(conn, "google_booking_events")
-                and _table_exists(conn, "bookings")
-            ):
-                marks = ",".join("?" for _ in opening_ids)
-                core.db_execute(
-                    conn,
-                    f"""
-                    DELETE FROM google_booking_events
-                    WHERE booking_id IN (
-                        SELECT id FROM bookings
-                        WHERE opening_id IN ({marks})
-                    )
-                    """,
-                    opening_ids,
-                )
-            _delete_by_ids(conn, "bookings", "opening_id", opening_ids)
-            _delete_by_ids(conn, "offers", "opening_id", opening_ids)
-            _delete_by_ids(conn, "openings", "id", opening_ids)
-
-        if remove_artist_ids and _table_exists(
-            conn,
-            "artist_calendar_connections",
-        ):
-            _delete_by_ids(
-                conn,
-                "artist_calendar_connections",
-                "artist_id",
-                remove_artist_ids,
-            )
-        if remove_artist_ids and _table_exists(
-            conn,
-            "founder_sim_artist_portfolios",
-        ):
-            _delete_by_ids(
-                conn,
-                "founder_sim_artist_portfolios",
-                "artist_id",
-                remove_artist_ids,
-            )
-        removed_artists = _delete_by_ids(
-            conn,
-            "artists",
-            "id",
-            remove_artist_ids,
-        )
-
-        customer_rows = core.db_fetchall(
-            conn,
-            "SELECT id,name,phone,email FROM customers WHERE shop_id=?",
+            "SELECT id,customer_id,source,profile_json FROM concierge_leads WHERE shop_id=? ORDER BY created_at DESC",
             (shop_id,),
         )
-        test_customer_ids = {
-            _as_dict(row)["id"]
-            for row in customer_rows
-            if _customer_is_test(row)
-        }
+    test_leads = [dict(row) for row in leads if _lead_is_test(row, test_customer_ids)]
 
-        lead_rows = []
-        if _table_exists(conn, "concierge_leads"):
-            lead_rows = core.db_fetchall(
-                conn,
-                """
-                SELECT id,customer_id,source,profile_json
-                FROM concierge_leads
-                WHERE shop_id=?
-                """,
-                (shop_id,),
-            )
-        test_lead_ids = [
-            _as_dict(row)["id"]
-            for row in lead_rows
-            if _lead_is_test(row, test_customer_ids)
-        ]
-        removed_leads = _delete_by_ids(
+    return {
+        "shop": dict(shop),
+        "founder_artist": dict(founder_artist),
+        "remove_artists": remove_artists,
+        "test_customers": test_customers,
+        "test_leads": test_leads,
+    }
+
+
+def execute_cleanup(conn, user) -> dict:
+    preview = preview_cleanup(conn, user)
+    shop_id = preview["shop"]["id"]
+    keep_artist_id = preview["founder_artist"]["id"]
+    remove_artist_ids = [row["id"] for row in preview["remove_artists"]]
+    test_customer_ids = [row["id"] for row in preview["test_customers"]]
+    test_lead_ids = [row["id"] for row in preview["test_leads"]]
+
+    opening_ids = []
+    if remove_artist_ids and _column_exists(conn, "openings", "artist_id"):
+        marks = ",".join("?" for _ in remove_artist_ids)
+        rows = core.db_fetchall(
             conn,
-            "concierge_leads",
-            "id",
-            test_lead_ids,
+            f"SELECT id FROM openings WHERE shop_id=? AND artist_id IN ({marks})",
+            [shop_id, *remove_artist_ids],
         )
+        opening_ids = [row["id"] for row in rows]
 
-        test_customer_id_list = sorted(test_customer_ids)
-        if test_customer_id_list:
-            _delete_by_ids(
-                conn,
-                "bookings",
-                "customer_id",
-                test_customer_id_list,
-            )
-            _delete_by_ids(
-                conn,
-                "offers",
-                "customer_id",
-                test_customer_id_list,
-            )
-        removed_customers = _delete_by_ids(
-            conn,
-            "customers",
-            "id",
-            test_customer_id_list,
-        )
-
-        for table in (
-            "founder_sim_customer_learning",
-            "founder_sim_outcomes",
-            "founder_sim_metrics",
-            "founder_sim_recommendations",
-            "founder_sim_runs",
-        ):
-            if _table_exists(conn, table):
-                core.db_execute(
-                    conn,
-                    f"DELETE FROM {table} WHERE shop_id=?",
-                    (shop_id,),
-                )
-
-        if _table_exists(conn, "events"):
+    if opening_ids:
+        if _column_exists(conn, "google_booking_events", "booking_id") and _column_exists(conn, "bookings", "opening_id"):
+            marks = ",".join("?" for _ in opening_ids)
             core.db_execute(
                 conn,
-                "DELETE FROM events WHERE entity_id LIKE ?",
-                (SIM_PREFIX + "%",),
+                f"DELETE FROM google_booking_events WHERE booking_id IN (SELECT id FROM bookings WHERE opening_id IN ({marks}))",
+                opening_ids,
             )
+        _delete_by_ids(conn, "bookings", "opening_id", opening_ids)
+        _delete_by_ids(conn, "offers", "opening_id", opening_ids)
+        _delete_by_ids(conn, "openings", "id", opening_ids)
 
-        summary = {
-            "status": "completed",
-            "shop_id": shop_id,
-            "shop_name": shop["name"],
-            "kept_artist_id": keep_artist_id,
-            "kept_artist_name": founder_artist["name"],
-            "removed_artists": removed_artists,
-            "removed_test_customers": removed_customers,
-            "removed_test_concierge_leads": removed_leads,
-            "removed_artist_openings": len(opening_ids),
-        }
-        core.db_execute(
+    _delete_by_ids(conn, "artist_calendar_connections", "artist_id", remove_artist_ids)
+    _delete_by_ids(conn, "founder_sim_artist_portfolios", "artist_id", remove_artist_ids)
+    removed_artists = _delete_by_ids(conn, "artists", "id", remove_artist_ids)
+
+    removed_leads = _delete_by_ids(conn, "concierge_leads", "id", test_lead_ids)
+
+    for table in (
+        "bookings",
+        "offers",
+        "customer_suppressions",
+        "demand_profiles",
+        "demand_signals",
+        "enrichment_context",
+        "enrichment_locations",
+    ):
+        _delete_by_ids(conn, table, "customer_id", test_customer_ids)
+    removed_customers = _delete_by_ids(conn, "customers", "id", test_customer_ids)
+
+    for table in (
+        "founder_sim_customer_learning",
+        "founder_sim_outcomes",
+        "founder_sim_metrics",
+        "founder_sim_recommendations",
+        "founder_sim_runs",
+    ):
+        if _column_exists(conn, table, "shop_id"):
+            core.db_execute(conn, f"DELETE FROM {table} WHERE shop_id=?", (shop_id,))
+
+    if _column_exists(conn, "events", "entity_id"):
+        core.db_execute(conn, "DELETE FROM events WHERE entity_id LIKE ?", (SIM_PREFIX + "%",))
+
+    conn.commit()
+
+    remaining_artists = core.db_fetchall(conn, "SELECT id,name FROM artists WHERE shop_id=? ORDER BY name", (shop_id,))
+    remaining_test_customers = core.db_fetchall(
+        conn,
+        "SELECT id,name,phone,email FROM customers WHERE shop_id=?",
+        (shop_id,),
+    )
+    remaining_test_customers = [row for row in remaining_test_customers if _customer_is_test(row)]
+
+    remaining_test_leads = []
+    if _table_exists(conn, "concierge_leads"):
+        rows = core.db_fetchall(
             conn,
-            """
-            INSERT INTO maintenance_runs(id,scope,summary_json,created_at)
-            VALUES (?,?,?,?)
-            """,
-            (
-                CLEANUP_KEY,
-                "crybaby",
-                json.dumps(summary),
-                core.now_iso(),
-            ),
+            "SELECT id,customer_id,source,profile_json FROM concierge_leads WHERE shop_id=?",
+            (shop_id,),
         )
-        conn.commit()
-        print(
-            "Crybaby production cleanup completed:",
-            json.dumps(summary, sort_keys=True),
-        )
-        return summary
-    except Exception:
+        remaining_test_leads = [row for row in rows if _lead_is_test(row, set())]
+
+    return {
+        "shop_name": preview["shop"]["name"],
+        "kept_artist_id": keep_artist_id,
+        "kept_artist_name": preview["founder_artist"]["name"],
+        "removed_artists": removed_artists,
+        "removed_test_customers": removed_customers,
+        "removed_test_concierge_leads": removed_leads,
+        "removed_artist_openings": len(opening_ids),
+        "remaining_artists": [dict(row) for row in remaining_artists],
+        "remaining_test_customers": len(remaining_test_customers),
+        "remaining_test_concierge_leads": len(remaining_test_leads),
+    }
+
+
+def _e(value) -> str:
+    return html.escape(str(value or ""), quote=True)
+
+
+def _page(preview: dict, result: dict | None = None, error: str = "") -> str:
+    founder = preview["founder_artist"]
+    artist_rows = "".join(f"<li>{_e(row['name'])} <code>{_e(row['id'])}</code></li>" for row in preview["remove_artists"]) or "<li>None</li>"
+    customer_rows = "".join(f"<li>{_e(row['name'])} <code>{_e(row['id'])}</code></li>" for row in preview["test_customers"][:100]) or "<li>None</li>"
+    result_html = ""
+    if result:
+        result_html = f"""
+        <section class='ok'><h2>Cleanup completed</h2>
+        <p>Removed artists: <b>{result['removed_artists']}</b> · Test customers: <b>{result['removed_test_customers']}</b> · Test Concierge leads: <b>{result['removed_test_concierge_leads']}</b></p>
+        <p>Remaining artists: <b>{len(result['remaining_artists'])}</b> · Remaining detected test customers: <b>{result['remaining_test_customers']}</b> · Remaining detected test leads: <b>{result['remaining_test_concierge_leads']}</b></p></section>"""
+    error_html = f"<section class='bad'><b>{_e(error)}</b></section>" if error else ""
+    return f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Crybaby Cleanup · Empty Chair</title>
+    <style>body{{margin:0;background:#080a08;color:#f0eadf;font-family:Inter,system-ui,sans-serif}}main{{max-width:880px;margin:auto;padding:28px}}h1{{font-size:38px;margin:6px 0 8px}}h2{{font-size:18px}}.ey{{color:#d8ff45;font:700 11px ui-monospace,monospace;letter-spacing:.12em}}.card,.ok,.bad{{border:1px solid #30362e;background:#0f120f;padding:18px;margin:14px 0}}.ok{{border-color:#7aa321}}.bad{{border-color:#b94d4d}}code{{color:#aab3a7;font-size:11px}}ul{{line-height:1.7}}input{{width:100%;box-sizing:border-box;background:#090b09;color:#fff;border:1px solid #3a4237;padding:13px;margin:8px 0 12px}}button{{background:#d8ff45;color:#10130f;border:0;padding:13px 16px;font-weight:900;cursor:pointer}}a{{color:#d8ff45}}</style></head><body><main>
+    <div class='ey'>FOUNDER MAINTENANCE</div><h1>Crybaby Cleanup</h1><p>Signed-in shop: <b>{_e(preview['shop']['name'])}</b></p>{error_html}{result_html}
+    <section class='card'><h2>Artist that will be kept</h2><p><b>{_e(founder['name'])}</b> <code>{_e(founder['id'])}</code></p></section>
+    <section class='card'><h2>Other Crybaby artists to remove ({len(preview['remove_artists'])})</h2><ul>{artist_rows}</ul></section>
+    <section class='card'><h2>Detected sim/test customers ({len(preview['test_customers'])})</h2><ul>{customer_rows}</ul><p>Detected sim/test Concierge leads: <b>{len(preview['test_leads'])}</b></p></section>
+    <section class='card'><h2>Run cleanup</h2><p>This only affects the signed-in Crybaby shop. Real customers not matching the test/simulation markers are left alone.</p>
+    <form method='post'><label>Type <b>{CONFIRM_PHRASE}</b> to confirm.</label><input name='confirmation' autocomplete='off' required><button type='submit'>Clean Crybaby Data</button></form></section>
+    <p><a href='/'>← Back to Empty Chair</a></p></main></body></html>"""
+
+
+@core.app.get("/admin/crybaby-cleanup", response_class=HTMLResponse)
+def crybaby_cleanup_screen(request: Request):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+    conn = core.connect()
+    try:
+        preview = preview_cleanup(conn, user)
+        conn.rollback()  # preview may create a founder artist only in the no-artist edge case; never mutate on GET.
+        return HTMLResponse(_page(preview), headers={"Cache-Control": "no-store"})
+    except Exception as exc:
         conn.rollback()
-        raise
+        return HTMLResponse(
+            f"<html><body style='background:#080a08;color:#fff;font-family:system-ui;padding:30px'><h1>Crybaby cleanup unavailable</h1><pre>{_e(type(exc).__name__ + ': ' + str(exc))}</pre><a style='color:#d8ff45' href='/'>Back</a></body></html>",
+            status_code=403,
+            headers={"Cache-Control": "no-store"},
+        )
     finally:
         conn.close()
 
 
-def run_startup_cleanup() -> None:
-    """Run once without ever preventing the production app from starting."""
+@core.app.post("/admin/crybaby-cleanup", response_class=HTMLResponse)
+def crybaby_cleanup_execute(request: Request, confirmation: str = Form(...)):
+    user, redirect = core.login_required_redirect(request)
+    if redirect:
+        return redirect
+    conn = core.connect()
     try:
-        run_once()
+        preview = preview_cleanup(conn, user)
+        if str(confirmation or "").strip().upper() != CONFIRM_PHRASE:
+            conn.rollback()
+            return HTMLResponse(_page(preview, error="Confirmation phrase did not match. Nothing was deleted."), status_code=400, headers={"Cache-Control": "no-store"})
+        result = execute_cleanup(conn, user)
+        refreshed = preview_cleanup(conn, user)
+        conn.rollback()
+        return HTMLResponse(_page(refreshed, result=result), headers={"Cache-Control": "no-store"})
     except Exception as exc:
-        print(
-            "Crybaby production cleanup refused/failed:",
-            type(exc).__name__,
-            str(exc),
-        )
-
-
-run_startup_cleanup()
+        conn.rollback()
+        try:
+            preview = preview_cleanup(conn, user)
+            conn.rollback()
+            return HTMLResponse(_page(preview, error=type(exc).__name__ + ": " + str(exc)), status_code=500, headers={"Cache-Control": "no-store"})
+        except Exception:
+            return HTMLResponse(
+                f"<html><body style='background:#080a08;color:#fff;font-family:system-ui;padding:30px'><h1>Crybaby cleanup failed</h1><pre>{_e(type(exc).__name__ + ': ' + str(exc))}</pre><a style='color:#d8ff45' href='/'>Back</a></body></html>",
+                status_code=500,
+                headers={"Cache-Control": "no-store"},
+            )
+    finally:
+        conn.close()
