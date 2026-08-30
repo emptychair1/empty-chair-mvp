@@ -126,6 +126,7 @@ def _render(request: Request, user, shop, entries) -> HTMLResponse:
               <div class="evidence"><b>M4 review evidence:</b> {_e(reason_text)}. This is review ordering, not a win probability.</div>
               <div class="meta">Submitted {created}</div>
               <form class="actions" method="post" action="/contest/{lead_id}/decision">
+                <button name="decision" value="request_info" class="ask" type="submit">Ask remaining info</button>
                 <button name="decision" value="winner" class="win" type="submit">Choose winner</button>
                 <button name="decision" value="runner_up" type="submit">Runner-up</button>
                 <button name="decision" value="archive" type="submit">Archive</button>
@@ -152,7 +153,7 @@ def _render(request: Request, user, shop, entries) -> HTMLResponse:
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contest · Empty Chair</title>
 <link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/mobile.css"><style>
 :root{{--signal:#b8ff24;--cream:#f4efe5;--muted:#8c9387;--line:#2a3028;--panel:#0e110e}}
-body{{margin:0;background:#080a08;color:var(--cream);font-family:Inter,system-ui,sans-serif}}.page{{min-height:100vh;padding:28px 24px 90px;max-width:1180px;margin:0 auto}}.topbar{{display:flex;justify-content:space-between;align-items:end;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--line)}}.eyebrow,.rank{{font:900 11px ui-monospace,monospace;letter-spacing:.12em;color:var(--signal)}}h1{{margin:4px 0 0;font-family:Bangers,Impact,sans-serif;font-size:48px;text-transform:uppercase}}.sub{{color:var(--muted);font-size:13px}}.hero{{margin:20px 0;border:1px solid #394333;background:#0b0e0b;padding:22px;box-shadow:inset 4px 0 0 var(--signal)}}.hero h2{{font-size:25px;margin:0 0 8px}}.hero p{{margin:0;color:#b5bcaf;line-height:1.55}}.summary{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}}.metric{{border:1px solid var(--line);background:#0a0c0a;padding:14px}}.metric b{{display:block;font-size:26px}}.metric span{{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}}.grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}.contest-card{{border:1px solid var(--line);background:var(--panel);padding:18px}}.contest-card.selected{{border-color:var(--signal);box-shadow:inset 0 0 0 1px var(--signal)}}.card-top{{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}}.card-top h2{{margin:4px 0 0;font-size:21px}}.status{{border:1px solid #384037;padding:5px 7px;font:800 9px ui-monospace,monospace;text-transform:uppercase;color:#b7bdb3}}.status-winner{{border-color:var(--signal);color:var(--signal)}}.concept{{font-size:18px;line-height:1.45;margin:18px 0;padding:14px;background:#090b09;border-left:3px solid var(--signal)}}.facts{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}.facts span{{border:1px solid #252b24;padding:10px;color:#c8cec3;font-size:12px}}.facts b{{display:block;color:#777f74;font-size:9px;text-transform:uppercase;margin-bottom:4px}}.evidence{{color:#9da598;font-size:11px;line-height:1.5;margin-top:14px}}.meta{{color:#687066;font-size:10px;margin-top:12px}}.actions{{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:16px;padding-top:14px;border-top:1px solid #252b24}}.actions button{{min-height:42px;background:#111511;border:1px solid #353c34;color:#d9ded4;font-weight:800;font-size:10px;cursor:pointer;text-transform:uppercase}}.actions .win{{background:var(--signal);border-color:var(--signal);color:#0a0c09}}.empty{{border:1px dashed var(--line);padding:30px;color:var(--muted)}}.back{{color:var(--cream);text-decoration:none;font-weight:800}}@media(max-width:760px){{.page{{padding:20px 16px 100px}}h1{{font-size:40px}}.topbar{{align-items:start;flex-direction:column}}.grid{{grid-template-columns:1fr}}.summary{{grid-template-columns:repeat(3,1fr)}}.actions{{grid-template-columns:1fr 1fr}}.facts{{grid-template-columns:1fr}}}}
+body{{margin:0;background:#080a08;color:var(--cream);font-family:Inter,system-ui,sans-serif}}.page{{min-height:100vh;padding:28px 24px 90px;max-width:1180px;margin:0 auto}}.topbar{{display:flex;justify-content:space-between;align-items:end;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--line)}}.eyebrow,.rank{{font:900 11px ui-monospace,monospace;letter-spacing:.12em;color:var(--signal)}}h1{{margin:4px 0 0;font-family:Bangers,Impact,sans-serif;font-size:48px;text-transform:uppercase}}.sub{{color:var(--muted);font-size:13px}}.hero{{margin:20px 0;border:1px solid #394333;background:#0b0e0b;padding:22px;box-shadow:inset 4px 0 0 var(--signal)}}.hero h2{{font-size:25px;margin:0 0 8px}}.hero p{{margin:0;color:#b5bcaf;line-height:1.55}}.summary{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}}.metric{{border:1px solid var(--line);background:#0a0c0a;padding:14px}}.metric b{{display:block;font-size:26px}}.metric span{{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}}.grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}}.contest-card{{border:1px solid var(--line);background:var(--panel);padding:18px}}.contest-card.selected{{border-color:var(--signal);box-shadow:inset 0 0 0 1px var(--signal)}}.card-top{{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}}.card-top h2{{margin:4px 0 0;font-size:21px}}.status{{border:1px solid #384037;padding:5px 7px;font:800 9px ui-monospace,monospace;text-transform:uppercase;color:#b7bdb3}}.status-winner{{border-color:var(--signal);color:var(--signal)}}.concept{{font-size:18px;line-height:1.45;margin:18px 0;padding:14px;background:#090b09;border-left:3px solid var(--signal)}}.facts{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}.facts span{{border:1px solid #252b24;padding:10px;color:#c8cec3;font-size:12px}}.facts b{{display:block;color:#777f74;font-size:9px;text-transform:uppercase;margin-bottom:4px}}.evidence{{color:#9da598;font-size:11px;line-height:1.5;margin-top:14px}}.meta{{color:#687066;font-size:10px;margin-top:12px}}.actions{{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:16px;padding-top:14px;border-top:1px solid #252b24}}.actions button{{min-height:42px;background:#111511;border:1px solid #353c34;color:#d9ded4;font-weight:800;font-size:10px;cursor:pointer;text-transform:uppercase}}.actions .ask{{grid-column:1/-1;border-color:var(--signal);color:var(--signal)}}.actions .win{{background:var(--signal);border-color:var(--signal);color:#0a0c09}}.empty{{border:1px dashed var(--line);padding:30px;color:var(--muted)}}.back{{color:var(--cream);text-decoration:none;font-weight:800}}@media(max-width:760px){{.page{{padding:20px 16px 100px}}h1{{font-size:40px}}.topbar{{align-items:start;flex-direction:column}}.grid{{grid-template-columns:1fr}}.summary{{grid-template-columns:repeat(3,1fr)}}.actions{{grid-template-columns:1fr 1fr}}.facts{{grid-template-columns:1fr}}}}
 </style></head><body><main class="page"><header class="topbar"><div><div class="eyebrow">DEMAND ENGINE · CONTEST INTELLIGENCE</div><h1>Contest</h1><div class="sub">{shop_name} · Real contest entries captured by Concierge.</div></div><a class="back" href="/">← App</a></header>
 <section class="hero"><div class="eyebrow">M4 RECOMMENDATION</div><h2>{hero_title}</h2><p>{hero_copy}</p></section>
 <section class="summary"><div class="metric"><b>{len(entries)}</b><span>Entrants</span></div><div class="metric"><b>{sum(1 for e in entries if e.get('contest_decision') == 'winner')}</b><span>Winner</span></div><div class="metric"><b>{sum(1 for e in entries if e.get('contest_decision') == 'runner_up')}</b><span>Runner-up</span></div></section>
@@ -186,7 +187,7 @@ def contest_decision(request: Request, lead_id: str, decision: str = Form(...)):
     user, redirect = core.login_required_redirect(request)
     if redirect:
         return redirect
-    allowed = {"winner", "runner_up", "archive", "pending"}
+    allowed = {"winner", "runner_up", "archive", "pending", "request_info"}
     if decision not in allowed:
         return RedirectResponse(url="/contest", status_code=303)
 
@@ -197,6 +198,18 @@ def contest_decision(request: Request, lead_id: str, decision: str = Form(...)):
         if lead_id not in entry_ids:
             conn.rollback()
             return RedirectResponse(url="/contest", status_code=303)
+
+        if decision == "request_info":
+            conn.close()
+            conn = None
+            try:
+                import contest_followup_v2
+
+                status = contest_followup_v2.request_info(user["shop_id"], lead_id)
+                return RedirectResponse(url=f"/contest?followup={status}", status_code=303)
+            except Exception as exc:
+                print(f"Contest follow-up failed for {lead_id}: {type(exc).__name__}: {exc}", flush=True)
+                return RedirectResponse(url="/contest?followup=error", status_code=303)
 
         if decision == "winner":
             core.db_execute(conn, "DELETE FROM contest_decisions WHERE shop_id=? AND decision='winner'", (user["shop_id"],))
@@ -226,7 +239,47 @@ def contest_decision(request: Request, lead_id: str, decision: str = Form(...)):
         conn.commit()
         return RedirectResponse(url="/contest", status_code=303)
     except Exception:
-        conn.rollback()
+        if conn is not None:
+            conn.rollback()
         raise
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
+
+
+@core.app.get("/concierge/contest-followup/{token}", response_class=HTMLResponse)
+def contest_followup_page(token: str):
+    try:
+        import contest_followup_v2
+
+        body, status_code = contest_followup_v2.render_followup(token)
+        if body is None:
+            return HTMLResponse("Entry follow-up link not found.", status_code=404)
+        return HTMLResponse(body, status_code=status_code, headers={"Cache-Control": "no-store"})
+    except Exception as exc:
+        return HTMLResponse(
+            "<!doctype html><html><body style='background:#080a08;color:#f4efe5;font-family:system-ui;padding:32px'><h1>Follow-up temporarily unavailable</h1><p>" + _e(type(exc).__name__ + ": " + str(exc)) + "</p></body></html>",
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
+        )
+
+
+@core.app.post("/concierge/contest-followup/{token}", response_class=HTMLResponse)
+async def contest_followup_submit(request: Request, token: str):
+    try:
+        import contest_followup_v2
+
+        form = await request.form()
+        status = contest_followup_v2.submit_followup(token, form)
+        if status == "missing":
+            return HTMLResponse("Entry follow-up link not found.", status_code=404)
+        return HTMLResponse(
+            "<!doctype html><html><body style='background:#080a08;color:#f4efe5;font-family:system-ui;padding:32px'><h1>Done.</h1><p>Your contest entry has been updated. Thanks.</p></body></html>",
+            headers={"Cache-Control": "no-store"},
+        )
+    except Exception as exc:
+        return HTMLResponse(
+            "<!doctype html><html><body style='background:#080a08;color:#f4efe5;font-family:system-ui;padding:32px'><h1>Could not update entry</h1><p>" + _e(type(exc).__name__ + ": " + str(exc)) + "</p></body></html>",
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
+        )
