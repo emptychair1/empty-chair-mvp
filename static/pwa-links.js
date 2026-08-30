@@ -13,6 +13,26 @@
   theme.content='#b1ff00';
   if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{});},{once:true});}
 
+  const fixDashboardActions=()=>{
+    if(location.pathname!=='/') return;
+    const topbar=document.querySelector('.topbar');
+    const actions=topbar?.querySelector('.top-actions');
+    if(!topbar||!actions) return;
+    if(!document.querySelector('link[data-dashboard-actions]')){
+      const css=document.createElement('link');
+      css.rel='stylesheet';
+      css.href='/static/dashboard-top-actions.css?v=1';
+      css.dataset.dashboardActions='1';
+      document.head.appendChild(css);
+    }
+    topbar.classList.add('dashboard-topbar');
+    actions.className='dashboard-top-actions';
+    actions.innerHTML=`
+      <a class="button primary-action" href="#create-opening">Add an Opening</a>
+      <a class="button secondary" href="/demand-acquisition">Demand Engine</a>
+      <a class="button secondary" href="/bookings">Calendar</a>`;
+  };
+
   const addContestNav=()=>{
     const desktopAnchor=document.querySelector('a[href="/concierge-leads"]');
     if(desktopAnchor && !document.querySelector('.contest-nav-link')){
@@ -37,5 +57,6 @@
       }
     }
   };
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addContestNav,{once:true}); else addContestNav();
+  const boot=()=>{fixDashboardActions();addContestNav();};
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
