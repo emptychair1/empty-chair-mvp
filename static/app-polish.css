@@ -1,0 +1,178 @@
+/* Empty Chair final polish layer — additive shared UI system. */
+:root{
+  --ec-surface:#0c0e0c;
+  --ec-surface-raised:#111410;
+  --ec-surface-soft:#090b09;
+  --ec-border:#34382f;
+  --ec-border-strong:#4a5044;
+  --ec-text:#f2ecde;
+  --ec-text-soft:#b9b3a5;
+  --ec-text-muted:#7f8178;
+  --ec-signal:#c7ff3e;
+  --ec-gap-1:6px;
+  --ec-gap-2:10px;
+  --ec-gap-3:14px;
+  --ec-gap-4:18px;
+  --ec-gap-5:24px;
+  --ec-gap-6:32px;
+}
+
+/* Shell + hierarchy */
+.app-shell .main{background:linear-gradient(180deg,#090a09 0,#080908 420px)}
+.app-shell .topbar{min-height:92px;padding:20px 28px 17px;align-items:center;border-color:var(--line-soft);box-shadow:0 1px 0 rgba(255,255,255,.015)}
+.app-shell .topbar-left{align-items:center}
+.app-shell .page-title{font-size:43px;line-height:.9}
+.app-shell .page-subtitle{margin-top:7px;color:#86877e;letter-spacing:.075em}
+.app-shell .content{padding-top:26px;padding-bottom:42px}
+.app-shell .content>section:first-child,.app-shell .content>div:first-child{margin-top:0}
+
+/* Sidebar: calmer chrome, clearer active state */
+.app-shell .sidebar{border-right-color:#292c27;background:linear-gradient(180deg,#090a09 0,#070807 100%)}
+.app-shell .brand-wrap{padding:14px 20px 13px;background:#080908;border-bottom-color:#252822}
+.app-shell .sidebar-nav{gap:3px;padding-top:14px}
+.app-shell .nav-link{min-height:46px;padding-inline:12px;border-color:transparent;color:#aaa79c}
+.app-shell .nav-link:hover{background:#0e110e;border-color:#2d312a;transform:none}
+.app-shell .nav-link.active{background:var(--signal);border-color:var(--signal);box-shadow:3px 3px 0 #000;color:#080908}
+.app-shell .nav-group{margin-top:10px;padding-top:10px;border-top-color:#22251f}
+.app-shell .studio-card,.app-shell .owner-card{background:#0a0c0a;border-color:#292d27;padding:12px}
+.app-shell .m4-utility{margin-top:8px;border-color:#485d28;background:#0e120b;box-shadow:3px 3px 0 #000}
+.app-shell .m4-utility:hover{background:#141a0e;border-color:var(--signal)}
+
+/* Buttons */
+.app-shell .button{min-height:42px;padding:0 17px;box-shadow:2px 2px 0 rgba(0,0,0,.72);border-width:1px}
+.app-shell .button:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 #000;filter:none}
+.app-shell .button:active{transform:translate(0,0);box-shadow:1px 1px 0 #000}
+.app-shell .button.secondary{background:#0c0e0c;border-color:#3b4037;color:#ddd7ca}
+.app-shell .button.secondary:hover{border-color:#62695b;background:#111410;color:#fff9eb}
+.app-shell button[disabled],.app-shell .button[aria-disabled="true"]{opacity:.45;cursor:not-allowed;box-shadow:none;transform:none}
+
+/* Shared cards + panels */
+.app-shell .panel,
+.app-shell .metric-card,
+.app-shell .live-card,
+.app-shell .activity-card,
+.app-shell .card,
+.app-shell .box,
+.app-shell .artist,
+.app-shell .summary-card,
+.app-shell .fill-card,
+.app-shell .form-card,
+.app-shell .detail-card,
+.app-shell .ops-box,
+.app-shell .ticket,
+.app-shell .upload-panel,
+.app-shell .analysis-panel,
+.app-shell .add,
+.app-shell .cc .item,
+.app-shell .cc .notice,
+.app-shell .cs .metric{
+  border-color:var(--ec-border)!important;
+  background:var(--ec-surface)!important;
+}
+.app-shell .panel,.app-shell .live-card,.app-shell .activity-card{padding:20px}
+.app-shell .panel-head{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #262a24}
+.app-shell .panel-title{font-size:29px}
+.app-shell .section-cap,.app-shell .kicker{letter-spacing:.055em}
+
+/* KPI system */
+.app-shell .metric-grid{gap:10px}
+.app-shell .metric-card{min-height:128px;grid-template-columns:42px 1fr;padding:17px 18px;box-shadow:3px 3px 0 #000}
+.app-shell .metric-icon{width:40px;height:40px;font-size:15px;border-color:#3a4035;background:#090b09}
+.app-shell .metric-label{font-size:13px;color:#bdb7aa}
+.app-shell .metric-value{font-size:29px}
+.app-shell .metric-sub{font-size:10px;line-height:1.35}
+.app-shell .cs .metrics,.app-shell .cc .kpis{gap:8px!important}
+.app-shell .cs .metric,.app-shell .cc .kpi{min-height:88px!important;padding:13px 14px!important;border-color:var(--ec-border)!important;background:#0b0d0b!important;box-shadow:2px 2px 0 #000}
+.app-shell .cs .metric b,.app-shell .cc .kpi b{font-family:var(--display);font-size:25px!important;line-height:1;color:var(--cream)}
+.app-shell .cs .metric span,.app-shell .cc .kpi span{display:block;margin-top:6px;color:#898b82!important;letter-spacing:.055em}
+
+/* Forms */
+.app-shell label{color:#aaa79e}
+.app-shell input,.app-shell select,.app-shell textarea{border-color:#34392f;background:#080a08;color:#f1ebdd;transition:border-color .14s,background .14s,box-shadow .14s}
+.app-shell input:hover,.app-shell select:hover,.app-shell textarea:hover{border-color:#484e42}
+.app-shell input:focus,.app-shell select:focus,.app-shell textarea:focus{background:#0b0e0a;border-color:var(--signal);box-shadow:0 0 0 1px rgba(199,255,62,.13)}
+.app-shell input::placeholder,.app-shell textarea::placeholder{color:#5f625a}
+.app-shell .create-form,.app-shell .draft,.app-shell .add-grid,.app-shell .upload-grid{gap:12px}
+
+/* Status + notices */
+.app-shell .status,.app-shell .ops-status,.app-shell .analysis-state,.app-shell .tag{letter-spacing:.055em}
+.app-shell .status{background:#090b09;border-color:#3b4037;padding:5px 8px}
+.app-shell .notice{line-height:1.45}
+.app-shell .notice.good,.app-shell .notice.ok,.app-shell .notice.success{border-color:#526a32!important;background:#0d120a!important}
+.app-shell .notice.warn{border-color:#52583c!important;background:#101209!important}
+.app-shell .notice.error{border-color:#62503b!important;background:#120e0b!important}
+
+/* Lists + rows */
+.app-shell .opening-list,.app-shell .activity-list{gap:7px}
+.app-shell .opening-row{min-height:94px;border-color:#292d27;background:#090b09;padding:11px 13px}
+.app-shell .opening-row:hover{border-color:#4a5145;background:#0d100d}
+.app-shell table th{padding-top:10px;padding-bottom:10px;color:#8c8e85}
+.app-shell table td{border-bottom-color:#272a25}
+.app-shell tbody tr:hover td{background:#0b0d0b}
+
+/* Demand workspace */
+.app-shell .demand-workspace-tabs{margin-top:0;margin-bottom:16px;border-color:#30342d;background:#090b09;box-shadow:0 1px 0 #000}
+.app-shell .demand-workspace-tabs a{min-height:42px;border-right-color:#30342d;color:#9d9b92;font-size:14px}
+.app-shell .demand-workspace-tabs a:hover{background:#10130f;color:#eee7d9}
+.app-shell .demand-workspace-tabs a.active{background:var(--signal);color:#080908}
+.app-shell .cs,.app-shell .cc{gap:14px!important}
+.app-shell .cs .head,.app-shell .cc .cc-head{padding-bottom:15px;border-bottom:1px solid #292d27}
+.app-shell .cs .head h1,.app-shell .cc .cc-head h1{font-size:38px!important;line-height:.95}
+.app-shell .cs .grid{gap:11px!important;background:transparent!important;border:0!important}
+.app-shell .cs .card{border:1px solid var(--ec-border)!important}
+.app-shell .cs .body{padding:14px!important}
+.app-shell .cc .queue{gap:8px!important}
+.app-shell .cc .item{padding:11px!important}
+.app-shell .cc .caption{line-height:1.45}
+.app-shell .cc .manual{gap:5px!important}
+
+/* Empty / secondary states */
+.app-shell .empty,.app-shell .empty-live{border-color:#2e322b!important;background:#090b09!important;color:#85867e!important}
+.app-shell .empty{padding:30px 22px!important}
+.app-shell .muted,.app-shell .sub,.app-shell .help{color:#85877e!important}
+
+/* Hero containment: preserve artwork while making copy feel consistent */
+.app-shell .reality-hero{border-width:1px;box-shadow:5px 5px 0 #000}
+.app-shell .reality-copy-card{border-color:rgba(242,236,222,.32);background:rgba(8,9,8,.92);box-shadow:4px 4px 0 rgba(0,0,0,.9)}
+.app-shell .reality-stats{gap:6px}
+.app-shell .reality-stat{background:#090b09;border-color:#34382f}
+.app-shell .intelligence-loop{border-color:#30342d;background:#090b09}
+
+/* Desktop density */
+@media(min-width:1180px){
+  .app-shell .content{padding-left:30px;padding-right:30px}
+  .app-shell .dashboard-grid{gap:16px}
+}
+
+/* Tablet */
+@media(max-width:900px){
+  .app-shell .topbar{padding-inline:20px}
+  .app-shell .content{padding-inline:20px}
+  .app-shell .cc .item{grid-template-columns:100px 1fr!important}
+  .app-shell .cc .thumb{width:100px!important}
+  .app-shell .cc .schedule{grid-column:1/-1}
+}
+
+/* Mobile refinement */
+@media(max-width:610px){
+  .app-shell .main{background:#080908}
+  .app-shell .content{padding:14px 13px 28px!important}
+  .app-shell .topbar{border-bottom-color:#292d27!important;box-shadow:none}
+  .app-shell .page-title{font-size:30px!important}
+  .app-shell .demand-workspace-tabs{margin:0 13px 12px!important;border-left:0;border-right:0}
+  .app-shell .demand-workspace-tabs a{min-height:40px;font-size:12px}
+  .app-shell .button{min-height:40px}
+  .app-shell .metric-grid{gap:7px}
+  .app-shell .metric-card{min-height:105px;padding:13px;grid-template-columns:34px 1fr;column-gap:10px;box-shadow:none}
+  .app-shell .metric-icon{width:32px;height:32px;font-size:11px}
+  .app-shell .metric-value{font-size:24px}
+  .app-shell .panel,.app-shell .live-card,.app-shell .activity-card{padding:15px}
+  .app-shell .panel-title{font-size:25px}
+  .app-shell .cs .head,.app-shell .cc .cc-head{padding-bottom:12px}
+  .app-shell .cs .head h1,.app-shell .cc .cc-head h1{font-size:32px!important}
+  .app-shell .cs .metrics,.app-shell .cc .kpis{grid-template-columns:repeat(2,1fr)!important;width:100%}
+  .app-shell .cs .metric,.app-shell .cc .kpi{min-height:76px!important;box-shadow:none}
+  .app-shell .cc .item{grid-template-columns:76px 1fr!important;gap:10px!important}
+  .app-shell .cc .thumb{width:76px!important}
+  .app-shell .cc .schedule{grid-column:1/-1}
+}
