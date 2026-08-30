@@ -11,4 +11,30 @@
   let theme=document.head.querySelector('meta[name="theme-color"]');
   if(!theme){theme=document.createElement('meta');theme.name='theme-color';document.head.appendChild(theme);}
   theme.content='#b1ff00';
+
+  const addContestNav=()=>{
+    const desktopAnchor=document.querySelector('a[href="/concierge-leads"]');
+    if(desktopAnchor && !document.querySelector('.contest-nav-link')){
+      const link=desktopAnchor.cloneNode(true);
+      link.classList.add('contest-nav-link');
+      link.classList.remove('active');
+      link.href='/contest';
+      const label=link.querySelector('span:last-child');
+      if(label) label.textContent='Contest';
+      desktopAnchor.insertAdjacentElement('afterend',link);
+    }
+
+    const moreSheet=document.querySelector('.mobile-more-sheet');
+    if(moreSheet && !moreSheet.querySelector('a[href="/contest"]')){
+      const source=moreSheet.querySelector('a[href="/concierge-leads"]');
+      if(source){
+        const link=source.cloneNode(true);
+        link.href='/contest';
+        const label=link.querySelector('strong');
+        if(label) label.textContent='Contest';
+        source.insertAdjacentElement('afterend',link);
+      }
+    }
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addContestNav,{once:true}); else addContestNav();
 })();
