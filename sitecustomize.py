@@ -18,3 +18,11 @@ try:
 except Exception as exc:
     # Notification failures should be visible without taking down the app.
     print(f"Empty Chair notification registration failed: {exc}")
+
+try:
+    import demand_content  # noqa: F401
+    import content_scheduler  # noqa: F401
+except Exception as exc:
+    # Content routes must still register when Render retains a legacy uvicorn
+    # entrypoint such as app:app or bootstrap:app.
+    print(f"Empty Chair content route registration failed: {exc}")
