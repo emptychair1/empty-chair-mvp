@@ -11,6 +11,7 @@
   let theme=document.head.querySelector('meta[name="theme-color"]');
   if(!theme){theme=document.createElement('meta');theme.name='theme-color';document.head.appendChild(theme);}
   theme.content='#b1ff00';
+  if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{});},{once:true});}
 
   const addContestNav=()=>{
     const desktopAnchor=document.querySelector('a[href="/concierge-leads"]');
