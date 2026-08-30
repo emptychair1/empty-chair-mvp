@@ -6,7 +6,8 @@ import app as core
 
 ICON_192 = "/static/pwa-192.webp?v=2"
 ICON_512 = "/static/app-icon.png?v=2"
-FAVICON = "/static/favicon.png?v=2"
+FAVICON = "/static/favicon.png?v=3"
+APPLE_TOUCH_ICON = "/static/apple-touch-icon.png?v=3"
 
 
 @core.app.get("/manifest.webmanifest")
@@ -60,4 +61,4 @@ def favicon():
 
 @core.app.get("/apple-touch-icon.png", include_in_schema=False)
 def apple_touch_icon():
-    return RedirectResponse(url=ICON_512, status_code=307)
+    return RedirectResponse(url=APPLE_TOUCH_ICON, status_code=307)
