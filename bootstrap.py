@@ -45,6 +45,7 @@ import founder_simulation_routes  # noqa: F401,E402
 import m4_human_judgment_routes  # noqa: F401,E402
 import concierge  # noqa: F401,E402
 import attribution_runtime  # noqa: F401,E402
+import crybaby_cleanup_once  # noqa: F401,E402
 
 meeting_v2 = None
 meeting_import_error = None
@@ -82,7 +83,7 @@ def meeting_v2_opening(request: Request, session_id: str = Form(...)):
         if not turns:
             meeting_v2._save_session(user, sid, state, None, answer)
         audio_url = f"/api/meeting-v2/audio/{urllib.parse.quote(sid)}?v={time.time_ns()}"
-        return JSONResponse({"ok": True, "session_id": sid, "m4_text": answer, "audio_url": audio_url}, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
+        return JSONResponse({"ok": True, "session_id": sid, "m4_text": answer, "audio_url": audio_url}, headers={"Cache-Control": "no-store"})
     except Exception as exc:
         print(f"Meeting v2 opening failed: {type(exc).__name__}: {exc}", flush=True)
         return JSONResponse({"error": str(exc)}, status_code=503, headers={"Cache-Control": "no-store"})
