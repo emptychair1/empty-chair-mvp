@@ -16,8 +16,11 @@ import app as core
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024
 MAX_UPLOAD_FILES = 30
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_VISION_MODEL = os.getenv("EMPTY_CHAIR_OPENROUTER_VISION_MODEL", "openrouter/free").strip() or "openrouter/free"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 CONTENT_VISION_MODEL = os.getenv("EMPTY_CHAIR_CONTENT_VISION_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
+EMPTY_CHAIR_BASE_URL = os.getenv("EMPTY_CHAIR_BASE_URL", "https://app.tryemptychair.com").strip() or "https://app.tryemptychair.com"
 
 VISION_PROMPT = """You are the Instagram content strategist inside Empty Chair, a tattoo demand platform.
 Analyze the ACTUAL supplied portfolio image. Do not rely on its filename.
@@ -67,7 +70,8 @@ def _ensure_tables(conn):
     """)
     for column in (
         "image_url", "instagram_hook", "instagram_caption", "instagram_cta",
-        "image_mime", "image_sha256", "analysis_status", "analysis_error", "analyzed_at"
+        "image_mime", "image_sha256", "analysis_status", "analysis_error", "analyzed_at",
+        "analysis_provider"
     ):
         _ensure_column(conn, column)
     _ensure_column(conn, "image_data", "BYTEA")
@@ -92,13 +96,30 @@ def _clean_title(filename):
     return stem.replace("_", " ").replace("-", " ").strip() or "Portfolio image"
 
 
-def _extract_output_text(payload):
+def _extract_openai_output_text(payload):
     pieces = []
     for item in payload.get("output") or []:
         for content in item.get("content") or []:
             if content.get("type") == "output_text" and content.get("text"):
                 pieces.append(content["text"])
     return "\n".join(pieces).strip()
+
+
+def _extract_openrouter_output_text(payload):
+    choices = payload.get("choices") or []
+    if not choices:
+        return ""
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        pieces = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") in {"text", "output_text"} and item.get("text"):
+                pieces.append(str(item["text"]))
+        return "\n".join(pieces).strip()
+    return ""
 
 
 def _parse_json_text(text):
@@ -117,7 +138,57 @@ def _parse_json_text(text):
         raise
 
 
-def _vision_copy(image_data, image_mime):
+def _normalize_vision_result(text):
+    parsed = _parse_json_text(text)
+    hook = str(parsed.get("hook") or "").strip()
+    caption = str(parsed.get("caption") or "").strip()
+    cta = str(parsed.get("cta") or "").strip()
+    theme = str(parsed.get("theme") or "other").strip()
+    allowed_themes = {"traditional", "weird_playful", "dark_occult", "nature_animals", "pop_culture", "other"}
+    if theme not in allowed_themes:
+        theme = "other"
+    if not hook or not caption or not cta:
+        raise RuntimeError("Vision response did not contain complete Instagram copy.")
+    return hook, caption, cta, theme
+
+
+def _openrouter_vision_copy(image_data, image_mime):
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("OPENROUTER_API_KEY is not configured.")
+    data_url = f"data:{image_mime};base64,{base64.b64encode(bytes(image_data)).decode('ascii')}"
+    payload = {
+        "model": OPENROUTER_VISION_MODEL,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": VISION_PROMPT},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ],
+        }],
+        "max_tokens": 700,
+        "temperature": 0.35,
+    }
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": EMPTY_CHAIR_BASE_URL,
+            "X-Title": "Empty Chair Content Studio",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=90) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenRouter HTTP {exc.code}: {detail[:500]}") from exc
+    return _normalize_vision_result(_extract_openrouter_output_text(result))
+
+
+def _openai_vision_copy(image_data, image_mime):
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not configured.")
     data_url = f"data:{image_mime};base64,{base64.b64encode(bytes(image_data)).decode('ascii')}"
@@ -146,18 +217,24 @@ def _vision_copy(image_data, image_mime):
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenAI HTTP {exc.code}: {detail[:400]}") from exc
-    parsed = _parse_json_text(_extract_output_text(result))
-    hook = str(parsed.get("hook") or "").strip()
-    caption = str(parsed.get("caption") or "").strip()
-    cta = str(parsed.get("cta") or "").strip()
-    theme = str(parsed.get("theme") or "other").strip()
-    allowed_themes = {"traditional", "weird_playful", "dark_occult", "nature_animals", "pop_culture", "other"}
-    if theme not in allowed_themes:
-        theme = "other"
-    if not hook or not caption or not cta:
-        raise RuntimeError("Vision response did not contain complete Instagram copy.")
-    return hook, caption, cta, theme
+        raise RuntimeError(f"OpenAI HTTP {exc.code}: {detail[:500]}") from exc
+    return _normalize_vision_result(_extract_openai_output_text(result))
+
+
+def _vision_copy(image_data, image_mime):
+    if OPENROUTER_API_KEY:
+        try:
+            return (*_openrouter_vision_copy(image_data, image_mime), "openrouter/free")
+        except Exception as openrouter_exc:
+            if not OPENAI_API_KEY:
+                raise
+            try:
+                return (*_openai_vision_copy(image_data, image_mime), "openai")
+            except Exception as openai_exc:
+                raise RuntimeError(f"OpenRouter failed: {openrouter_exc} | OpenAI fallback failed: {openai_exc}") from openai_exc
+    if OPENAI_API_KEY:
+        return (*_openai_vision_copy(image_data, image_mime), "openai")
+    raise RuntimeError("No vision provider is configured. Set OPENROUTER_API_KEY or OPENAI_API_KEY.")
 
 
 @core.app.get("/demand-acquisition/content", response_class=HTMLResponse)
@@ -172,7 +249,7 @@ def content_library(request: Request):
             conn,
             """SELECT id,shop_id,title,asset_type,theme,status,source_name,notes,created_at,
             image_url,image_mime,image_sha256,instagram_hook,instagram_caption,instagram_cta,
-            analysis_status,analysis_error,analyzed_at
+            analysis_status,analysis_error,analyzed_at,analysis_provider
             FROM demand_content_assets WHERE shop_id=? ORDER BY created_at DESC, id DESC""",
             (user["shop_id"],),
         )]
@@ -199,7 +276,8 @@ def content_library(request: Request):
             "skipped": request.query_params.get("skipped"),
             "upload_error": request.query_params.get("error"),
             "pending_ids": pending_ids,
-            "vision_configured": bool(OPENAI_API_KEY),
+            "vision_configured": bool(OPENROUTER_API_KEY or OPENAI_API_KEY),
+            "vision_provider": "OpenRouter Free" if OPENROUTER_API_KEY else ("OpenAI" if OPENAI_API_KEY else "None"),
             "auto_analyze": bool(pending_ids),
         },
         headers={"Cache-Control": "no-store"},
@@ -254,16 +332,16 @@ def analyze_content_asset(asset_id: int, request: Request):
         )
         conn.commit()
         try:
-            hook, caption, cta, theme = _vision_copy(row["image_data"], row["image_mime"] or "image/jpeg")
+            hook, caption, cta, theme, provider = _vision_copy(row["image_data"], row["image_mime"] or "image/jpeg")
             current_theme = str(row["theme"] or "other")
             final_theme = theme if current_theme == "other" else current_theme
             core.db_execute(
                 conn,
                 """UPDATE demand_content_assets
-                SET instagram_hook=?,instagram_caption=?,instagram_cta=?,theme=?,
+                SET instagram_hook=?,instagram_caption=?,instagram_cta=?,theme=?,analysis_provider=?,
                     analysis_status='complete',analysis_error='',analyzed_at=CURRENT_TIMESTAMP
                 WHERE id=? AND shop_id=?""",
-                (hook, caption, cta, final_theme, asset_id, user["shop_id"]),
+                (hook, caption, cta, final_theme, provider, asset_id, user["shop_id"]),
             )
             conn.commit()
             return JSONResponse({
@@ -273,6 +351,7 @@ def analyze_content_asset(asset_id: int, request: Request):
                 "caption": caption,
                 "cta": cta,
                 "theme": final_theme,
+                "provider": provider,
             })
         except Exception as exc:
             core.db_execute(
