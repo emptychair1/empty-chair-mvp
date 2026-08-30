@@ -21,7 +21,7 @@
     if(!document.querySelector('link[data-dashboard-actions]')){
       const css=document.createElement('link');
       css.rel='stylesheet';
-      css.href='/static/dashboard-top-actions.css?v=2';
+      css.href='/static/dashboard-top-actions.css?v=3';
       css.dataset.dashboardActions='1';
       document.head.appendChild(css);
     }
