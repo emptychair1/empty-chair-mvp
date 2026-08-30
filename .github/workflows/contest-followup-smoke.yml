@@ -1,0 +1,27 @@
+name: Contest follow-up smoke
+
+on:
+  push:
+    branches:
+      - contest-followup-v2
+
+jobs:
+  bootstrap-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      EMPTY_CHAIR_DEMO_MODE: "true"
+      EMPTY_CHAIR_WORKER_ENABLED: "false"
+      EMPTY_CHAIR_SMS_LIVE: "false"
+      EMPTY_CHAIR_EMAIL_LIVE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile contest follow-up files
+        run: python -m py_compile contest.py contest_followup_v2.py contest_runtime_fix.py bootstrap.py
+      - name: Import production bootstrap
+        run: python -c "import bootstrap; assert bootstrap.app is not None; print('BOOTSTRAP_SMOKE_OK')"
