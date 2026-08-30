@@ -5,10 +5,20 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import app as core
 
 
+def _ensure_column(conn, column):
+    if getattr(core, "USE_POSTGRES", False):
+        core.db_execute(conn, f"ALTER TABLE demand_content_assets ADD COLUMN IF NOT EXISTS {column} TEXT")
+        return
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(demand_content_assets)").fetchall()}
+    if column not in columns:
+        core.db_execute(conn, f"ALTER TABLE demand_content_assets ADD COLUMN {column} TEXT")
+
+
 def _ensure_tables(conn):
-    core.db_execute(conn, """
+    id_ddl = "BIGSERIAL PRIMARY KEY" if getattr(core, "USE_POSTGRES", False) else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    core.db_execute(conn, f"""
         CREATE TABLE IF NOT EXISTS demand_content_assets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_ddl},
             shop_id TEXT NOT NULL,
             title TEXT NOT NULL,
             asset_type TEXT NOT NULL DEFAULT 'flash',
@@ -19,16 +29,8 @@ def _ensure_tables(conn):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    for statement in (
-        "ALTER TABLE demand_content_assets ADD COLUMN image_url TEXT",
-        "ALTER TABLE demand_content_assets ADD COLUMN instagram_hook TEXT",
-        "ALTER TABLE demand_content_assets ADD COLUMN instagram_caption TEXT",
-        "ALTER TABLE demand_content_assets ADD COLUMN instagram_cta TEXT",
-    ):
-        try:
-            core.db_execute(conn, statement)
-        except Exception:
-            pass
+    for column in ("image_url", "instagram_hook", "instagram_caption", "instagram_cta"):
+        _ensure_column(conn, column)
     conn.commit()
 
 
