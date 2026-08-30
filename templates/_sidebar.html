@@ -1,50 +1,47 @@
 <link rel="stylesheet" href="{{ url_for('static', path='/mobile-nav.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', path='/hero-overrides.css') }}">
 <script src="/static/demo-avatar.js?v=4" defer></script>
-<script src="/static/pwa-links.js?v=1" defer></script>
+<script src="/static/pwa-links.js?v=4" defer></script>
 <style>
-.nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--signal);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid var(--line-soft);background:transparent;color:var(--cream-dim);cursor:pointer;font:inherit;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.ec-brand{display:block;padding:4px}.ec-brand img{display:block;width:100%;max-width:255px;height:auto;margin:0 auto}.nav-icon{width:32px!important;height:32px!important;display:grid!important;place-items:center!important;flex:0 0 32px}.nav-icon img{display:block;width:30px!important;height:30px!important;object-fit:contain}.mobile-primary{display:none!important}.menu-icon{display:block;width:32px;height:32px;object-fit:contain}.studio-card,.owner-card{position:relative}.sidebar-identity{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center}.sidebar-shop-avatar{width:52px;height:52px;object-fit:contain;display:block}.sidebar-user-avatar{width:46px;height:46px;border-radius:50%;border:1px solid var(--line-soft);object-fit:cover;display:block;background:#0b0d0b}.global-shop-chip{display:flex;align-items:center;gap:9px;margin-left:auto;padding:6px 9px;border:1px solid var(--line-soft);background:#0b0d0b;min-width:0}.global-shop-chip img{width:48px;height:48px;object-fit:contain;display:block;flex:0 0 48px}.global-shop-chip .shop-chip-text{min-width:0}.global-shop-chip .shop-chip-kicker{color:var(--muted);font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.global-shop-chip .shop-chip-name{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cream);font-size:11px;font-weight:850}@media(max-width:760px){.global-shop-chip{display:none}.sidebar-identity{grid-template-columns:44px minmax(0,1fr)}.sidebar-shop-avatar{width:44px;height:44px}.sidebar-user-avatar{width:40px;height:40px}}
+.nav-group{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}.nav-group summary{display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:0 14px;color:var(--muted);cursor:pointer;list-style:none;font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.nav-group summary::-webkit-details-marker,.nav-group summary::marker{display:none}.nav-group summary::after{content:'+';color:var(--signal);font-size:16px}.nav-group[open] summary::after{content:'−'}.nav-group-links{display:grid;gap:4px}.nav-group .nav-link{min-height:42px;font-size:12px}.logout-form{margin-top:10px}.logout-button{width:100%;min-height:42px;border:1px solid var(--line-soft);background:transparent;color:var(--cream-dim);cursor:pointer;font:inherit;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.ec-brand{display:block;padding:4px}.ec-brand img{display:block;width:100%;max-width:255px;height:auto;margin:0 auto}.nav-icon{width:32px!important;height:32px!important;display:grid!important;place-items:center!important;flex:0 0 32px}.nav-icon img{display:block;width:30px!important;height:30px!important;object-fit:contain}.mobile-primary{display:none!important}.menu-icon{display:block;width:32px;height:32px;object-fit:contain}.studio-card,.owner-card{position:relative}.sidebar-identity{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;align-items:center}.sidebar-shop-avatar{width:52px;height:52px;object-fit:contain;display:block}.sidebar-user-avatar{width:46px;height:46px;border-radius:50%;border:1px solid var(--line-soft);object-fit:cover;display:block;background:#0b0d0b}.global-shop-chip{display:flex;align-items:center;gap:9px;margin-left:auto;padding:6px 9px;border:1px solid var(--line-soft);background:#0b0d0b;min-width:0}.global-shop-chip img{width:48px;height:48px;object-fit:contain;display:block;flex:0 0 48px}.global-shop-chip .shop-chip-text{min-width:0}.global-shop-chip .shop-chip-kicker{color:var(--muted);font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.global-shop-chip .shop-chip-name{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cream);font-size:11px;font-weight:850}.m4-utility{margin:10px 20px 0;min-height:48px;display:flex;align-items:center;justify-content:center;gap:9px;border:1px solid var(--signal-dark);background:#10120e;color:var(--signal);text-decoration:none;font-family:var(--cartoon);font-size:16px;letter-spacing:.02em;text-transform:uppercase}.m4-utility:hover{border-color:var(--signal);background:#151912}.demand-workspace-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0 28px 18px;border:1px solid var(--line);background:#0a0b09}.demand-workspace-tabs a{min-height:44px;display:flex;align-items:center;justify-content:center;padding:0 10px;border-right:1px solid var(--line);color:var(--cream-dim);text-decoration:none;font-family:var(--cartoon);font-size:15px;text-transform:uppercase}.demand-workspace-tabs a:last-child{border-right:0}.demand-workspace-tabs a.active{background:var(--signal);color:#080908}.demand-workspace-tabs a:hover{color:var(--cream)}
+@media(max-width:760px){.global-shop-chip{display:none}.sidebar-identity{grid-template-columns:44px minmax(0,1fr)}.sidebar-shop-avatar{width:44px;height:44px}.sidebar-user-avatar{width:40px;height:40px}.m4-utility{position:fixed;right:14px;bottom:calc(var(--mobile-tab-height,78px) + env(safe-area-inset-bottom) + 12px);z-index:998;width:auto;min-height:42px;margin:0;padding:0 15px;background:#0c0e0b;box-shadow:3px 3px 0 #000}.demand-workspace-tabs{margin:0 15px 14px;overflow-x:auto;grid-template-columns:repeat(4,minmax(92px,1fr))}.demand-workspace-tabs a{font-size:13px}}
 </style>
 
+{% set demand_pages = ['demand_graph','demand_acquisition','concierge_leads','contest'] %}
 <aside class="sidebar"><div class="brand-wrap"><a class="ec-brand" href="/" aria-label="Empty Chair home"><img src="/static/D8F5F51D-90EE-45DE-9D95-DB078BDEB87E.png?v=3" alt="Empty Chair"></a></div>
 <nav class="sidebar-nav" aria-label="Primary navigation">
-<a class="nav-link desktop-primary {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon"><img src="/static/shop-intelligence.png" alt=""></span><span>Shop Intelligence</span></a>
-<a class="nav-link desktop-primary {{ 'active' if active_page == 'demand_graph' else '' }}" href="/demand-graph"><span class="nav-icon"><img src="/static/demand-graph.png" alt=""></span><span>Demand Graph</span></a>
-<a class="nav-link desktop-primary {{ 'active' if active_page == 'demand_acquisition' else '' }}" href="/demand-acquisition"><span class="nav-icon"><img src="/static/52F34B1D-6A21-4981-B14E-DB534834F7D2.png" alt=""></span><span>Demand Engine</span></a>
-<a class="nav-link desktop-primary {{ 'active' if active_page == 'm4' else '' }}" href="/m4"><span class="nav-icon"><img src="/static/m4-intelligence.png" alt=""></span><span>M4 Intelligence</span></a>
-{% if is_platform_admin(user) %}<a class="nav-link desktop-primary {{ 'active' if active_page == 'owner' else '' }}" href="/owner"><span class="nav-icon"><img src="/static/platform-intelligence.png" alt=""></span><span>Platform Intelligence</span></a>{% endif %}
+<a class="nav-link desktop-primary {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon"><img src="/static/shop-intelligence.png" alt=""></span><span>Shop</span></a>
 <a class="nav-link desktop-primary {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon"><img src="/static/openings-recovery.png" alt=""></span><span>Openings</span></a>
+<a class="nav-link desktop-primary {{ 'active' if active_page in demand_pages else '' }}" href="/demand-acquisition"><span class="nav-icon"><img src="/static/52F34B1D-6A21-4981-B14E-DB534834F7D2.png" alt=""></span><span>Demand</span></a>
+<a class="nav-link desktop-primary {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon"><img src="/static/customer-intelligence.png" alt=""></span><span>Customers</span></a>
 <a class="nav-link desktop-primary {{ 'active' if active_page in ['bookings','calendar'] else '' }}" href="/bookings"><span class="nav-icon"><img src="/static/calendar.png" alt=""></span><span>Calendar</span></a>
-<a class="nav-link desktop-primary {{ 'active' if active_page == 'concierge_leads' else '' }}" href="/concierge-leads"><span class="nav-icon"><img src="/static/concierge-leads.png" alt=""></span><span>Concierge Leads</span></a>
 
 <a class="nav-link mobile-primary {{ 'active' if active_page in ['dashboard','results'] else '' }}" href="/"><span class="nav-icon"><img src="/static/shop-intelligence.png" alt=""></span><span>Shop</span></a>
 <a class="nav-link mobile-primary {{ 'active' if active_page in ['pilot','openings','recovery'] else '' }}" href="/pilot"><span class="nav-icon"><img src="/static/openings-recovery.png" alt=""></span><span>Openings</span></a>
+<a class="nav-link mobile-primary {{ 'active' if active_page in demand_pages else '' }}" href="/demand-acquisition"><span class="nav-icon"><img src="/static/52F34B1D-6A21-4981-B14E-DB534834F7D2.png" alt=""></span><span>Demand</span></a>
 <a class="nav-link mobile-primary {{ 'active' if active_page in ['bookings','calendar'] else '' }}" href="/bookings"><span class="nav-icon"><img src="/static/calendar.png" alt=""></span><span>Calendar</span></a>
 
-<details class="nav-group mobile-overflow" {{ 'open' if active_page in ['artists','customers','operations','settings','setup','support'] else '' }}><summary>Shop data &amp; controls</summary><div class="nav-group-links">
+<details class="nav-group mobile-overflow" {{ 'open' if active_page in ['artists','operations','settings','setup','support','owner','demo'] else '' }}><summary>More</summary><div class="nav-group-links">
 <a class="nav-link {{ 'active' if active_page == 'artists' else '' }}" href="/artists"><span class="nav-icon"><img src="/static/artists.png" alt=""></span><span>Artists</span></a>
-<a class="nav-link {{ 'active' if active_page == 'customers' else '' }}" href="/customers"><span class="nav-icon"><img src="/static/customer-intelligence.png" alt=""></span><span>Customer Intelligence</span></a>
 <a class="nav-link {{ 'active' if active_page == 'operations' else '' }}" href="/operations"><span class="nav-icon"><img src="/static/operations.png" alt=""></span><span>Operations</span></a>
 <a class="nav-link {{ 'active' if active_page == 'setup' else '' }}" href="/setup"><span class="nav-icon"><img src="/static/setup.png" alt=""></span><span>Setup</span></a>
 <a class="nav-link {{ 'active' if active_page == 'settings' else '' }}" href="/settings"><span class="nav-icon"><img src="/static/settings.png" alt=""></span><span>Settings</span></a>
 <a class="nav-link {{ 'active' if active_page == 'support' else '' }}" href="/support"><span class="nav-icon"><img src="/static/support.png" alt=""></span><span>Support</span></a>
+{% if is_platform_admin(user) %}<a class="nav-link {{ 'active' if active_page == 'owner' else '' }}" href="/owner"><span class="nav-icon"><img src="/static/platform-intelligence.png" alt=""></span><span>Platform</span></a>{% endif %}
+{% if user and user.id == 'user_live_demo' %}<a class="nav-link {{ 'active' if active_page == 'demo' else '' }}" href="/demo"><span class="nav-icon"><img src="/static/demo-guide.png" alt=""></span><span>Demo Guide</span></a>{% endif %}
 </div></details>
-{% if user and user.id == 'user_live_demo' %}<a class="nav-link desktop-primary {{ 'active' if active_page == 'demo' else '' }}" href="/demo"><span class="nav-icon"><img src="/static/demo-guide.png" alt=""></span><span>Demo Guide</span></a>{% endif %}
 
-<details class="mobile-more {{ 'active' if active_page in ['artists','customers','operations','settings','setup','support','concierge_leads','demand_graph','demand_acquisition','m4','owner','demo'] else '' }}"><summary><span class="nav-icon"><img src="/static/settings.png" alt=""></span><span>More</span></summary><div class="mobile-more-sheet">
-<a href="/demand-graph"><span><img class="menu-icon" src="/static/demand-graph.png" alt=""></span><strong>Demand Graph</strong></a>
-<a href="/demand-acquisition"><span><img class="menu-icon" src="/static/52F34B1D-6A21-4981-B14E-DB534834F7D2.png" alt=""></span><strong>Demand Engine</strong></a>
-<a href="/m4"><span><img class="menu-icon" src="/static/m4-intelligence.png" alt=""></span><strong>M4 Intelligence</strong></a>
-{% if is_platform_admin(user) %}<a href="/owner"><span><img class="menu-icon" src="/static/platform-intelligence.png" alt=""></span><strong>Platform Intelligence</strong></a>{% endif %}
-<a href="/concierge-leads"><span><img class="menu-icon" src="/static/concierge-leads.png" alt=""></span><strong>Concierge Leads</strong></a>
+<details class="mobile-more {{ 'active' if active_page in ['artists','customers','operations','settings','setup','support','owner','demo'] else '' }}"><summary><span class="nav-icon"><img src="/static/settings.png" alt=""></span><span>More</span></summary><div class="mobile-more-sheet">
+<a href="/customers"><span><img class="menu-icon" src="/static/customer-intelligence.png" alt=""></span><strong>Customers</strong></a>
 <a href="/artists"><span><img class="menu-icon" src="/static/artists.png" alt=""></span><strong>Artists</strong></a>
-<a href="/customers"><span><img class="menu-icon" src="/static/customer-intelligence.png" alt=""></span><strong>Customer Intelligence</strong></a>
 <a href="/operations"><span><img class="menu-icon" src="/static/operations.png" alt=""></span><strong>Operations</strong></a>
 <a href="/setup"><span><img class="menu-icon" src="/static/setup.png" alt=""></span><strong>Setup</strong></a>
 <a href="/settings"><span><img class="menu-icon" src="/static/settings.png" alt=""></span><strong>Settings</strong></a>
 <a href="/support"><span><img class="menu-icon" src="/static/support.png" alt=""></span><strong>Support</strong></a>
+{% if is_platform_admin(user) %}<a href="/owner"><span><img class="menu-icon" src="/static/platform-intelligence.png" alt=""></span><strong>Platform</strong></a>{% endif %}
 {% if user and user.id == 'user_live_demo' %}<a href="/demo"><span><img class="menu-icon" src="/static/demo-guide.png" alt=""></span><strong>Demo Guide</strong></a>{% endif %}
 </div></details></nav>
+<a class="m4-utility" href="/m4">Ask M4</a>
 <div class="sidebar-footer"><div class="studio-card"><div class="sidebar-identity"><img class="sidebar-shop-avatar" src="/static/shop-avatar.png?v=1" alt=""><div><div class="kicker">Studio</div><div class="studio-name">{{ shop["name"] if shop else "No studio configured" }}</div><div class="online">● System active</div></div></div></div><div class="owner-card"><div class="sidebar-identity"><img class="sidebar-user-avatar mock-avatar" data-name="{{ user['name'] if user else 'Owner' }}" alt=""><div><div class="kicker">Signed in</div><div class="owner-name">{{ user["name"] if user else "Owner" }}</div></div></div></div><form class="logout-form" method="post" action="/logout"><button class="logout-button" type="submit">Log out</button></form></div></aside>
 <script>
 (()=>{
@@ -60,6 +57,19 @@
       if(actions) topbar.insertBefore(chip,actions); else topbar.appendChild(chip);
     });
   };
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addGlobalShopIdentity,{once:true}); else addGlobalShopIdentity();
+  const addDemandTabs=()=>{
+    const routes=[['/demand-acquisition','Engine'],['/demand-graph','Graph'],['/concierge-leads','Leads'],['/contest','Contest']];
+    const path=location.pathname.replace(/\/$/,'')||'/';
+    if(!routes.some(([href])=>path===href||path.startsWith(href+'/'))) return;
+    if(document.querySelector('.demand-workspace-tabs')) return;
+    const tabs=document.createElement('nav');
+    tabs.className='demand-workspace-tabs';
+    tabs.setAttribute('aria-label','Demand workspace');
+    tabs.innerHTML=routes.map(([href,label])=>`<a href="${href}" class="${path===href||path.startsWith(href+'/')?'active':''}">${label}</a>`).join('');
+    const topbar=document.querySelector('.topbar');
+    if(topbar) topbar.insertAdjacentElement('afterend',tabs);
+  };
+  const boot=()=>{addGlobalShopIdentity();addDemandTabs();};
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
 </script>
