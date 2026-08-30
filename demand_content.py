@@ -200,7 +200,7 @@ def content_library(request: Request):
             "upload_error": request.query_params.get("error"),
             "pending_ids": pending_ids,
             "vision_configured": bool(OPENAI_API_KEY),
-            "auto_analyze": request.query_params.get("analyze") == "1",
+            "auto_analyze": bool(pending_ids),
         },
         headers={"Cache-Control": "no-store"},
     )
