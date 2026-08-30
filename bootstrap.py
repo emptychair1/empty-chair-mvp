@@ -51,6 +51,7 @@ import customer_bulk_delete  # noqa: F401,E402
 import contest  # noqa: F401,E402
 import contest_runtime_fix  # noqa: F401,E402
 import demand_content  # noqa: F401,E402
+import content_scheduler  # noqa: F401,E402
 
 meeting_v2 = None
 meeting_import_error = None
