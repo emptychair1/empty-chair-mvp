@@ -5,9 +5,9 @@
     link.href=href;
     Object.entries(attrs).forEach(([k,v])=>link.setAttribute(k,v));
   };
-  ensureLink('manifest','/manifest.webmanifest?v=2');
-  ensureLink('icon','/static/favicon.png?v=2',{type:'image/png',sizes:'32x32'});
-  ensureLink('apple-touch-icon','/static/app-icon.png?v=2');
+  ensureLink('manifest','/manifest.webmanifest?v=3');
+  ensureLink('icon','/static/favicon.png?v=3',{type:'image/png',sizes:'32x32'});
+  ensureLink('apple-touch-icon','/static/apple-touch-icon.png?v=3',{sizes:'180x180'});
   let theme=document.head.querySelector('meta[name="theme-color"]');
   if(!theme){theme=document.createElement('meta');theme.name='theme-color';document.head.appendChild(theme);}
   theme.content='#b1ff00';
