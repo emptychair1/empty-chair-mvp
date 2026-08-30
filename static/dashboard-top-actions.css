@@ -1,0 +1,16 @@
+/* Dashboard top actions — keep the three primary actions readable on mobile/PWA. */
+.dashboard-topbar .dashboard-top-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-self:flex-start;gap:0;min-width:min(570px,58vw)}
+.dashboard-topbar .dashboard-top-actions .button{width:100%;min-height:58px;padding:0 16px;border-color:var(--line);white-space:nowrap;font-size:18px;line-height:1;text-align:center}
+.dashboard-topbar .dashboard-top-actions .button.primary-action{border-color:var(--signal);background:var(--signal);color:#080908}
+.dashboard-topbar .dashboard-top-actions .button.secondary{background:#0b0d0b;color:var(--cream)}
+.dashboard-topbar .dashboard-top-actions .button+.button{border-left:0}
+@media(max-width:900px){
+  .dashboard-topbar{display:grid!important;grid-template-columns:minmax(0,1fr);gap:16px!important;align-items:start!important;padding:18px 15px 16px!important}
+  .dashboard-topbar .topbar-left{min-width:0}
+  .dashboard-topbar .page-title{font-size:clamp(36px,9vw,54px);line-height:.86}
+  .dashboard-topbar .dashboard-top-actions{width:100%;min-width:0;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .dashboard-topbar .dashboard-top-actions .button{min-width:0;min-height:52px;padding:0 8px;font-size:clamp(14px,3.4vw,18px);white-space:normal;line-height:.95}
+}
+@media(max-width:430px){
+  .dashboard-topbar .dashboard-top-actions .button{font-size:13px;padding:0 5px}
+}
