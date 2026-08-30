@@ -40,6 +40,38 @@ def _resolve_shop(request: Request, requested_shop: str = "") -> str:
     return explicit or DEMO_SHOP_ID
 
 
+def _campaign_shop(campaign_id: str):
+    """Resolve the owning shop from a tracked acquisition campaign.
+
+    Campaign attribution is authoritative for public acquisition traffic. This
+    prevents a missing/stale browser shop_id from filing a real lead under the
+    demo shop or another tenant.
+    """
+    cid = (campaign_id or "").strip()
+    if not cid:
+        return None
+    conn = core.connect()
+    try:
+        row = core.db_fetchone(
+            conn,
+            "SELECT shop_id FROM acquisition_campaigns WHERE id=? AND status='active' LIMIT 1",
+            (cid,),
+        )
+        return str(row["shop_id"]) if row and row["shop_id"] else None
+    except Exception:
+        conn.rollback()
+        return None
+    finally:
+        conn.close()
+
+
+def _target_shop(request: Request, requested_shop: str, campaign_id: str):
+    cid = (campaign_id or "").strip()
+    if cid:
+        return _campaign_shop(cid)
+    return _resolve_shop(request, requested_shop)
+
+
 @core.app.post("/api/m4/active-learning/next")
 async def m4_active_learning_next(request: Request):
     """Return the single missing zero-party answer with highest M4 value."""
@@ -84,7 +116,12 @@ def concierge_profile(
     location: str = Form(""),
 ):
     sid = session_id.strip() or f"conc_{uuid.uuid4().hex[:12]}"
-    target_shop = _resolve_shop(request, shop_id)
+    clean_campaign_id = campaign_id.strip()
+    target_shop = _target_shop(request, shop_id, clean_campaign_id)
+    if clean_campaign_id and not target_shop:
+        return JSONResponse({"error": "This campaign link is no longer active."}, status_code=400)
+    if not target_shop:
+        return JSONResponse({"error": "This Concierge link is not attached to a valid shop."}, status_code=400)
     conn = core.connect()
     try:
         if not core.db_fetchone(conn, "SELECT id FROM shops WHERE id=?", (target_shop,)):
@@ -108,7 +145,7 @@ def concierge_profile(
         "artist_vibe": artist_vibe.strip(),
         "travel": travel.strip(),
         "location": location.strip(),
-        "campaign_id": campaign_id.strip(),
+        "campaign_id": clean_campaign_id,
         "acquisition_source": acquisition_source.strip(),
     }
     if not p["name"] or not p["phone"]:
@@ -181,8 +218,15 @@ def concierge_profile(
 
 @core.app.get("/concierge", response_class=HTMLResponse)
 def concierge_page(request: Request):
-    shop_id = _resolve_shop(request, request.query_params.get("shop_id") or "")
     campaign_id = (request.query_params.get("campaign_id") or "").strip()
+    shop_id = _target_shop(request, request.query_params.get("shop_id") or "", campaign_id)
+    if campaign_id and not shop_id:
+        return HTMLResponse(
+            "<!doctype html><html><body style='background:#080908;color:#f0eadf;font-family:system-ui;padding:40px'><h1>Campaign unavailable</h1><p>This campaign link is no longer active.</p></body></html>",
+            status_code=404,
+            headers={"Cache-Control": "no-store"},
+        )
+    shop_id = shop_id or DEMO_SHOP_ID
     acquisition_source = (request.query_params.get("src") or "").strip()
     try:
         with open("templates/concierge_chat.html", "r", encoding="utf-8") as handle:
