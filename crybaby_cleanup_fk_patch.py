@@ -63,7 +63,31 @@ def _distinct_parent_values(conn, table: str, filter_column: str, ids: list[str]
         f"SELECT DISTINCT {parent_column} AS value FROM {table} WHERE {filter_column} IN ({marks}) AND {parent_column} IS NOT NULL",
         ids,
     )
-    return [row["value"] for row in rows if row.get("value") is not None]
+    values = []
+    for row in rows:
+        value = row["value"]
+        if value is not None:
+            values.append(value)
+    return values
+
+
+def _delete_known_opening_dependencies(conn, opening_ids: list[str], path) -> None:
+    """Delete known join-table references before removing openings.
+
+    PostgreSQL reported autopilot_campaign_openings.opening_id as a live FK in
+    production. Handle it explicitly, while still using recursive dependency
+    deletion in case that join table itself gains children later.
+    """
+    if not opening_ids:
+        return
+    if cleanup._column_exists(conn, "autopilot_campaign_openings", "opening_id"):
+        _delete_with_dependencies(
+            conn,
+            "autopilot_campaign_openings",
+            "opening_id",
+            opening_ids,
+            path,
+        )
 
 
 def _delete_with_dependencies(conn, table: str, column: str, ids: list[str], _path=None) -> int:
@@ -80,6 +104,13 @@ def _delete_with_dependencies(conn, table: str, column: str, ids: list[str], _pa
     if signature in path:
         raise RuntimeError(f"Crybaby cleanup refused: cyclic foreign-key dependency at {table}.{column}")
     path.add(signature)
+
+    # Production-specific hard dependency observed from PostgreSQL. Do this
+    # before the generic FK traversal so opening deletion cannot race ahead of
+    # the campaign/opening join rows even if information_schema metadata is
+    # incomplete or represented differently than expected.
+    if table == "openings" and column == "id":
+        _delete_known_opening_dependencies(conn, ids, path)
 
     for fk in _fk_children(conn, table):
         child_table = _safe_ident(fk["child_table"])
