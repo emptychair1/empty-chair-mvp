@@ -15,6 +15,8 @@ import pwa_branding  # noqa: F401,E402
 import contest  # noqa: F401,E402
 import contest_runtime_fix  # noqa: F401,E402
 import demand_tattoo_finder  # noqa: F401,E402
+import demand_shortlinks  # noqa: F401,E402
+import concierge_campaign_repair  # noqa: F401,E402
 import demand_content  # noqa: F401,E402
 import content_scheduler  # noqa: F401,E402
 import demand_read_api  # noqa: F401,E402
