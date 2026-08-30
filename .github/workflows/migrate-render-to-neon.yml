@@ -1,0 +1,98 @@
+name: Migrate Render PostgreSQL to Neon
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RENDER_DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - name: Verify required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RENDER_DATABASE_URL" || { echo "RENDER_DATABASE_URL is missing"; exit 1; }
+          test -n "$NEON_DATABASE_URL" || { echo "NEON_DATABASE_URL is missing"; exit 1; }
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          pg_dump --version
+          pg_restore --version
+
+      - name: Check source database
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT 'source_ok', current_database(), version();"
+          psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT 'source_tables', count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
+
+      - name: Dump Render production database
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_dump "$RENDER_DATABASE_URL" \
+            --format=custom \
+            --no-owner \
+            --no-privileges \
+            --file=/tmp/empty-chair-production.dump
+          test -s /tmp/empty-chair-production.dump
+          echo "Production dump created successfully."
+
+      - name: Prepare Neon destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
+
+      - name: Restore into Neon
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_restore \
+            --dbname="$NEON_DATABASE_URL" \
+            --no-owner \
+            --no-privileges \
+            --exit-on-error \
+            /tmp/empty-chair-production.dump
+
+      - name: Verify schema and table row counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_TABLES="$(psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
+          DST_TABLES="$(psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
+          echo "Source tables: $SRC_TABLES"
+          echo "Neon tables:   $DST_TABLES"
+          test "$SRC_TABLES" = "$DST_TABLES" || { echo "Table-count mismatch"; exit 1; }
+
+          psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename" > /tmp/source_tables.txt
+          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename" > /tmp/neon_tables.txt
+          diff -u /tmp/source_tables.txt /tmp/neon_tables.txt
+
+          while IFS= read -r table; do
+            src_count="$(psql "$RENDER_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$table\";")"
+            dst_count="$(psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM public.\"$table\";")"
+            if [ "$src_count" != "$dst_count" ]; then
+              echo "ROW COUNT MISMATCH: $table source=$src_count neon=$dst_count"
+              exit 1
+            fi
+            echo "verified $table: $src_count rows"
+          done < /tmp/source_tables.txt
+
+          echo "Migration verification passed: table names and row counts match."
+
+      - name: Remove temporary dump
+        if: always()
+        shell: bash
+        run: rm -f /tmp/empty-chair-production.dump /tmp/source_tables.txt /tmp/neon_tables.txt
