@@ -56,7 +56,7 @@ meeting_v2_visual_refine = None
 try:
     import meeting_v2 as _meeting_v2  # noqa: F401,E402
     meeting_v2 = _meeting_v2
-    meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "DSPOFq7nD22sXYn8JKlb")
+    meeting_v2.ELEVENLABS_VOICE_ID = os.getenv("M4_ELEVENLABS_VOICE_ID", "Ss7hQAiJNG6a81OU5k51")
     meeting_v2.ELEVENLABS_MODEL_ID = os.getenv("M4_ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
     import meeting_v2_runtime_fix  # noqa: F401,E402
     import meeting_v2_streaming  # noqa: F401,E402
