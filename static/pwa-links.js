@@ -33,6 +33,44 @@
       <a class="button secondary" href="/bookings">Calendar</a>`;
   };
 
+  const addConsultationsInbox=()=>{
+    if(document.querySelector('.ec-inbox-button')) return;
+    const topbars=[...document.querySelectorAll('.topbar')];
+    if(!topbars.length) return;
+    if(!document.querySelector('style[data-ec-inbox]')){
+      const style=document.createElement('style');
+      style.dataset.ecInbox='1';
+      style.textContent=`
+        .ec-inbox-button{position:relative;display:grid;place-items:center;width:46px;height:46px;flex:0 0 46px;border:1px solid #3a4036;background:#0b0e0b;color:#f2ecde;text-decoration:none;box-shadow:2px 2px 0 #000;transition:.14s ease}
+        .ec-inbox-button:hover{border-color:#c7ff3e;color:#c7ff3e;transform:translate(-1px,-1px);box-shadow:3px 3px 0 #000}
+        .ec-inbox-button svg{width:22px;height:22px;display:block}
+        .ec-inbox-badge{position:absolute;right:-6px;top:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:999px;display:none;align-items:center;justify-content:center;background:#c7ff3e;color:#080908;border:2px solid #080908;font:900 10px ui-monospace,monospace;box-sizing:border-box}
+        .ec-inbox-button.has-unread .ec-inbox-badge{display:flex}
+        @media(max-width:610px){.ec-inbox-button{width:40px;height:40px;flex-basis:40px}.ec-inbox-button svg{width:20px;height:20px}}
+      `;
+      document.head.appendChild(style);
+    }
+    topbars.forEach(topbar=>{
+      const actions=topbar.querySelector('.top-actions,.dashboard-top-actions');
+      const button=document.createElement('a');
+      button.className='ec-inbox-button';
+      button.href='/consultations';
+      button.setAttribute('aria-label','Digital Consultations inbox');
+      button.title='Digital Consultations';
+      button.innerHTML=`<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16v11H15l-3 3-3-3H4V5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="ec-inbox-badge">0</span>`;
+      if(actions) actions.insertAdjacentElement('beforebegin',button); else topbar.appendChild(button);
+    });
+    fetch('/api/consultations/unread-count',{cache:'no-store',credentials:'same-origin'})
+      .then(r=>r.ok?r.json():null)
+      .then(data=>{
+        const count=Number(data?.count||0);
+        document.querySelectorAll('.ec-inbox-button').forEach(button=>{
+          const badge=button.querySelector('.ec-inbox-badge');
+          if(count>0){button.classList.add('has-unread');badge.textContent=count>99?'99+':String(count);}else{button.classList.remove('has-unread');badge.textContent='0';}
+        });
+      }).catch(()=>{});
+  };
+
   const addContestNav=()=>{
     const desktopAnchor=document.querySelector('a[href="/concierge-leads"]');
     if(desktopAnchor && !document.querySelector('.contest-nav-link')){
@@ -57,6 +95,6 @@
       }
     }
   };
-  const boot=()=>{fixDashboardActions();addContestNav();};
+  const boot=()=>{fixDashboardActions();addConsultationsInbox();addContestNav();};
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
