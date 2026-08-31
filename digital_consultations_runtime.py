@@ -20,12 +20,15 @@ def _save_with_consultation(shop_id, profile, confidence):
     except Exception as exc:
         # Never lose a valid Concierge lead because Twilio or the consultation
         # layer is temporarily unavailable.
-        core.event(
-            "consultation.start_failed",
-            "customer",
-            customer_id,
-            str(exc),
-        )
+        try:
+            core.event(
+                "consultation.start_failed",
+                "customer",
+                customer_id,
+                str(exc),
+            )
+        except Exception:
+            pass
     return customer_id, lead_id
 
 
@@ -40,9 +43,12 @@ def _backfill_existing_threads():
     """Create silent consultation records for existing opted-in Concierge leads.
 
     This does not text older leads; it only makes them available in the new inbox.
+    Startup must never fail if the database is temporarily unavailable.
     """
-    conn = core.connect()
+    conn = None
+    rows = []
     try:
+        conn = core.connect()
         concierge_leads._ensure_table(conn)
         rows = core.db_fetchall(conn, """
             SELECT l.shop_id,l.customer_id,l.id AS lead_id
@@ -53,10 +59,18 @@ def _backfill_existing_threads():
             LIMIT 1000
         """)
     except Exception:
-        conn.rollback()
-        rows = []
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        return
     finally:
-        conn.close()
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     for row in rows:
         try:
@@ -66,12 +80,15 @@ def _backfill_existing_threads():
                 row["lead_id"],
             )
         except Exception as exc:
-            core.event(
-                "consultation.backfill_failed",
-                "customer",
-                row["customer_id"],
-                str(exc),
-            )
+            try:
+                core.event(
+                    "consultation.backfill_failed",
+                    "customer",
+                    row["customer_id"],
+                    str(exc),
+                )
+            except Exception:
+                pass
 
 
 def install():
@@ -80,8 +97,8 @@ def install():
         return
     concierge_leads.save_concierge_profile = _save_with_consultation
     concierge_leads._render_leads = _render_with_consultations
-    _backfill_existing_threads()
     _PATCHED = True
+    _backfill_existing_threads()
 
 
 install()
