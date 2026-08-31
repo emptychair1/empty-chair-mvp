@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 
 import app as core
 from demand_engine import register_demand_engine
+import digital_consultations_runtime  # noqa: F401,E402
 
 app = core.app
 
