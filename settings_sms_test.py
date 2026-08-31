@@ -10,6 +10,7 @@ import consultations_experience  # noqa: F401
 import consultation_quotes  # noqa: F401
 import quote_deposit_runtime_fix  # noqa: F401
 import consultation_post_payment  # noqa: F401
+import consultation_revisions  # noqa: F401
 
 app = core.app
 
