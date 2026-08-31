@@ -70,6 +70,38 @@
       }).catch(()=>{});
   };
 
+  const addMobileDrawer=()=>{
+    const sidebar=document.querySelector('.sidebar');
+    if(!sidebar||document.querySelector('.ec-mobile-menu-toggle')) return;
+    const toggle=document.createElement('button');
+    toggle.type='button';
+    toggle.className='ec-mobile-menu-toggle';
+    toggle.setAttribute('aria-label','Open navigation');
+    toggle.setAttribute('aria-controls','empty-chair-sidebar');
+    toggle.setAttribute('aria-expanded','false');
+    toggle.innerHTML='<span></span>';
+    sidebar.id=sidebar.id||'empty-chair-sidebar';
+    const backdrop=document.createElement('button');
+    backdrop.type='button';
+    backdrop.className='ec-mobile-nav-backdrop';
+    backdrop.setAttribute('aria-label','Close navigation');
+    document.body.appendChild(backdrop);
+    document.body.appendChild(toggle);
+    const setOpen=open=>{
+      document.body.classList.toggle('ec-nav-open',open);
+      toggle.setAttribute('aria-expanded',open?'true':'false');
+      toggle.setAttribute('aria-label',open?'Close navigation':'Open navigation');
+    };
+    toggle.addEventListener('click',()=>setOpen(!document.body.classList.contains('ec-nav-open')));
+    backdrop.addEventListener('click',()=>setOpen(false));
+    sidebar.addEventListener('click',event=>{
+      const link=event.target.closest('a[href]');
+      if(link&&matchMedia('(max-width:1024px)').matches) setOpen(false);
+    });
+    document.addEventListener('keydown',event=>{if(event.key==='Escape')setOpen(false)});
+    matchMedia('(min-width:1025px)').addEventListener?.('change',event=>{if(event.matches)setOpen(false)});
+  };
+
   const addContestNav=()=>{
     const desktopAnchor=document.querySelector('a[href="/concierge-leads"]');
     if(desktopAnchor && !document.querySelector('.contest-nav-link')){
@@ -81,7 +113,6 @@
       if(label) label.textContent='Contest';
       desktopAnchor.insertAdjacentElement('afterend',link);
     }
-
     const moreSheet=document.querySelector('.mobile-more-sheet');
     if(moreSheet && !moreSheet.querySelector('a[href="/contest"]')){
       const source=moreSheet.querySelector('a[href="/concierge-leads"]');
@@ -94,6 +125,6 @@
       }
     }
   };
-  const boot=()=>{fixDashboardActions();addConsultationsInbox();addContestNav();};
+  const boot=()=>{fixDashboardActions();addConsultationsInbox();addContestNav();addMobileDrawer();};
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
