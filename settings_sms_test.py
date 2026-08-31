@@ -15,6 +15,7 @@ import consultations_clean_ui  # noqa: F401
 import design_studio_branding  # noqa: F401
 import m4_flywheel_demo  # noqa: F401
 import m4_flywheel_refine  # noqa: F401
+import flywheel_brand_fix  # noqa: F401
 
 app = core.app
 
