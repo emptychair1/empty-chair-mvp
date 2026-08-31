@@ -1,4 +1,4 @@
-"""Safe runtime wiring for Digital Consultations.
+"""Safe runtime wiring for Design Studio consultations.
 
 This module only patches Python callables at import time. It performs no database
 queries, table creation, backfills, Twilio calls, or network I/O during startup.
@@ -27,7 +27,7 @@ def _save_with_consultation(shop_id, profile, confidence):
 def _render_with_consultations(shop, leads):
     rendered = _ORIGINAL_RENDER(shop, leads)
     old = "<a class='btn' href='/concierge'>Open Concierge</a>"
-    new = "<a class='back' href='/consultations'>Digital Consultations</a><a class='btn' href='/concierge'>Open Concierge</a>"
+    new = "<a class='back' href='/consultations'>Design Studio</a><a class='btn' href='/concierge'>Open Concierge</a>"
     return rendered.replace(old, new)
 
 
