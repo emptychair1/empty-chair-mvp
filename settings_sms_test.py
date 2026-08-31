@@ -3,6 +3,8 @@ from fastapi.responses import RedirectResponse
 
 import app as core
 from demand_engine import register_demand_engine
+import concierge_sms  # noqa: F401
+import digital_consultations_runtime  # noqa: F401
 
 app = core.app
 
