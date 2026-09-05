@@ -1,7 +1,7 @@
 """Social authentication for Empty Chair 2.0.
 
-Adds Sign in with Google and Sign in with Apple without coupling account identity
-to the artist's calendar provider.
+Adds Sign in with Google, Sign in with Apple, and phone signup without coupling
+account identity to the artist's calendar provider.
 """
 from __future__ import annotations
 
@@ -86,7 +86,6 @@ def _create_or_link(provider: str, subject: str, email: str, name: str):
     if artist:
         return artist
 
-    # Link an existing account by verified email if it already exists.
     artist = core.one("SELECT * FROM artists WHERE lower(email)=lower(?) ORDER BY created_at LIMIT 1", (email,)) if email else None
     if not artist:
         aid = secrets.token_hex(16)
@@ -119,9 +118,44 @@ def landing(request: Request):
             return core.page("ARMED", '''<div class="center"><h1 class="bright">ARMED.</h1><div class="space"></div><p>calendar................[✓]</p><p>deposits................[✓]</p><p>clients..................[✓]</p><div class="space"></div><p>YOU CAN CLOSE THIS NOW.</p></div>''', chair=True)
         return RedirectResponse("/setup")
 
-    google = '<a class="button" href="/auth/google/login">CONTINUE WITH GOOGLE</a>' if GOOGLE_CLIENT_ID else '<div class="button quiet">GOOGLE // NEEDS CONFIG</div>'
-    apple = '<a class="button" href="/auth/apple/login">CONTINUE WITH APPLE</a>' if APPLE_CLIENT_ID and APPLE_TEAM_ID and APPLE_KEY_ID and APPLE_PRIVATE_KEY else '<div class="button quiet">APPLE // NEEDS CONFIG</div>'
-    return core.page("Sign in", f'''<div class="center"><h1>DON'T LEAVE IT EMPTY.</h1><p class="dim">When they cancel, we fill the chair.</p></div><div class="space"></div><div class="stack">{apple}{google}</div>''', chair=True)
+    google = '<a class="button" href="/auth/google/login">CONTINUE WITH GOOGLE</a>' if GOOGLE_CLIENT_ID else '<a class="button quiet" href="/auth/google/login">CONTINUE WITH GOOGLE</a>'
+    apple = '<a class="button" href="/auth/apple/login">CONTINUE WITH APPLE</a>'
+    phone = '<a class="button" href="/auth/phone">CONTINUE WITH PHONE</a>'
+    return core.page("Sign in", f'''<div class="center"><h1>DON'T LEAVE IT EMPTY.</h1><p class="dim">When they cancel, we fill the chair.</p></div><div class="space"></div><div class="stack">{apple}{google}{phone}</div>''', chair=True)
+
+
+@core.app.get("/auth/phone")
+def phone_signup_page(request: Request):
+    if core.current_artist(request):
+        return RedirectResponse("/setup")
+    return core.page("Phone sign in", '''<h1>CONTINUE WITH PHONE</h1><form method="post" class="stack"><label>name<input name="name" autocomplete="name" required></label><label>mobile<input name="phone" autocomplete="tel" inputmode="tel" required></label><button>TEXT ME A CODE</button></form>''')
+
+
+@core.app.post("/auth/phone")
+def phone_signup(name: str = Form(...), phone: str = Form(...)):
+    phone = core.clean_phone(phone)
+    artist = core.one("SELECT * FROM artists WHERE phone=? ORDER BY created_at LIMIT 1", (phone,))
+    if artist:
+        aid = artist["id"]
+        core.run("UPDATE artists SET name=?,setup_state='VERIFY',updated_at=? WHERE id=?", (name.strip() or artist["name"], core.utcnow(), aid))
+    else:
+        aid = secrets.token_hex(16)
+        now = core.utcnow()
+        core.run(
+            "INSERT INTO artists(id,name,email,phone,verified,setup_state,created_at,updated_at) VALUES(?,?,?,?,0,'VERIFY',?,?)",
+            (aid, name.strip() or "Tattoo Artist", "", phone, now, now),
+        )
+
+    code = f"{secrets.randbelow(1000000):06d}"
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+    digest = hashlib.sha256((code + core.SESSION_SECRET).encode()).hexdigest()
+    exp = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    core.run("INSERT INTO otp_codes(artist_id,code_hash,expires_at) VALUES(?,?,?) ON CONFLICT(artist_id) DO UPDATE SET code_hash=excluded.code_hash,expires_at=excluded.expires_at", (aid, digest, exp))
+    core.send_sms(phone, f"EMPTY CHAIR // VERIFY\n\n{code}\n\nCode expires in 10 min.")
+    response = RedirectResponse("/setup/verify", status_code=303)
+    core.set_session(response, aid)
+    return response
 
 
 @core.app.get("/setup")
@@ -167,7 +201,7 @@ def phone_post(request: Request, phone: str = Form(...)):
 @core.app.get("/auth/google/login")
 def google_login():
     if not GOOGLE_CLIENT_ID:
-        return core.page("Google", "<div class='error'>GOOGLE SIGN-IN IS NOT CONFIGURED.</div>")
+        return core.page("Google", "<div class='error'>GOOGLE SIGN-IN IS TEMPORARILY UNAVAILABLE.</div><a class='button' href='/'>BACK</a>")
     state = _state("google")
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -209,7 +243,7 @@ def _apple_client_secret() -> str:
 @core.app.get("/auth/apple/login")
 def apple_login():
     if not (APPLE_CLIENT_ID and APPLE_TEAM_ID and APPLE_KEY_ID and APPLE_PRIVATE_KEY):
-        return core.page("Apple", "<div class='error'>SIGN IN WITH APPLE NEEDS CONFIGURATION.</div>")
+        return core.page("Apple", "<div class='error'>APPLE SIGN-IN IS TEMPORARILY UNAVAILABLE.</div><p class='dim'>You can continue with phone or Google right now.</p><a class='button' href='/'>BACK</a>")
     params = {
         "client_id": APPLE_CLIENT_ID,
         "redirect_uri": f"{core.BASE_URL}/auth/apple/callback",
