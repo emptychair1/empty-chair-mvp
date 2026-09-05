@@ -14,10 +14,13 @@ def test_v2_auth_contract_present():
     text = Path("v2_auth.py").read_text()
     assert "CONTINUE WITH APPLE" in text
     assert "CONTINUE WITH GOOGLE" in text
+    assert "CONTINUE WITH PHONE" in text
+    assert "/auth/phone" in text
     assert "/auth/apple/callback" in text
     assert "/auth/google/login/callback" in text
     assert "openid email profile" in text
     assert "PyJWKClient" in text
+    assert "APPLE // NEEDS CONFIG" not in text
 
 
 def test_runtime_dependencies_are_only_required_v2_dependencies():
