@@ -64,6 +64,38 @@ header, button, .button, input, select, textarea, .error, .status, .chair {
   filter: drop-shadow(0 0 2px rgba(255,176,0,.11));
 }
 
+/* Keep all selectable controls inside the amber terminal language. */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin: 0 10px 0 0;
+  border: 1px solid var(--amber);
+  border-radius: 2px;
+  background: transparent;
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  box-shadow: inset 0 0 0 1px rgba(255,176,0,.12), 0 0 6px rgba(255,176,0,.08);
+}
+input[type="checkbox"]::before {
+  content: "✓";
+  color: #FFD875;
+  font-size: 20px;
+  line-height: 1;
+  transform: scale(0);
+  transform-origin: center;
+  text-shadow: 0 0 4px rgba(255,216,117,.62), 0 0 9px rgba(255,176,0,.28);
+}
+input[type="checkbox"]:checked {
+  background: rgba(255,176,0,.08);
+  border-color: #FFD875;
+  box-shadow: inset 0 0 0 1px rgba(255,216,117,.18), 0 0 8px rgba(255,176,0,.16);
+}
+input[type="checkbox"]:checked::before { transform: scale(1); }
+input[type="checkbox"]:focus-visible { outline: 1px solid #FFD875; outline-offset: 3px; }
+
 /* Success should read brighter than the normal terminal UI, not bloom across the screen. */
 .bright,
 .success,
@@ -114,4 +146,4 @@ def crt_page(title: str, body: str, *, script: str = "", chair: bool = False, he
 
 
 core.page = crt_page
-print("Empty Chair 2.0 CRT UI + restrained success states loaded", flush=True)
+print("Empty Chair 2.0 CRT UI + amber checkbox controls loaded", flush=True)
