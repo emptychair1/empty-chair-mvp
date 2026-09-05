@@ -5,6 +5,7 @@ def test_v2_bootstrap_is_minimal():
     text = Path("bootstrap.py").read_text()
     assert "from v2_app import app" in text
     assert "import v2_db_namespace" in text
+    assert "import v2_sms_only" in text
     assert "import v2_offer_delivery" in text
     assert "import v2_auth" in text
     assert "import v2_pwa" in text
@@ -27,6 +28,15 @@ def test_v2_offer_delivery_is_transport_aware():
     assert "MAX_DELIVERY_ATTEMPTS = 3" in text
     assert "core.send_next_offer = send_next_offer" in text
     assert "_repair_pre_fix_offers()" in text
+
+
+def test_v2_is_sms_only():
+    text = Path("v2_sms_only.py").read_text()
+    assert "core.send_email = send_email_disabled" in text
+    assert "core.send_digests_if_due = send_digests_if_due_sms" in text
+    assert "EMPTY CHAIR // WEEK" in text
+    assert "EMPTY CHAIR // MONTH" in text
+    assert "core.send_sms(artist.get(\"phone\"), body)" in text
 
 
 def test_v2_auth_contract_present():
