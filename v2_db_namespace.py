@@ -20,20 +20,14 @@ class V2DB:
             import psycopg2
             import psycopg2.extras
 
-            # The schema must exist before it can be used as a connection search_path.
-            bootstrap = psycopg2.connect(core.DATABASE_URL)
-            try:
-                cur = bootstrap.cursor()
-                cur.execute(f"CREATE SCHEMA IF NOT EXISTS {PG_SCHEMA}")
-                bootstrap.commit()
-            finally:
-                bootstrap.close()
-
-            self.raw = psycopg2.connect(
-                core.DATABASE_URL,
-                options=f"-c search_path={PG_SCHEMA}",
-            )
+            # Neon rejects libpq startup `options=-c search_path=...` on some
+            # connections. Connect normally, then set the schema with SQL.
+            self.raw = psycopg2.connect(core.DATABASE_URL)
             self.dict_cursor = psycopg2.extras.RealDictCursor
+            cur = self.raw.cursor()
+            cur.execute(f"CREATE SCHEMA IF NOT EXISTS {PG_SCHEMA}")
+            cur.execute(f"SET search_path TO {PG_SCHEMA}")
+            self.raw.commit()
         else:
             self.raw = sqlite3.connect(core.SQLITE_PATH, check_same_thread=False)
             self.raw.row_factory = sqlite3.Row
