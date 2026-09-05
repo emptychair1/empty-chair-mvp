@@ -69,21 +69,21 @@ header, button, .button, input, select, textarea, .error, .status, .chair {
 .success,
 .success *,
 .success-mark {
-  color: #FFD36A !important;
+  color: #FFD875 !important;
   text-shadow:
-    0 0 3px rgba(255,211,106,.68),
-    0 0 8px rgba(255,176,0,.30),
-    0 0 15px rgba(255,176,0,.12) !important;
-  filter: drop-shadow(0 0 2px rgba(255,176,0,.22)) !important;
+    0 0 3px rgba(255,216,117,.76),
+    0 0 9px rgba(255,176,0,.35),
+    0 0 17px rgba(255,176,0,.14) !important;
+  filter: drop-shadow(0 0 2px rgba(255,176,0,.25)) !important;
 }
 
 h1.bright,
 h1.success,
 .success.big {
   text-shadow:
-    0 0 4px rgba(255,211,106,.78),
-    0 0 10px rgba(255,176,0,.34),
-    0 0 20px rgba(255,176,0,.14) !important;
+    0 0 4px rgba(255,216,117,.86),
+    0 0 11px rgba(255,176,0,.39),
+    0 0 22px rgba(255,176,0,.16) !important;
 }
 
 .dim { text-shadow: 0 0 2px rgba(128,88,0,.16); }
