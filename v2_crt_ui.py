@@ -27,7 +27,7 @@ body::after {
   pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 62%, rgba(0,0,0,.16) 100%);
 }
-main { position: relative; padding-bottom: 68px !important; }
+main { position: relative; padding-bottom: 78px !important; }
 .ec-settings-gear {
   position: absolute;
   left: 22px;
@@ -48,23 +48,23 @@ main { position: relative; padding-bottom: 68px !important; }
 .ec-corner-marks {
   position: absolute;
   right: 22px;
-  bottom: 16px;
+  bottom: 12px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
   color: var(--amber);
   opacity: .62;
   pointer-events: none;
   text-shadow: 0 0 4px rgba(255,176,0,.28);
 }
-.ec-dharma-svg { width: 25px; height: 25px; display:block; }
-.ec-divider { width: 1px; height: 17px; background: currentColor; opacity: .45; }
+.ec-dharma-svg { width: 34px; height: 34px; display:block; }
+.ec-divider { width: 1px; height: 24px; background: currentColor; opacity: .45; }
 .ec-pirate {
-  width: 25px;
-  height: 25px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  font-size: 24px;
+  font-size: 33px;
   line-height: 1;
   transform: translateY(-1px);
 }
@@ -154,4 +154,4 @@ def crt_page(title: str, body: str, *, script: str = "", chair: bool = False, he
 
 
 core.page = crt_page
-print("Empty Chair 2.0 CRT UI + amber checkbox controls loaded", flush=True)
+print("Empty Chair 2.0 CRT UI + enlarged corner identity marks loaded", flush=True)
