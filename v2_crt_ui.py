@@ -57,7 +57,7 @@ main { position: relative; padding-bottom: 78px !important; }
   pointer-events: none;
   text-shadow: 0 0 4px rgba(255,176,0,.28);
 }
-.ec-dharma-svg { width: 34px; height: 34px; display:block; }
+.ec-dharma-svg { width: 24px; height: 24px; display:block; }
 .ec-divider { width: 1px; height: 24px; background: currentColor; opacity: .45; }
 .ec-pirate {
   width: 34px;
@@ -154,4 +154,4 @@ def crt_page(title: str, body: str, *, script: str = "", chair: bool = False, he
 
 
 core.page = crt_page
-print("Empty Chair 2.0 CRT UI + enlarged corner identity marks loaded", flush=True)
+print("Empty Chair 2.0 CRT UI + adjusted corner identity marks loaded", flush=True)
