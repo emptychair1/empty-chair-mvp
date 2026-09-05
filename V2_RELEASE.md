@@ -10,36 +10,30 @@ A tattoo appointment disappears. Empty Chair gets another qualified client into 
 
 Render loads exactly:
 
-`production_entry.py -> bootstrap.py -> v2_app.py`
+`production_entry.py -> bootstrap.py -> v2_app.py + v2_auth.py + v2_pwa.py`
 
 No 1.x dashboards, M4 UI, Concierge, contests, demand tools, meetings, simulations, content systems, admin surfaces, or demo modules are imported in production.
 
 ## Runtime dependencies
 
-Only FastAPI, Uvicorn, python-multipart, and psycopg2-binary. Twilio, Resend, Google, Apple CalDAV, Square, and PayPal are called through HTTPS using Python's standard library.
+FastAPI, Uvicorn, python-multipart, psycopg2-binary, and PyJWT[crypto]. Twilio, Resend, Google APIs, Apple CalDAV, Square, and PayPal are called through HTTPS. PyJWT[crypto] exists only to generate and validate Sign in with Apple tokens securely.
 
-## Artist experience
+## Artist sign-in
 
-Setup once: identity -> phone verification -> Google Calendar or Apple Calendar -> deposit rule/payment methods -> client CSV import -> `ARMED.` / `YOU CAN CLOSE THIS NOW.` Normal use is headless; no dashboard.
+Artists can sign in with Google or Apple. Authentication provider and calendar provider are independent: Apple sign-in can use Google Calendar and Google sign-in can use Apple Calendar. After social sign-in, Empty Chair verifies the artist's mobile number, then continues setup.
 
-## Customer experience
+Google sign-in uses `openid email profile` and requires the callback `https://app.tryemptychair.com/auth/google/login/callback` in Google OAuth configuration.
 
-SMS/email remain literal monospace ASCII. Customer web flow is `OPEN -> TAKE THE CHAIR -> YES -> CASH APP / VENMO / CARD -> YOURS -> TAKE A SEAT.` Cash App + card use Square; Venmo uses PayPal. Successful deposit writes the replacement booking back to the connected calendar.
+Sign in with Apple requires a Services ID and associated primary App ID. Register domain `app.tryemptychair.com` and return URL `https://app.tryemptychair.com/auth/apple/callback`. Render variables: `APPLE_CLIENT_ID` (Services ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`.
 
-## Brand
+## Calendar providers
 
-Amber terminal: background `#0B0905`, primary `#FFB000`, bright `#FFD36A`, dim `#805800`, off `#332300`. The chair is not present on every screen. Whenever it is present it is centered exactly.
+Google Calendar and Apple Calendar are both first-class. Calendar connection is separate from account sign-in.
 
 ## Required production configuration
 
-Core: `DATABASE_URL`, `EMPTY_CHAIR_BASE_URL`, `EMPTY_CHAIR_SESSION_SECRET`, `EMPTY_CHAIR_WORKER_ENABLED=true`.
+Existing: `DATABASE_URL`, `EMPTY_CHAIR_BASE_URL`, `EMPTY_CHAIR_SESSION_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `RESEND_API_KEY`, `EMPTY_CHAIR_EMAIL_FROM`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 
-SMS: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`.
+Apple sign-in: `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`.
 
-Email: `RESEND_API_KEY`, `EMPTY_CHAIR_EMAIL_FROM`.
-
-Google: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-
-Square: `SQUARE_APPLICATION_ID`, `SQUARE_LOCATION_ID`, `SQUARE_ACCESS_TOKEN`, `SQUARE_ENV=production`.
-
-PayPal/Venmo: `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=production`.
+Payments when enabled: `SQUARE_APPLICATION_ID`, `SQUARE_LOCATION_ID`, `SQUARE_ACCESS_TOKEN`, `SQUARE_ENV`; `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV`.

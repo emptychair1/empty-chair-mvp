@@ -12,20 +12,16 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
           cache: pip
-
       - name: Install 2.0 test dependencies
         run: pip install -r requirements-dev.txt
-
       - name: Test only the 2.0 production contract
         env:
-          EMPTY_CHAIR_DB: /tmp/empty-chair-v2-test.db
-          EMPTY_CHAIR_WORKER_ENABLED: "false"
+          EMPTY_CHAIR_DB: test_empty_chair_v2.db
           EMPTY_CHAIR_SESSION_SECRET: test-secret
-          EMPTY_CHAIR_BASE_URL: http://testserver
+          EMPTY_CHAIR_WORKER_ENABLED: "false"
         run: pytest -q tests/test_v2_contract.py
