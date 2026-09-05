@@ -3,9 +3,9 @@ services:
     name: empty-chair
     runtime: python
     branch: main
-    buildCommand: uv sync --frozen --no-dev --no-install-project
-    startCommand: .venv/bin/uvicorn production_entry:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn production_entry:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
     buildFilter:
       ignoredPaths:
         - README.md

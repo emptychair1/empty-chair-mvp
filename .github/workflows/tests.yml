@@ -1,4 +1,4 @@
-name: tests
+name: Empty Chair 2.0
 
 on:
   pull_request:
@@ -7,9 +7,8 @@ on:
       - main
 
 jobs:
-  smoke-tests:
+  v2-contract:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -17,15 +16,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
 
-      - name: Install test dependencies
+      - name: Install 2.0 test dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Run smoke tests
+      - name: Test only the 2.0 production contract
         env:
-          EMPTY_CHAIR_DB: test_empty_chair.db
-          EMPTY_CHAIR_DEMO_MODE: "true"
+          EMPTY_CHAIR_DB: /tmp/empty-chair-v2-test.db
+          EMPTY_CHAIR_WORKER_ENABLED: "false"
           EMPTY_CHAIR_SESSION_SECRET: test-secret
-        run: pytest -q
+          EMPTY_CHAIR_BASE_URL: http://testserver
+        run: pytest -q tests/test_v2_contract.py
