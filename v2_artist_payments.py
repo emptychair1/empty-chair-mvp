@@ -88,22 +88,50 @@ def artist_pay_page(token:str):
         head=f'<script src="{core.SQUARE_JS}"></script>'
         if "cashapp" in methods:controls.append('<div id="cashapp"></div>')
         if "card" in methods:controls.append('<div id="card"></div><button id="card-pay" type="button">CARD</button>')
-        cash=f'''const pr=payments.paymentRequest({{countryCode:'US',currencyCode:'USD',total:{{amount:amount.toFixed(2),label:'Deposit'}}}});const cap=await payments.cashAppPay(pr,{{redirectURL:location.href,referenceId:{json.dumps(offer['id'])}}});cap.addEventListener('ontokenization',e=>{{if(e.detail.tokenResult?.status==='OK')sendToken(e.detail.tokenResult.token)}});await cap.attach('#cashapp');''' if "cashapp" in methods else ""
+        cash=f'''const pr=payments.paymentRequest({{countryCode:'US',currencyCode:'USD',total:{{amount:amount.toFixed(2),label:'Deposit'}}}});const cap=await payments.cashAppPay(pr,{{redirectURL:location.href,referenceId:{json.dumps(offer['id'])}}});cap.addEventListener('ontokenization',e=>{{if(e.detail.error){{alert(e.detail.error.message||'Cash App could not authorize this payment.');return;}}if(e.detail.tokenResult?.status==='OK')sendToken(e.detail.tokenResult.token);else if(e.detail.tokenResult?.status==='Error')alert('Cash App could not authorize this payment.');}});await cap.attach('#cashapp');''' if "cashapp" in methods else ""
         card='''const card=await payments.card();await card.attach('#card');document.getElementById('card-pay').onclick=async()=>{const result=await card.tokenize();if(result.status==='OK')sendToken(result.token);};''' if "card" in methods else ""
-        js=f'''<script>(async()=>{{const payments=Square.payments({json.dumps(core.SQUARE_APP_ID)},{json.dumps(acct['location_id'])});const amount={opening['deposit_cents']/100:.2f};async function sendToken(source){{const r=await fetch('/o/{token}/square',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{source_id:source}})}});const j=await r.json();if(j.redirect)location.href=j.redirect;else alert(j.error||'Payment did not land.');}}{cash}{card}}})().catch(e=>console.error(e));</script>'''
+        js=f'''<script>(async()=>{{const payments=Square.payments({json.dumps(core.SQUARE_APP_ID)},{json.dumps(acct['location_id'])});const amount={opening['deposit_cents']/100:.2f};async function sendToken(source){{const r=await fetch('/o/{token}/square',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{source_id:source}})}});let j={{}};try{{j=await r.json();}}catch(_e){{}}if(j.redirect)location.href=j.redirect;else alert(j.error||'Payment did not land.');}}{cash}{card}}})().catch(e=>{{console.error(e);alert(e?.message||'Payment could not start.');}});</script>'''
     if not controls:controls.append('<div class="error">PAYMENT CONNECTION REQUIRED.</div>')
     return core.page("Payment",f'''<div class="center"><h1>LOCK IT IN.</h1><p class="big">{core.fmt_money(opening['deposit_cents'])}</p></div><div class="stack">{"".join(controls)}</div><p class="dim center">applied to your tattoo.</p>''',script=js,head=head)
+
+def _square_payment_error(exc:urllib.error.HTTPError):
+    raw=""
+    try:raw=exc.read().decode("utf-8","replace")
+    except Exception:pass
+    code="";detail=""
+    try:
+        payload=json.loads(raw or "{}")
+        first=(payload.get("errors") or [{}])[0]
+        code=str(first.get("code") or "")
+        detail=str(first.get("detail") or "")
+    except Exception:pass
+    print(f"Square payment rejected: HTTP {getattr(exc,'code','?')} code={code or 'UNKNOWN'} detail={detail[:300]}",flush=True)
+    if code=="PAYMENT_SOURCE_NOT_ENABLED_FOR_TARGET":return "Cash App isn't enabled for this Square account yet."
+    if code=="CARD_PROCESSING_NOT_ENABLED":return "This Square account isn't activated to process payments yet."
+    if code=="INSUFFICIENT_PERMISSIONS":return "Square connected, but payment permission is not active for this account."
+    if code=="INVALID_LOCATION":return "This Square location can't accept this payment yet."
+    if code=="PAYMENT_LIMIT_EXCEEDED":return "Square declined this payment because the account's processing limit was reached."
+    if detail:return f"Square: {detail}"
+    if code:return f"Square payment failed: {code.replace('_',' ').title()}."
+    return "Square rejected the payment. Nothing was charged."
 
 @core.app.post("/o/{token}/square")
 async def artist_square_pay(token:str,request:Request):
     offer=core.one("SELECT * FROM offers WHERE token=?",(token,))
     if not offer or offer["status"]!="HOLDING":return JSONResponse({"error":"Chair is no longer held."},status_code=409)
     opening=core.one("SELECT * FROM openings WHERE id=?",(offer["opening_id"],));acct=square_account(opening["artist_id"]);access=square_token(acct);body=await request.json()
-    if not access or not acct.get("location_id"):return JSONResponse({"error":"Artist payment connection is unavailable."},status_code=503)
+    if not access or not acct or not acct.get("location_id"):return JSONResponse({"error":"Artist payment connection is unavailable."},status_code=503)
     try:
         data=core.http_json(f"{core.SQUARE_BASE}/v2/payments","POST",{"source_id":body["source_id"],"idempotency_key":offer["id"],"amount_money":{"amount":int(opening["deposit_cents"]),"currency":"USD"},"location_id":acct["location_id"],"reference_id":opening["id"],"note":f"Empty Chair deposit // {core.fmt_when(opening['starts_at'])}"},{"Authorization":f"Bearer {access}","Square-Version":"2026-08-19"});payment=data.get("payment") or {}
         if payment.get("status") not in ("COMPLETED","APPROVED"):raise RuntimeError("Square did not complete the payment")
         core.finalize_booking(offer,"square",payment.get("id"));return {"redirect":f"/o/{token}/yours"}
-    except Exception as exc:return JSONResponse({"error":str(exc)},status_code=400)
+    except urllib.error.HTTPError as exc:
+        message=_square_payment_error(exc)
+        try:core.event("payment.square.rejected",opening["artist_id"],{"opening_id":opening["id"],"http_status":getattr(exc,"code",None),"message":message})
+        except Exception:pass
+        return JSONResponse({"error":message},status_code=400)
+    except Exception as exc:
+        print(f"Square payment failed: {type(exc).__name__}: {exc}",flush=True)
+        return JSONResponse({"error":"Payment could not be completed. Nothing was charged."},status_code=400)
 
 print("Empty Chair 2.0 per-artist Square payments loaded // Venmo hidden",flush=True)
