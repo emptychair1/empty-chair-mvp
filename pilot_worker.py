@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import app as core
 import fill_chairs_flow
 import google_integration
+import ready_bench
 
 
 WORKER_INTERVAL_SECONDS = max(
@@ -19,10 +20,15 @@ WORKER_INTERVAL_SECONDS = max(
     int(os.getenv("EMPTY_CHAIR_WORKER_INTERVAL_SECONDS", "30")),
 )
 WORKER_ENABLED = os.getenv("EMPTY_CHAIR_WORKER_ENABLED", "true").lower() == "true"
+READY_BENCH_REFRESH_SECONDS = max(
+    60,
+    int(os.getenv("EMPTY_CHAIR_READY_BENCH_REFRESH_SECONDS", "900")),
+)
 
 _stop_event = threading.Event()
 _worker_thread = None
 _tick_lock = threading.Lock()
+_last_bench_refresh = None
 
 
 def expire_due_offers() -> int:
@@ -68,11 +74,24 @@ def active_shop_ids() -> list[str]:
         conn.close()
 
 
+def refresh_ready_benches_if_due() -> None:
+    global _last_bench_refresh
+    now = datetime.now(timezone.utc)
+    if _last_bench_refresh is not None:
+        age = (now - _last_bench_refresh).total_seconds()
+        if age < READY_BENCH_REFRESH_SECONDS:
+            return
+
+    ready_bench.refresh_all_shops()
+    _last_bench_refresh = now
+
+
 def run_tick() -> None:
     if not _tick_lock.acquire(blocking=False):
         return
     try:
         expire_due_offers()
+        refresh_ready_benches_if_due()
         try:
             google_integration.reconcile_deleted_booking_events()
         except Exception as exc:
