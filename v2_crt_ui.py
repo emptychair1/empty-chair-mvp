@@ -64,34 +64,26 @@ header, button, .button, input, select, textarea, .error, .status, .chair {
   filter: drop-shadow(0 0 2px rgba(255,176,0,.11));
 }
 
-/* Bright means a positive/live state in the 2.0 UI. Make it unmistakable. */
+/* Success should read brighter than the normal terminal UI, not bloom across the screen. */
 .bright,
 .success,
 .success *,
 .success-mark {
-  color: #FFF3C4 !important;
+  color: #FFD36A !important;
   text-shadow:
-    0 0 2px rgba(255,255,245,1),
-    0 0 6px rgba(255,236,170,1),
-    0 0 12px rgba(255,211,106,1),
-    0 0 24px rgba(255,176,0,.95),
-    0 0 44px rgba(255,176,0,.72),
-    0 0 72px rgba(255,176,0,.42) !important;
-  filter:
-    drop-shadow(0 0 4px rgba(255,245,205,.96))
-    drop-shadow(0 0 10px rgba(255,176,0,.9)) !important;
+    0 0 3px rgba(255,211,106,.68),
+    0 0 8px rgba(255,176,0,.30),
+    0 0 15px rgba(255,176,0,.12) !important;
+  filter: drop-shadow(0 0 2px rgba(255,176,0,.22)) !important;
 }
 
-/* Success headings get a little extra bloom without changing layout. */
 h1.bright,
 h1.success,
 .success.big {
   text-shadow:
-    0 0 2px rgba(255,255,255,1),
-    0 0 8px rgba(255,240,190,1),
-    0 0 18px rgba(255,211,106,1),
-    0 0 36px rgba(255,176,0,1),
-    0 0 70px rgba(255,176,0,.78) !important;
+    0 0 4px rgba(255,211,106,.78),
+    0 0 10px rgba(255,176,0,.34),
+    0 0 20px rgba(255,176,0,.14) !important;
 }
 
 .dim { text-shadow: 0 0 2px rgba(128,88,0,.16); }
@@ -122,4 +114,4 @@ def crt_page(title: str, body: str, *, script: str = "", chair: bool = False, he
 
 
 core.page = crt_page
-print("Empty Chair 2.0 CRT UI + high-intensity success states loaded", flush=True)
+print("Empty Chair 2.0 CRT UI + restrained success states loaded", flush=True)
