@@ -137,7 +137,10 @@ def phone_signup(name: str = Form(...), phone: str = Form(...)):
     artist = core.one("SELECT * FROM artists WHERE phone=? ORDER BY created_at LIMIT 1", (phone,))
     if artist:
         aid = artist["id"]
-        core.run("UPDATE artists SET name=?,setup_state='VERIFY',updated_at=? WHERE id=?", (name.strip() or artist["name"], core.utcnow(), aid))
+        # Signing back in must never destroy an already-completed setup state. The
+        # verification screen is only a temporary authentication step; setup_state
+        # remains whatever the artist had before signing in (including ARMED).
+        core.run("UPDATE artists SET name=?,updated_at=? WHERE id=?", (name.strip() or artist["name"], core.utcnow(), aid))
     else:
         aid = secrets.token_hex(16)
         now = core.utcnow()
