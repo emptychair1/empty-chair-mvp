@@ -64,6 +64,15 @@ header, button, .button, input, select, textarea, .error, .status, .chair {
   filter: drop-shadow(0 0 2px rgba(255,176,0,.11));
 }
 .bright { text-shadow: 0 0 4px rgba(255,211,106,.32), 0 0 10px rgba(255,176,0,.08); }
+.success, .success * {
+  color: var(--bright) !important;
+  text-shadow:
+    0 0 3px rgba(255,255,220,.98),
+    0 0 8px rgba(255,211,106,.95),
+    0 0 18px rgba(255,176,0,.78),
+    0 0 34px rgba(255,176,0,.48) !important;
+  filter: drop-shadow(0 0 7px rgba(255,176,0,.72));
+}
 .dim { text-shadow: 0 0 2px rgba(128,88,0,.16); }
 .settings-list { display:grid; gap:10px; margin-top:24px; }
 .settings-row { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid var(--off); text-decoration:none; color:var(--bright); }
