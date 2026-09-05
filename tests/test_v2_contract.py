@@ -5,6 +5,7 @@ def test_v2_bootstrap_is_minimal():
     text = Path("bootstrap.py").read_text()
     assert "from v2_app import app" in text
     assert "import v2_db_namespace" in text
+    assert "import v2_offer_delivery" in text
     assert "import v2_auth" in text
     assert "import v2_pwa" in text
     forbidden = ["m4_", "concierge", "contest", "demand_", "meeting_v2", "admin_dashboard"]
@@ -16,6 +17,16 @@ def test_v2_database_is_isolated_from_legacy_tables():
     assert 'PG_SCHEMA = "emptychair_v2"' in text
     assert "search_path" in text
     assert "CREATE SCHEMA IF NOT EXISTS" in text
+
+
+def test_v2_offer_delivery_is_transport_aware():
+    text = Path("v2_offer_delivery.py").read_text()
+    assert "offer.delivery.accepted" in text
+    assert "offer.delivery_failed" in text
+    assert "status='RETRY'" in text
+    assert "MAX_DELIVERY_ATTEMPTS = 3" in text
+    assert "core.send_next_offer = send_next_offer" in text
+    assert "_repair_pre_fix_offers()" in text
 
 
 def test_v2_auth_contract_present():
