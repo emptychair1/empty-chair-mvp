@@ -1,7 +1,7 @@
 """Phone/PWA surface for Empty Chair 2.0.
 
 No legacy product code. This module only adds install/update behavior and keeps the
-2.0 setup path on Google Calendar until an Apple integration is deliberately added.
+2.0 phone surface cache-safe. Google and Apple Calendar remain first-class setup options.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import v2_app as core
 
 app = core.app
 
-PWA_VERSION = "2.0.1"
+PWA_VERSION = "2.0.2"
 
 
 @app.middleware("http")
@@ -28,8 +28,6 @@ async def pwa_headers(request: Request, call_next):
     return response
 
 
-# Replace the original manifest route with a middleware-level response so the
-# installed app always receives the current 2.0 metadata even if an older route exists.
 @app.middleware("http")
 async def pwa_overrides(request: Request, call_next):
     path = request.url.path
@@ -40,7 +38,7 @@ async def pwa_overrides(request: Request, call_next):
                 "name": "Empty Chair",
                 "short_name": "Empty Chair",
                 "description": "When they cancel, we fill the chair.",
-                "start_url": "/?pwa=2.0.1",
+                "start_url": "/?pwa=2.0.2",
                 "scope": "/",
                 "display": "standalone",
                 "orientation": "portrait",
@@ -48,7 +46,7 @@ async def pwa_overrides(request: Request, call_next):
                 "theme_color": core.BG,
                 "icons": [
                     {
-                        "src": "/icon.svg?v=2.0.1",
+                        "src": "/icon.svg?v=2.0.2",
                         "sizes": "any",
                         "type": "image/svg+xml",
                         "purpose": "any maskable",
@@ -73,25 +71,21 @@ self.addEventListener("fetch",event=>{{
 }});'''
         return Response(js, media_type="application/javascript", headers={"Cache-Control": "no-store"})
 
-    # Apple Calendar is intentionally not part of the testable 2.0 setup yet.
-    # Do not ask artists for Apple ID/app-specific-password credentials.
-    if path.startswith("/setup/apple"):
-        return RedirectResponse("/setup/calendar", status_code=303)
-
     if path == "/setup/calendar" and request.method == "GET":
         artist = core.current_artist(request)
         if not artist:
             return RedirectResponse("/setup")
         acct = core.one("SELECT * FROM calendar_accounts WHERE artist_id=?", (artist["id"],))
-        if acct and acct["provider"] == "google":
+        if acct and (acct["provider"] == "google" or (acct["provider"] == "apple" and acct.get("apple_calendar_url"))):
             return core.page(
                 "Calendar",
-                '''<div class="center"><h1 class="bright">CALENDAR CONNECTED [✓]</h1><p>GOOGLE</p><a class="button" href="/setup/payment">NEXT</a></div>''',
+                f'''<div class="center"><h1 class="bright">CALENDAR CONNECTED [✓]</h1><p>{acct["provider"].upper()}</p><a class="button" href="/setup/payment">NEXT</a></div>''',
             )
         google = '<a class="button" href="/auth/google/start">[ G ] GOOGLE CALENDAR</a>' if core.GOOGLE_CLIENT_ID else '<div class="button quiet">[ G ] GOOGLE // NEEDS CONFIG</div>'
+        apple = '<a class="button" href="/setup/apple">[ A ] APPLE CALENDAR</a>'
         return core.page(
             "Calendar",
-            f'''<h1>WHERE DO YOUR APPOINTMENTS LIVE?</h1><div class="stack">{google}</div><div class="space"></div><p class="dim center">Apple Calendar is not part of this test build.</p>''',
+            f'''<h1>WHERE DO YOUR APPOINTMENTS LIVE?</h1><div class="stack">{google}{apple}</div>''',
         )
 
     return await call_next(request)
@@ -122,8 +116,6 @@ if("serviceWorker" in navigator){
     return core.page("Install", body, head=head, script=script, chair=True)
 
 
-# Register the worker from every HTML page without adding a dashboard or install UI.
-# The browser executes this only when the user actually visits the web app.
 @app.middleware("http")
 async def register_worker(request: Request, call_next):
     response = await call_next(request)
