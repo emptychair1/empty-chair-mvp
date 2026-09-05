@@ -59,7 +59,15 @@ main { position: relative; padding-bottom: 68px !important; }
 }
 .ec-dharma-svg { width: 25px; height: 25px; display:block; }
 .ec-divider { width: 1px; height: 17px; background: currentColor; opacity: .45; }
-.ec-pirate { font-size: 11px; line-height: 1; transform: translateY(-1px); }
+.ec-pirate {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
 header, button, .button, input, select, textarea, .error, .status, .chair {
   filter: drop-shadow(0 0 2px rgba(255,176,0,.11));
 }
