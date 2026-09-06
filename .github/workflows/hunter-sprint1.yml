@@ -53,7 +53,7 @@ jobs:
 
       - name: Probe public source freshness
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: python hunter/source_probe.py --out hunter-source-probe.json
+        run: python hunter/source_probe.py --out hunter-source-probe.json --summary-out hunter-source-probe-summary.md
 
       - name: Resolve tattoo artist accounts
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -183,19 +183,9 @@ jobs:
             echo '## Hunter validation' >> "$GITHUB_STEP_SUMMARY"
             echo 'Validation summary was not produced.' >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [ -f hunter-source-probe.json ]; then
+          if [ -f hunter-source-probe-summary.md ]; then
             echo '' >> "$GITHUB_STEP_SUMMARY"
-            echo '## Hunter source freshness probe' >> "$GITHUB_STEP_SUMMARY"
-            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json
-          data=json.load(open('hunter-source-probe.json'))
-          print(f"**Verdict:** {data['verdict']}")
-          print('')
-          print('| Source | Signals | <=24h | <=72h | Stale | Unknown date |')
-          print('|---|---:|---:|---:|---:|---:|')
-          for source, s in data['by_family'].items():
-              print(f"| {source} | {s['signals']} | {s['within_24h']} | {s['within_72h']} | {s['stale_over_72h']} | {s['unknown_date']} |")
-          PY
+            cat hunter-source-probe-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload Hunter artifacts
@@ -206,6 +196,7 @@ jobs:
           path: |
             hunter-signals.json
             hunter-source-probe.json
+            hunter-source-probe-summary.md
             hunter-artists.json
             hunter-scores.json
             hunter-queue.json
