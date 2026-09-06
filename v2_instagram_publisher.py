@@ -31,11 +31,40 @@ def _post(path: str, form: dict[str, str]) -> dict:
         raise RuntimeError(f"HTTP {exc.code}: {body}") from exc
 
 
+def _get(path: str, params: dict[str, str]) -> dict:
+    query = urllib.parse.urlencode({**params, "access_token": growth.META_TOKEN})
+    req = urllib.request.Request(
+        f"https://graph.instagram.com/{growth.GRAPH_VERSION}/{path.lstrip('/')}?{query}",
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            raw = r.read().decode()
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")[:1200]
+        raise RuntimeError(f"HTTP {exc.code}: {body}") from exc
+
+
 def already_published() -> bool:
     try:
         return bool(core.one("SELECT id FROM events WHERE kind='growth.instagram_launch_posted' LIMIT 1"))
     except Exception:
         return False
+
+
+def _wait_ready(creation_id: str, attempts: int = 12, delay: int = 5) -> None:
+    last = {}
+    for _ in range(attempts):
+        last = _get(creation_id, {"fields": "status_code,status"})
+        status = str(last.get("status_code") or "").upper()
+        core.event("growth.instagram_media_status", None, {"creation_id": creation_id, "status": status, "raw": last})
+        if status == "FINISHED":
+            return
+        if status in {"ERROR", "EXPIRED"}:
+            raise RuntimeError(f"Instagram media processing failed: {last}")
+        time.sleep(delay)
+    raise RuntimeError(f"Instagram media not ready after {attempts * delay}s: {last}")
 
 
 def publish_test_post() -> str | None:
@@ -46,6 +75,7 @@ def publish_test_post() -> str | None:
     creation_id = str(created.get("id") or "")
     if not creation_id:
         raise RuntimeError(f"Instagram media container failed: {created}")
+    _wait_ready(creation_id)
     published = _post(f"{growth.IG_USER_ID}/media_publish", {"creation_id": creation_id})
     media_id = str(published.get("id") or "")
     if not media_id:
