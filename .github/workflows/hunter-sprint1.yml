@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - 'hunter/**'
+      - 'v2_hunter_operator.py'
+      - 'bootstrap.py'
       - '.github/workflows/hunter-sprint1.yml'
   pull_request:
     paths:
       - 'hunter/**'
+      - 'v2_hunter_operator.py'
+      - 'bootstrap.py'
       - '.github/workflows/hunter-sprint1.yml'
   schedule:
     - cron: '7,37 * * * *'
@@ -41,6 +45,9 @@ jobs:
       - name: Run Hunter contract tests
         working-directory: hunter
         run: pytest -q
+
+      - name: Compile operator production extension
+        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py
 
       - name: Collect public cancellation signals
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
