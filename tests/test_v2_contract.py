@@ -9,6 +9,9 @@ def test_v2_bootstrap_is_minimal():
     assert "import v2_offer_delivery" in text
     assert "import v2_auth" in text
     assert "import v2_pwa" in text
+    assert "import v2_native_calendar" in text
+    assert "import v2_native_auth" in text
+    assert "import v2_native_finalize_bridge" in text
     forbidden = ["m4_", "concierge", "contest", "demand_", "meeting_v2", "admin_dashboard"]
     assert not any(name in text for name in forbidden)
 
@@ -75,3 +78,25 @@ def test_google_and_apple_calendar_paths_still_exist():
     assert "APPLE CALENDAR" in text
     assert "apple_discover_calendars" in text
     assert "google_events" in text
+
+
+def test_native_mobile_contract_present():
+    native = Path("v2_native_calendar.py").read_text()
+    auth = Path("v2_native_auth.py").read_text()
+    finalize = Path("v2_native_finalize_bridge.py").read_text()
+    ios = Path("ios/EmptyChair/App.swift").read_text()
+    android = Path("android/app/src/main/java/com/tryemptychair/MainActivity.kt").read_text()
+    manifest = Path("android/app/src/main/AndroidManifest.xml").read_text()
+
+    assert "/native/calendar/sync" in native
+    assert "/native/calendar/ack/{command_id}" in native
+    assert 'platform not in ("ios","android")' in native
+    assert "/native/auth/start" in auth and "/native/auth/verify" in auth
+    assert "calendar.native_write_queued" in finalize
+    assert "pending:" in finalize
+    assert "EventKit" in ios and "BGTaskScheduler" in ios and "Keychain" in ios
+    assert "CalendarContract" in android and "PeriodicWorkRequestBuilder" in android and "BiometricPrompt" in android
+    assert "READ_CALENDAR" in manifest and "WRITE_CALENDAR" in manifest and "USE_BIOMETRIC" in manifest
+    assert Path("ios/project.yml").exists()
+    assert Path("android/app/build.gradle.kts").exists()
+    assert Path(".github/workflows/native-builds.yml").exists()
