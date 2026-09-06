@@ -13,7 +13,6 @@ import v2_auth  # noqa: F401,E402
 import v2_apple_calendar_web  # noqa: F401,E402
 import v2_phone_safe  # noqa: F401,E402
 import v2_client_sources  # noqa: F401,E402
-import v2_test_payment  # noqa: F401,E402
 import v2_winner_link  # noqa: F401,E402
 import v2_crt_ui  # noqa: F401,E402
 import v2_entitlement  # noqa: F401,E402
