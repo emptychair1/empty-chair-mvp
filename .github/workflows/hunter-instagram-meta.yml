@@ -1,0 +1,70 @@
+name: Hunter Instagram Meta Discovery
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17,47 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hunter-instagram-meta
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: hunter/requirements.txt
+
+      - name: Install Hunter dependencies
+        run: pip install -r hunter/requirements.txt
+
+      - name: Run Instagram resolver tests
+        working-directory: hunter
+        run: pytest -q test_instagram_visual_resolver.py test_instagram_hashtag_source.py
+
+      - name: Check Meta configuration
+        id: config
+        env:
+          HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+          HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
+        run: |
+          if [ -n "$HUNTER_META_ACCESS_TOKEN" ] && [ -n "$HUNTER_META_IG_USER_ID" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'Meta Instagram discovery is not configured; skipping live discovery.'
+          fi
+
+      - name: Install Chromium and Tesseract
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          python -m playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      - name: Discover and resolve fresh Instagram signals
+        if: steps.config.outputs.configured == 'true'
+        env:
+          HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+          HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
+          HUNTER_META_GRAPH_VERSION: v26.0
+        run: python hunter/instagram_hashtag_source.py --out hunter-instagram-signals.json
+
+      - name: Upload Instagram discovery artifact
+        if: always() && steps.config.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hunter-instagram-signals-${{ github.run_id }}
+          path: hunter-instagram-signals.json
+          if-no-files-found: warn
+          retention-days: 14
