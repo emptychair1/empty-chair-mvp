@@ -1,4 +1,4 @@
-name: Hunter Discovery + Resolution + Intent + Queue + Actions + Attribution + Learning + Validation + Operator
+name: Hunter Meta Artist Bucket + Intent + Queue + Operator
 
 on:
   push:
@@ -44,12 +44,19 @@ jobs:
         working-directory: hunter
         run: pytest -q
 
-      - name: Compile operator production extension
-        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py hunter/integrate_instagram.py hunter/instagram_hashtag_source.py
+      - name: Compile Hunter production modules
+        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py hunter/integrate_instagram.py hunter/instagram_hashtag_source.py hunter/artist_media_expander.py hunter/pain_fit_bucket.py
 
-      - name: Collect public cancellation signals
+      - name: Seed empty Hunter base payloads
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: python hunter/collect.py --out hunter-signals.json
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          now = datetime.now(timezone.utc).isoformat()
+          json.dump({"schema":"empty-chair-hunter-signals-v1","generated_at":now,"count":0,"signals":[]}, open("hunter-signals.json","w"), indent=2)
+          json.dump({"schema":"empty-chair-hunter-artists-v1","generated_at":now,"account_count":0,"accounts":[]}, open("hunter-artists.json","w"), indent=2)
+          PY
 
       - name: Check Meta Instagram configuration
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -62,7 +69,7 @@ jobs:
             echo 'configured=true' >> "$GITHUB_OUTPUT"
           else
             echo 'configured=false' >> "$GITHUB_OUTPUT"
-            echo 'Meta Instagram discovery is not configured; continuing with public-web signals only.'
+            echo 'Meta Instagram discovery is not configured.'
           fi
 
       - name: Install Chromium and Tesseract for Instagram resolver
@@ -72,7 +79,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr
 
-      - name: Discover and visually resolve fresh Instagram signals
+      - name: Discover and resolve fresh Instagram intent signals
         if: steps.meta_config.outputs.configured == 'true'
         env:
           HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
@@ -80,11 +87,21 @@ jobs:
           HUNTER_META_GRAPH_VERSION: v26.0
         run: python hunter/instagram_hashtag_source.py --out hunter-instagram-signals.json --limit 50 --max-resolutions 40
 
-      - name: Resolve public-web tattoo artist accounts
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: python hunter/resolve.py --input hunter-signals.json --out hunter-artists.json
+      - name: Build broad pain-fit artist bucket
+        if: steps.meta_config.outputs.configured == 'true'
+        env:
+          HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+          HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
+          HUNTER_META_GRAPH_VERSION: v26.0
+        run: |
+          python hunter/pain_fit_bucket.py \
+            --out hunter-pain-fit-bucket.json \
+            --per-tag-limit 50 \
+            --max-seed-resolutions 60 \
+            --media-per-artist 25 \
+            --min-pain-fit 50
 
-      - name: Merge Meta Instagram discoveries into Hunter
+      - name: Merge Instagram discoveries into Hunter
         if: steps.meta_config.outputs.configured == 'true'
         run: |
           python hunter/integrate_instagram.py \
@@ -96,7 +113,7 @@ jobs:
           mv hunter-signals-merged.json hunter-signals.json
           mv hunter-artists-merged.json hunter-artists.json
 
-      - name: Score cancellation intent
+      - name: Score fresh intent
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/score.py --signals hunter-signals.json --artists hunter-artists.json --out hunter-scores.json
 
@@ -211,32 +228,29 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary @hunter-operator-snapshot.json
 
-      - name: Publish Hunter discovery metrics
+      - name: Publish Hunter bucket metrics
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
-          if [ -f hunter-instagram-signals.json ]; then
-            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json
-          p = json.load(open('hunter-instagram-signals.json'))
-          m = p.get('metrics', {})
-          print('## Hunter Instagram discovery')
-          print(f"- tags: {p.get('tag_count', len(p.get('tags', [])))}")
-          print(f"- media scanned: {m.get('media_scanned', 0)}")
-          print(f"- fresh media: {m.get('fresh_media', 0)}")
-          print(f"- unique intent candidates: {m.get('unique_candidate_posts', p.get('signal_count', 0))}")
-          print(f"- resolved artists: {m.get('resolved_count', p.get('resolved_count', 0))}")
-          print(f"- duplicate hits removed: {m.get('duplicate_hits', 0)}")
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          print('## Hunter artist bucket')
+          if os.path.exists('hunter-pain-fit-bucket.json'):
+              p = json.load(open('hunter-pain-fit-bucket.json'))
+              m = p.get('metrics', {})
+              print(f"- raw posts scanned: {m.get('raw_posts_scanned', 0)}")
+              print(f"- unique fresh posts: {m.get('unique_fresh_posts', 0)}")
+              print(f"- unique artist seeds: {m.get('unique_artist_seeds', 0)}")
+              print(f"- artist media scanned: {m.get('artist_recent_media_scanned', 0)}")
+              print(f"- pain-fit artists >=50: {m.get('pain_fit_artists', 0)}")
+          else:
+              print('- pain-fit bucket was not produced')
           PY
-          fi
 
       - name: Publish Hunter validation summary
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           if [ -f hunter-validation-summary.md ]; then
             cat hunter-validation-summary.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo '## Hunter validation' >> "$GITHUB_STEP_SUMMARY"
-            echo 'Validation summary was not produced.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload Hunter artifacts
@@ -247,6 +261,7 @@ jobs:
           path: |
             hunter-signals.json
             hunter-instagram-signals.json
+            hunter-pain-fit-bucket.json
             hunter-artists.json
             hunter-scores.json
             hunter-queue.json
