@@ -1,15 +1,13 @@
-name: Hunter Instagram Meta Discovery
+name: Hunter Instagram Meta Discovery (Diagnostic)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17,47 * * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: hunter-instagram-meta
+  group: hunter-instagram-meta-diagnostic
   cancel-in-progress: false
 
 jobs:
