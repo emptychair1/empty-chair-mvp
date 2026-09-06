@@ -51,8 +51,10 @@ SOURCE_FAMILIES = {
 }
 
 MONTHS = {
-    name.lower(): number for number, name in enumerate(
-        ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"), 1
+    name.lower(): number
+    for number, name in enumerate(
+        ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"),
+        1,
     )
 }
 MONTHS.update({name[:3].lower(): number for name, number in list(MONTHS.items())})
@@ -126,11 +128,13 @@ def parse_results(html: str) -> list[dict]:
         if not link:
             continue
         snippet = result.select_one(".result__snippet")
-        rows.append({
-            "url": normalize_result_url(link.get("href", "")),
-            "title": clean(link.get_text(" ", strip=True)),
-            "snippet": clean(snippet.get_text(" ", strip=True) if snippet else ""),
-        })
+        rows.append(
+            {
+                "url": normalize_result_url(link.get("href", "")),
+                "title": clean(link.get_text(" ", strip=True)),
+                "snippet": clean(snippet.get_text(" ", strip=True) if snippet else ""),
+            }
+        )
     if rows:
         return rows[:MAX_RESULTS_PER_QUERY]
     for result in soup.select("li.b_algo"):
@@ -138,11 +142,13 @@ def parse_results(html: str) -> list[dict]:
         if not link:
             continue
         snippet = result.select_one(".b_caption p")
-        rows.append({
-            "url": normalize_result_url(link.get("href", "")),
-            "title": clean(link.get_text(" ", strip=True)),
-            "snippet": clean(snippet.get_text(" ", strip=True) if snippet else ""),
-        })
+        rows.append(
+            {
+                "url": normalize_result_url(link.get("href", "")),
+                "title": clean(link.get_text(" ", strip=True)),
+                "snippet": clean(snippet.get_text(" ", strip=True) if snippet else ""),
+            }
+        )
     return rows[:MAX_RESULTS_PER_QUERY]
 
 
@@ -176,7 +182,11 @@ def run(*, max_queries: int | None = None, now: datetime | None = None) -> dict:
         work = work[:max_queries]
     hits: list[dict] = []
     seen: set[tuple[str, str]] = set()
-    with httpx.Client(headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"}, timeout=TIMEOUT, follow_redirects=True) as client:
+    with httpx.Client(
+        headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"},
+        timeout=TIMEOUT,
+        follow_redirects=True,
+    ) as client:
         for index, (family, query) in enumerate(work, 1):
             for row in search(client, query):
                 text = f"{row['title']} {row['snippet']}"
@@ -188,13 +198,15 @@ def run(*, max_queries: int | None = None, now: datetime | None = None) -> dict:
                 seen.add(key)
                 published = publication_time(text, now)
                 age_hours = None if published is None or published > now else round((now - published).total_seconds() / 3600, 2)
-                hits.append({
-                    "family": family,
-                    "query": query,
-                    **row,
-                    "published_at": published.isoformat() if published else None,
-                    "age_hours": age_hours,
-                })
+                hits.append(
+                    {
+                        "family": family,
+                        "query": query,
+                        **row,
+                        "published_at": published.isoformat() if published else None,
+                        "age_hours": age_hours,
+                    }
+                )
             print(f"hunter source probe // {index}/{len(work)} // {family}")
             time.sleep(0.1)
 
@@ -213,7 +225,8 @@ def run(*, max_queries: int | None = None, now: datetime | None = None) -> dict:
     totals = Counter()
     for stats in by_family.values():
         totals.update(stats)
-    verdict = "PUBLIC_SEARCH_HAS_FRESH_INVENTORY" if totals["within_72h"] else "PUBLIC_SEARCH_TOO_STALE_OR_UNDATED"
+    fresh_72 = totals["within_72h"]
+    verdict = "PUBLIC_SEARCH_HAS_FRESH_INVENTORY" if fresh_72 else "PUBLIC_SEARCH_TOO_STALE_OR_UNDATED"
     return {
         "schema": "empty-chair-hunter-source-probe-v1",
         "generated_at": now.isoformat(),
@@ -222,7 +235,14 @@ def run(*, max_queries: int | None = None, now: datetime | None = None) -> dict:
         "verdict": verdict,
         "totals": dict(totals),
         "by_family": by_family,
-        "signals": sorted(hits, key=lambda hit: (hit["age_hours"] is None, hit["age_hours"] if hit["age_hours"] is not None else 10**9, hit["family"])),
+        "signals": sorted(
+            hits,
+            key=lambda hit: (
+                hit["age_hours"] is None,
+                hit["age_hours"] if hit["age_hours"] is not None else 10**9,
+                hit["family"],
+            ),
+        ),
     }
 
 
@@ -230,16 +250,21 @@ def markdown_summary(result: dict) -> str:
     lines = [
         "## Hunter source freshness probe",
         "",
-        f"**Verdict:** {result['verdict']}",
+        f"**Verdict:** `{result['verdict']}`",
         "",
         "| Source | Signals | <=24h | <=72h | Stale | Unknown date |",
         "|---|---:|---:|---:|---:|---:|",
     ]
     for source, stats in result["by_family"].items():
         lines.append(
-            f"| {source} | {stats['signals']} | {stats['within_24h']} | {stats['within_72h']} | "
-            f"{stats['stale_over_72h']} | {stats['unknown_date']} |"
+            f"| {source} | {stats['signals']} | {stats['within_24h']} | {stats['within_72h']} | {stats['stale_over_72h']} | {stats['unknown_date']} |"
         )
+    lines.extend(
+        [
+            "",
+            "Decision rule: if every source produces zero <=72h signals, public search is not a viable real-time Hunter feed and we should stop tuning this crawler.",
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 
