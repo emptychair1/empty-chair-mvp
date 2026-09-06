@@ -1,0 +1,18 @@
+name: Instagram Organic Publisher
+
+on:
+  schedule:
+    - cron: '5 14 * * *'
+    - cron: '5 18 * * *'
+    - cron: '5 22 * * *'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake Empty Chair and publish due post
+        run: |
+          curl --fail-with-body --retry 4 --retry-delay 15 --max-time 120 \
+            -X POST https://app.tryemptychair.com/internal/instagram/publish-due
