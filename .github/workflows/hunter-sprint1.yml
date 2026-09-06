@@ -1,4 +1,4 @@
-name: Hunter Discovery + Resolution + Intent Scoring
+name: Hunter Discovery + Resolution + Intent + Target Queue
 
 on:
   push:
@@ -52,6 +52,32 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/score.py --signals hunter-signals.json --artists hunter-artists.json --out hunter-scores.json
 
+      - name: Restore Hunter queue history
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/cache/restore@v4
+        with:
+          path: .hunter-state/hunter-queue.json
+          key: hunter-queue-${{ github.run_id }}
+          restore-keys: |
+            hunter-queue-
+
+      - name: Build target queue
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          python hunter/target_queue.py \
+            --scores hunter-scores.json \
+            --history .hunter-state/hunter-queue.json \
+            --out hunter-queue.json
+          mkdir -p .hunter-state
+          cp hunter-queue.json .hunter-state/hunter-queue.json
+
+      - name: Save Hunter queue history
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: .hunter-state/hunter-queue.json
+          key: hunter-queue-${{ github.run_id }}
+
       - name: Upload Hunter artifacts
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
@@ -61,5 +87,6 @@ jobs:
             hunter-signals.json
             hunter-artists.json
             hunter-scores.json
+            hunter-queue.json
           if-no-files-found: error
           retention-days: 14
