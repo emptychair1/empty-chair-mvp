@@ -67,9 +67,15 @@ def subscription(request:Request):
     a=_artist_or_setup(request)
     if not a:return RedirectResponse("/setup")
     a=core.one("SELECT * FROM artists WHERE id=?",(a["id"],)) or a;s=entitlement.state(a)
-    if s=="active":
+    # The completed $1 founder E2E marked this account square_test/active. That proves
+    # entitlement but is not a real recurring subscription, so keep the production checkout
+    # reachable until an actual Square subscription replaces it.
+    founder_test=(a.get("subscription_provider") or "")=="square_test"
+    if s=="active" and not founder_test:
         manage=f'<a class="button" href="{html.escape(MANAGE_URL,quote=True)}">MANAGE SUBSCRIPTION</a>' if MANAGE_URL else '<p class="bright">SUBSCRIPTION ACTIVE [✓]</p>'
         return core.page("Subscription",f'<h1>EMPTY CHAIR // ARMED</h1><p class="bright">PAYMENT ACTIVE [✓]</p><p>$97 / MONTH</p>{manage}<a class="button quiet" href="/settings">BACK</a>',chair=True)
+    if founder_test:
+        return core.page("Subscription",'''<div class="center"><h1>EMPTY CHAIR // BILLING TEST</h1><p class="bright">DAY-8 RE-ARM PROVEN [✓]</p><p class="big">$97 / MONTH</p><p class="dim">Final production subscription proof.</p><a class="button" href="/billing/subscribe/monthly">KEEP MY CHAIR COVERED</a></div>''',chair=True)
     trial=entitlement.trial_copy(a) if s=="trial" else "TRIAL ENDED // CHAIR DISARMED"
     return core.page("Subscription",f'''<div class="center"><h1>EMPTY CHAIR // {trial}</h1><p class="big">$97 / MONTH</p><p class="dim">Cancel anytime.</p><a class="button" href="/billing/subscribe/monthly">KEEP MY CHAIR COVERED</a></div>''',chair=True)
 
