@@ -65,9 +65,16 @@ PRICE_TERMS = (
     "full day",
 )
 
+# Search engines often do not index fresh Instagram media directly. Hunter therefore uses
+# both direct-Instagram queries and broader public-web queries that can resolve an artist's
+# Instagram handle/profile from their own website, booking page, or public mirror.
 SEARCH_QUERIES = tuple(
-    f'site:instagram.com tattoo "{phrase}"'
+    query
     for phrase in INTENT_PHRASES
+    for query in (
+        f'site:instagram.com tattoo "{phrase}"',
+        f'tattoo artist Instagram "{phrase}"',
+    )
 )
 
 SCORE_WEIGHTS = {
