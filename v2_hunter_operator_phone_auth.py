@@ -7,45 +7,29 @@ from fastapi import HTTPException, Request
 
 import v2_app as core
 import v2_hunter_operator as hunter_operator
+from hunter.operator_auth import actor_identity, is_admin_identity, parse_phones
 
 
-def normalize_phone(value: object) -> str:
-    raw = str(value or "").strip()
-    if not raw:
-        return ""
-    return core.clean_phone(raw)
-
-
-ADMIN_PHONES = {
-    normalize_phone(phone)
-    for phone in os.getenv("EMPTY_CHAIR_ADMIN_PHONES", "").split(",")
-    if normalize_phone(phone)
-}
+ADMIN_PHONES = parse_phones(os.getenv("EMPTY_CHAIR_ADMIN_PHONES", ""))
 
 
 def is_admin_artist(artist: dict | None) -> bool:
-    if not artist:
-        return False
-    email = str(artist.get("email") or "").strip().lower()
-    phone = normalize_phone(artist.get("phone"))
-    return bool(
-        (email and email in hunter_operator.ADMIN_EMAILS)
-        or (phone and phone in ADMIN_PHONES)
+    return is_admin_identity(
+        artist,
+        admin_emails=hunter_operator.ADMIN_EMAILS,
+        admin_phones=ADMIN_PHONES,
     )
-
-
-def actor_identity(artist: dict) -> str:
-    email = str(artist.get("email") or "").strip().lower()
-    if email:
-        return email
-    phone = normalize_phone(artist.get("phone"))
-    return phone or str(artist.get("id") or "unknown")
 
 
 def admin_artist(request: Request):
     artist = core.current_artist(request)
     if not is_admin_artist(artist):
         raise HTTPException(404, "Not found")
+    # Existing Sprint 9 decision routes record artist["email"] as the audit actor.
+    # Preserve email when present, otherwise supply the normalized phone identity.
+    if not str(artist.get("email") or "").strip():
+        artist = dict(artist)
+        artist["email"] = actor_identity(artist)
     return artist
 
 
