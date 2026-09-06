@@ -1,0 +1,28 @@
+name: EmptyChair
+options:
+  bundleIdPrefix: com.tryemptychair
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "2.0.0"
+targets:
+  EmptyChair:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: EmptyChair
+        excludes:
+          - Info.plist
+    info:
+      path: EmptyChair/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tryemptychair.EmptyChair
+        PRODUCT_NAME: Empty Chair
+        INFOPLIST_FILE: EmptyChair/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1"
