@@ -1,4 +1,4 @@
-name: Hunter Discovery + Resolution + Intent + Queue + Actions + Attribution
+name: Hunter Discovery + Resolution + Intent + Queue + Actions + Attribution + Learning
 
 on:
   push:
@@ -112,6 +112,14 @@ jobs:
             --manifest-out hunter-attribution.json \
             --report-out hunter-attribution-report.json
 
+      - name: Build learning report
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          python hunter/learning.py \
+            --attribution hunter-attribution-report.json \
+            --signals hunter-signals.json \
+            --out hunter-learning-report.json
+
       - name: Save Hunter queue history
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
@@ -134,5 +142,6 @@ jobs:
             hunter-action-journal.jsonl
             hunter-attribution.json
             hunter-attribution-report.json
+            hunter-learning-report.json
           if-no-files-found: warn
           retention-days: 14
