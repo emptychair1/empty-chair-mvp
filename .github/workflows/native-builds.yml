@@ -27,18 +27,32 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec ios/project.yml
       - name: Build iOS simulator app
-        run: xcodebuild -project ios/EmptyChair.xcodeproj -scheme EmptyChair -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project ios/EmptyChair.xcodeproj -scheme EmptyChair -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build CODE_SIGNING_ALLOWED=NO build
+      - name: Package iOS simulator build
+        run: ditto -c -k --sequesterRsrc --keepParent "ios/build/Build/Products/Debug-iphonesimulator/Empty Chair.app" ios/EmptyChair-simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: empty-chair-ios-simulator
+          path: ios/EmptyChair-simulator.zip
 
   android-debug:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
-      - name: Build Android debug app
-        run: gradle -p android :app:assembleDebug
+      - name: Build Android debug APK and release bundle
+        run: gradle -p android :app:assembleDebug :app:bundleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: empty-chair-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: empty-chair-android-release-bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
