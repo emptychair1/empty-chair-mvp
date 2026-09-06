@@ -12,8 +12,7 @@ def _count_clients(artist_id):
     try:
         row=core.one("SELECT COUNT(*) AS n FROM clients WHERE artist_id=?",(artist_id,))
         return int((row or {}).get("n") or 0)
-    except Exception:
-        return 0
+    except Exception:return 0
 
 def _calendar_account(artist_id):
     try:return core.one("SELECT * FROM calendar_accounts WHERE artist_id=?",(artist_id,))
@@ -25,7 +24,7 @@ def settings_home(request:Request):
     if not artist:return RedirectResponse("/setup")
     acct=_calendar_account(artist["id"]);client_count=_count_clients(artist["id"])
     calendar_label=(acct.get("provider") or "not connected").upper() if acct else "NOT CONNECTED";methods=", ".join(m.upper() for m in (artist.get("payment_methods") or "").split(",") if m) or "NOT SET"
-    return core.page("Settings",f'''<h1>SETTINGS</h1><p class="dim">Rare adjustments. Empty Chair stays out of your way.</p><div class="settings-list"><a class="settings-row" href="/settings/calendar"><span>CALENDAR<small>{html.escape(calendar_label)}</small></span><span>›</span></a><a class="settings-row" href="/settings/deposits"><span>DEPOSITS<small>{core.fmt_money(int(artist.get('deposit_cents') or 0))} default // {core.fmt_money(int(artist.get('average_value_cents') or 0))} avg</small></span><span>›</span></a><a class="settings-row" href="/settings/clients"><span>CLIENTS<small>{client_count} ready</small></span><span>›</span></a><a class="settings-row" href="/settings/payments"><span>PAYMENT METHODS<small>{html.escape(methods)}</small></span><span>›</span></a><a class="settings-row" href="/settings/subscription"><span>SUBSCRIPTION<small>$97 monthly</small></span><span>›</span></a><a class="settings-row" href="/settings/account"><span>ACCOUNT<small>{html.escape(artist.get('name') or '')}</small></span><span>›</span></a></div><div class="space"></div><div class="error"><p>TEMPORARY FOUNDER TEST</p><a class="button" href="/__test/day8">SIMULATE DAY 8</a><p class="dim">Remove after post-trial billing is proven.</p></div>''')
+    return core.page("Settings",f'''<h1>SETTINGS</h1><p class="dim">Rare adjustments. Empty Chair stays out of your way.</p><div class="settings-list"><a class="settings-row" href="/settings/calendar"><span>CALENDAR<small>{html.escape(calendar_label)}</small></span><span>›</span></a><a class="settings-row" href="/settings/deposits"><span>DEPOSITS<small>{core.fmt_money(int(artist.get('deposit_cents') or 0))} default // {core.fmt_money(int(artist.get('average_value_cents') or 0))} avg</small></span><span>›</span></a><a class="settings-row" href="/settings/clients"><span>CLIENTS<small>{client_count} ready</small></span><span>›</span></a><a class="settings-row" href="/settings/payments"><span>PAYMENT METHODS<small>{html.escape(methods)}</small></span><span>›</span></a><a class="settings-row" href="/settings/subscription"><span>SUBSCRIPTION<small>$97 monthly</small></span><span>›</span></a><a class="settings-row" href="/settings/account"><span>ACCOUNT<small>{html.escape(artist.get('name') or '')}</small></span><span>›</span></a></div>''')
 
 @core.app.get("/settings/calendar")
 def calendar(request:Request):
@@ -79,4 +78,4 @@ def account(request:Request):
     a=_artist_or_setup(request)
     if not a:return RedirectResponse("/setup")
     return core.page("Account",f'''<h1>ACCOUNT</h1><div class="status"><span>name</span><span>{html.escape(a.get('name') or '')}</span></div><div class="status"><span>mobile</span><span>{html.escape(a.get('phone') or '')}</span></div><a class="button" href="/settings/subscription">SUBSCRIPTION</a>''')
-print("Empty Chair 2.0 settings UI loaded // Day-8 founder test visible",flush=True)
+print("Empty Chair 2.0 settings UI loaded // one $97 monthly plan",flush=True)
