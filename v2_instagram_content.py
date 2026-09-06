@@ -1,6 +1,6 @@
 """Revenue-oriented Instagram content queue for Empty Chair."""
 from __future__ import annotations
-import hashlib, json, random, threading, time, uuid
+import hashlib, random
 from datetime import datetime, timezone
 import v2_app as core
 
@@ -25,9 +25,12 @@ def seed(n=60):
  for i in range(n):
   angle,hook,body=ANGLES[i%len(ANGLES)]; v=random.choice(vals); money=f"${v}"; yearly=f"${v*24:,}"
   h=hook.format(v=money,y=yearly); b=body.format(v=money,y=yearly)
-  caption=f"{h}\n\n{b}\n\nTATTOO ARTIST? COMMENT CHAIR.\n\nWHEN THEY CANCEL, WE FILL THE CHAIR."
+  caption=f"{h}\n\n{b}\n\n7 DAYS FREE. LINK IN BIO.\n\nWHEN THEY CANCEL, WE FILL THE CHAIR."
   ident=hashlib.sha1(f"{angle}:{h}:{i}".encode()).hexdigest()
   core.run("INSERT INTO growth_content(id,hook,body,caption,angle,status,score,created_at) VALUES(?,?,?,?,?,?,?,?)",(ident,h,b,caption,angle,"READY",1,now()))
+
+def refresh_ready_ctas():
+ core.run("UPDATE growth_content SET caption=REPLACE(caption, 'TATTOO ARTIST? COMMENT CHAIR.', '7 DAYS FREE. LINK IN BIO.') WHERE status='READY'")
 
 def next_content():
  return core.one("SELECT * FROM growth_content WHERE status='READY' ORDER BY score DESC,created_at ASC LIMIT 1")
@@ -36,4 +39,4 @@ def mark_published(content_id,media_id):
  core.run("UPDATE growth_content SET status='PUBLISHED',published_at=?,media_id=? WHERE id=?",(now(),media_id,content_id))
  core.event("growth.instagram_content_published",None,{"content_id":content_id,"media_id":media_id})
 
-init(); seed()
+init(); seed(); refresh_ready_ctas()
