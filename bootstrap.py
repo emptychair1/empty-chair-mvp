@@ -45,7 +45,7 @@ import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
 import v2_instagram_webhook_subscription  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-ig-20260906-0714"
+BUILD_ID = "bootstrap-ig-20260906-0725"
 
 
 @app.middleware("http")
@@ -65,7 +65,7 @@ async def bootstrap_entrypoints(request, call_next):
             ig_growth.log(lead_id, "instagram.organic_clicked", {"source": "bio"})
         except Exception as exc:
             print(f"IG bio attribution write failed: {exc}", flush=True)
-        response = RedirectResponse("/signup", status_code=303)
+        response = RedirectResponse("/", status_code=303)
         response.set_cookie(
             "ec_growth",
             token,
