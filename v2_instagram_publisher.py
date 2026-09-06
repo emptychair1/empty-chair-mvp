@@ -1,13 +1,12 @@
 """Recurring organic Instagram publisher for Empty Chair.
 
-Uses the already-proven Instagram Content Publishing API path and an existing JPEG asset.
-No new dependencies. The worker is defensive: every iteration is isolated, and each daily
-slot is idempotent in the events table.
+The clock lives in GitHub Actions so Render's free-instance sleep cannot stop posting.
+This module exposes one idempotent due-post endpoint and uses the already-proven Instagram
+Content Publishing API path with an existing JPEG asset. No new dependencies.
 """
 from __future__ import annotations
 
 import json
-import threading
 import time
 import urllib.error
 import urllib.parse
@@ -41,8 +40,7 @@ POSTS = [
 ]
 
 # 10 AM, 2 PM, 6 PM Eastern while daylight saving time is active.
-# Exact local-time perfection is less important than three separated daily windows; each
-# slot has a two-hour catch-up window so Render restarts do not permanently miss a post.
+# Two-hour windows make the trigger tolerant of Render cold starts and GitHub cron jitter.
 SLOTS_UTC = {
     "morning": (14, 16),
     "afternoon": (18, 20),
@@ -104,15 +102,14 @@ def _slot_key(day: str, slot: str) -> str:
 
 def _already_done(day: str, slot: str) -> bool:
     try:
-        row = core.one("SELECT id FROM events WHERE kind=? LIMIT 1", (_slot_key(day, slot),))
-        return bool(row)
+        return bool(core.one("SELECT id FROM events WHERE kind=? LIMIT 1", (_slot_key(day, slot),)))
     except Exception:
         return False
 
 
 def publish(caption: str, day: str, slot: str) -> str | None:
     if not (growth.META_TOKEN and growth.IG_USER_ID):
-        return None
+        raise RuntimeError("Instagram publishing credentials are not configured")
     if _already_done(day, slot):
         return None
 
@@ -121,7 +118,6 @@ def publish(caption: str, day: str, slot: str) -> str | None:
         "slot": slot,
         "image_url": IMAGE_URL,
     })
-
     created = _post(f"{growth.IG_USER_ID}/media", {
         "image_url": IMAGE_URL,
         "caption": caption,
@@ -152,38 +148,33 @@ def publish(caption: str, day: str, slot: str) -> str | None:
 
 def _due_post(now_utc: datetime):
     hour = now_utc.hour
-    for slot, start_end in SLOTS_UTC.items():
-        start, end = start_end
-        # evening's end is represented as 24.
+    for slot, (start, end) in SLOTS_UTC.items():
         if start <= hour < end:
-            for name, caption in POSTS:
-                if name == slot:
-                    return slot, caption
+            caption = next((text for name, text in POSTS if name == slot), None)
+            return slot, caption
     return None, None
 
 
-def run_once(now_utc: datetime | None = None) -> None:
+def run_once(now_utc: datetime | None = None) -> dict:
     now_utc = now_utc or datetime.now(timezone.utc)
     slot, caption = _due_post(now_utc)
     if not slot or not caption:
-        return
-    publish(caption, now_utc.date().isoformat(), slot)
+        return {"ok": True, "due": False, "published": False}
+    day = now_utc.date().isoformat()
+    if _already_done(day, slot):
+        return {"ok": True, "due": True, "published": False, "slot": slot, "reason": "already_published"}
+    media_id = publish(caption, day, slot)
+    return {"ok": True, "due": True, "published": bool(media_id), "slot": slot, "media_id": media_id}
 
 
-def _worker():
-    # Do not compete with application startup. A publisher failure must never affect boot.
-    time.sleep(45)
-    while True:
+@core.app.post("/internal/instagram/publish-due")
+def publish_due():
+    try:
+        return run_once()
+    except Exception as exc:
         try:
-            run_once()
-        except Exception as exc:
-            try:
-                core.event("growth.instagram_publish_failed", None, {"error": str(exc)[:1500]})
-            except Exception:
-                pass
-            print(f"IG organic publish failed: {exc}", flush=True)
-        time.sleep(300)
-
-
-if core.WORKER_ENABLED:
-    threading.Thread(target=_worker, daemon=True, name="instagram-organic-publisher").start()
+            core.event("growth.instagram_publish_failed", None, {"error": str(exc)[:1500]})
+        except Exception:
+            pass
+        print(f"IG organic publish failed: {exc}", flush=True)
+        return {"ok": False, "error": str(exc)[:500]}
