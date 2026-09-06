@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleDisplayName</key><string>Empty Chair</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Empty Chair watches your tattoo calendar for cancellations and writes replacement appointments back when a chair is filled.</string>
+<key>NSCalendarsUsageDescription</key><string>Empty Chair needs your tattoo calendar to protect canceled appointments.</string>
+<key>NSFaceIDUsageDescription</key><string>Use Face ID to unlock Empty Chair.</string>
+<key>UIBackgroundModes</key><array><string>processing</string><string>fetch</string></array>
+<key>BGTaskSchedulerPermittedIdentifiers</key><array><string>com.tryemptychair.calendar-sync</string></array>
+</dict></plist>
