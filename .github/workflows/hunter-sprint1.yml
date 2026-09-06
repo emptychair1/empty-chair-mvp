@@ -27,7 +27,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
 
@@ -87,7 +87,7 @@ jobs:
           HUNTER_META_GRAPH_VERSION: v26.0
         run: python hunter/instagram_hashtag_source.py --out hunter-instagram-signals.json --limit 50 --max-resolutions 40
 
-      - name: Build broad pain-fit artist bucket
+      - name: Build high-volume pain-fit artist bucket
         if: steps.meta_config.outputs.configured == 'true'
         env:
           HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
@@ -96,8 +96,14 @@ jobs:
         run: |
           python hunter/pain_fit_bucket.py \
             --out hunter-pain-fit-bucket.json \
+            --known-seeds hunter-instagram-signals.json \
             --per-tag-limit 50 \
-            --max-seed-resolutions 60 \
+            --max-pages 4 \
+            --target-unique-posts 600 \
+            --max-seed-resolutions 120 \
+            --target-artist-seeds 100 \
+            --resolver-workers 4 \
+            --seed-max-age-hours 336 \
             --media-per-artist 25 \
             --min-pain-fit 50
 
@@ -237,9 +243,13 @@ jobs:
           if os.path.exists('hunter-pain-fit-bucket.json'):
               p = json.load(open('hunter-pain-fit-bucket.json'))
               m = p.get('metrics', {})
-              print(f"- raw posts scanned: {m.get('raw_posts_scanned', 0)}")
-              print(f"- unique fresh posts: {m.get('unique_fresh_posts', 0)}")
-              print(f"- unique artist seeds: {m.get('unique_artist_seeds', 0)}")
+              print(f"- raw recent posts scanned: {m.get('raw_recent_posts_scanned', 0)}")
+              print(f"- raw top posts scanned: {m.get('raw_top_posts_scanned', 0)}")
+              print(f"- unique seed posts: {m.get('unique_seed_posts', 0)}")
+              print(f"- author resolutions attempted: {m.get('author_resolution_attempts', 0)}")
+              print(f"- unique artist seeds: {m.get('unique_artist_seeds', 0)} / target {m.get('target_artist_seeds', 100)}")
+              print(f"- Business Discovery successes: {m.get('professional_accounts_checked', 0)}")
+              print(f"- Business Discovery failures: {m.get('business_discovery_failures', 0)}")
               print(f"- artist media scanned: {m.get('artist_recent_media_scanned', 0)}")
               print(f"- pain-fit artists >=50: {m.get('pain_fit_artists', 0)}")
           else:
