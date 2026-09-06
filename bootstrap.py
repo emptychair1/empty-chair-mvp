@@ -48,7 +48,7 @@ import v2_hunter_operator  # noqa: F401,E402
 import v2_hunter_operator_transaction_fix  # noqa: F401,E402
 import v2_hunter_operator_phone_auth  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-hunter-phone-admin-20260906"
+BUILD_ID = "bootstrap-hunter-source-probe-20260906"
 
 
 @app.middleware("http")
@@ -56,6 +56,11 @@ async def bootstrap_entrypoints(request, call_next):
     path = request.url.path.rstrip("/") or "/"
     if path == "/__ec_build":
         return JSONResponse({"build": BUILD_ID, "instagram_bio": True})
+    if path == "/owner/hunter" and "state" not in request.query_params:
+        query = dict(request.query_params)
+        query["state"] = "HOT"
+        query_string = "&".join(f"{key}={value}" for key, value in query.items())
+        return RedirectResponse(f"/owner/hunter?{query_string}", status_code=303)
     if path == "/ig":
         token = secrets.token_urlsafe(18)
         try:
