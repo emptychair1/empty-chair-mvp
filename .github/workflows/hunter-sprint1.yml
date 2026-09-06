@@ -1,7 +1,11 @@
-name: Hunter Sprint 1
+name: Hunter Discovery + Artist Resolution
 
 on:
   push:
+    paths:
+      - 'hunter/**'
+      - '.github/workflows/hunter-sprint1.yml'
+  pull_request:
     paths:
       - 'hunter/**'
       - '.github/workflows/hunter-sprint1.yml'
@@ -9,10 +13,17 @@ on:
     - cron: '7,37 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: hunter-discovery-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -30,12 +41,20 @@ jobs:
         run: pytest -q
 
       - name: Collect public cancellation signals
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/collect.py --out hunter-signals.json
 
+      - name: Resolve tattoo artist accounts
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: python hunter/resolve.py --input hunter-signals.json --out hunter-artists.json
+
       - name: Upload Hunter signals
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: hunter-signals-${{ github.run_id }}
-          path: hunter-signals.json
+          path: |
+            hunter-signals.json
+            hunter-artists.json
           if-no-files-found: error
           retention-days: 14

@@ -10,6 +10,7 @@ Design goals:
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import re
@@ -62,6 +63,16 @@ def normalize_result_url(href: str) -> str:
         return ""
     parsed = urlparse(href)
     qs = parse_qs(parsed.query)
+    if parsed.hostname in {"bing.com", "www.bing.com"} and parsed.path.startswith("/ck/"):
+        encoded = qs.get("u", [""])[0]
+        if encoded.startswith("a1"):
+            try:
+                token = encoded[2:]
+                candidate = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)).decode("utf-8")
+                if urlparse(candidate).scheme in {"http", "https"}:
+                    return candidate
+            except (ValueError, UnicodeError):
+                pass
     for key in ("uddg", "url", "u", "q"):
         if key in qs and qs[key]:
             candidate = unquote(qs[key][0])
@@ -73,12 +84,20 @@ def normalize_result_url(href: str) -> str:
 def instagram_username(url: str) -> str:
     try:
         parsed = urlparse(url)
-        if "instagram.com" not in parsed.netloc.lower():
+        if (parsed.scheme not in {"http", "https"}
+                or parsed.hostname not in {"instagram.com", "www.instagram.com", "m.instagram.com"}
+                or parsed.username or parsed.password or parsed.port not in {None, 80, 443}):
             return ""
         parts = [p for p in parsed.path.split("/") if p]
-        if not parts or parts[0].lower() in {"p", "reel", "reels", "tv", "explore", "accounts"}:
+        if len(parts) != 1 or parts[0].lower() in {
+            "p", "reel", "reels", "tv", "explore", "accounts", "stories",
+            "direct", "about", "developer", "developers", "legal", "web", "challenge",
+        }:
             return ""
-        return parts[0].lstrip("@").lower()
+        username = parts[0].lower()
+        if not re.fullmatch(r"[a-z0-9_](?:[a-z0-9._]{0,28}[a-z0-9_])?", username) or ".." in username:
+            return ""
+        return username
     except Exception:
         return ""
 
@@ -109,10 +128,10 @@ def find_instagram_url(html: str, fallback_text: str = "") -> str:
         if username:
             return f"https://www.instagram.com/{username}/"
     text = f"{fallback_text} {soup.get_text(' ', strip=True)[:12000]}"
-    match = re.search(r"(?:instagram(?:\.com)?[/ :]|@)([A-Za-z0-9._]{2,30})", text, flags=re.I)
+    match = re.search(r"(?:instagram\s*[:\-]?\s*@|instagram\.com/)([A-Za-z0-9._]{1,30})", text, flags=re.I)
     if match:
         username = match.group(1).strip(".").lower()
-        if username not in {"instagram", "tattoo", "com"}:
+        if username not in {"instagram", "tattoo", "com"} and instagram_username(f"https://www.instagram.com/{username}/"):
             return f"https://www.instagram.com/{username}/"
     return ""
 
