@@ -172,6 +172,22 @@ async def instagram_webhook(request: Request):
     return JSONResponse({"ok": True})
 
 
+@core.app.get("/ig")
+def instagram_organic_entry():
+    lead_id = str(uuid.uuid4())
+    token = secrets.token_urlsafe(18)
+    created = now()
+    comment_id = f"organic:{uuid.uuid4()}"
+    core.run(
+        "INSERT INTO growth_instagram_leads(id,ig_user_id,username,comment_id,media_id,keyword,token,status,created_at,clicked_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        (lead_id, "organic", "", comment_id, "", "bio", token, "CLICKED", created, created),
+    )
+    log(lead_id, "instagram.organic_clicked", {"source": "bio"})
+    response = RedirectResponse("/signup", status_code=303)
+    response.set_cookie("ec_growth", token, max_age=60 * 60 * 24 * 14, httponly=True, secure=core.BASE_URL.startswith("https://"), samesite="lax")
+    return response
+
+
 @core.app.get("/ig/{token}")
 def instagram_trial(token: str):
     lead = core.one("SELECT * FROM growth_instagram_leads WHERE token=?", (token,))
