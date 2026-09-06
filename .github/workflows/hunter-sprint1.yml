@@ -1,6 +1,10 @@
 name: Hunter Sprint 1
 
 on:
+  push:
+    paths:
+      - 'hunter/**'
+      - '.github/workflows/hunter-sprint1.yml'
   schedule:
     - cron: '7,37 * * * *'
   workflow_dispatch:
