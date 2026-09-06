@@ -55,9 +55,7 @@ core.create_opening_from_appointment=create_opening_entitled
 @core.app.on_event("startup")
 def entitlement_startup():ensure_schema()
 
-# Customer offer/payment URLs must continue working so an in-flight recovery can finish.
-# Expired artists may reach only the paywall, billing checkout, and rare account/subscription settings.
-_PUBLIC_PREFIXES=("/o/","/healthz","/manifest.webmanifest","/icon.svg","/auth/","/webhook","/static/")
+_PUBLIC_PREFIXES=("/o/","/healthz","/manifest.webmanifest","/icon.svg","/auth/","/webhook","/static/","/__test/day8")
 _ALLOWED_EXPIRED_PREFIXES=("/billing/",)
 _ALLOWED_EXPIRED=("/paywall","/settings/subscription","/settings/account")
 @core.app.middleware("http")
@@ -76,7 +74,12 @@ def paywall(request:Request):
     artist=core.one("SELECT * FROM artists WHERE id=?",(artist["id"],))
     if allowed(artist):return RedirectResponse("/",status_code=303)
     label="PAYMENT REQUIRED" if state(artist)=="expired" else "CHECK PAYMENT"
-    return core.page("Subscription Required",f'''<div class="center"><h1>EMPTY CHAIR // {label}</h1><p>Your 7-day trial has ended.</p><p class="bright">Your chair is no longer covered.</p><div class="space"></div><p class="big">$97 / MONTH</p><a class="button" href="/billing/subscribe/monthly">KEEP MY CHAIR COVERED</a><p class="dim">Cancel anytime. Recovery resumes as soon as payment is confirmed.</p></div>''',chair=True)
+    # Founder Day-8 simulator marks the account trialing with an already-ended trial.
+    # During this temporary E2E test, keep the production-looking paywall but send its CTA
+    # to the isolated $1 checkout instead of platform subscription billing.
+    is_day8_test=(artist.get("subscription_status") or "").lower()=="trialing" and bool(_dt(artist.get("trial_ends_at")))
+    checkout="/__test/day8/checkout" if is_day8_test else "/billing/subscribe/monthly"
+    return core.page("Subscription Required",f'''<div class="center"><h1>EMPTY CHAIR // {label}</h1><p>Your 7-day trial has ended.</p><p class="bright">Your chair is no longer covered.</p><div class="space"></div><p class="big">$97 / MONTH</p><a class="button" href="{checkout}">KEEP MY CHAIR COVERED</a><p class="dim">Cancel anytime. Recovery resumes as soon as payment is confirmed.</p></div>''',chair=True)
 
 ensure_schema()
 print("Empty Chair 2.0 entitlement loaded // 7-day trial -> $97 monthly paywall",flush=True)
