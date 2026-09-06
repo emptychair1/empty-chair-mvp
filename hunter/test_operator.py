@@ -1,6 +1,6 @@
 import pytest
 
-from operator import DECISIONS, SCHEMA, apply_decision, build_snapshot
+from operator_console import DECISIONS, SCHEMA, apply_decision, build_snapshot
 
 
 def payloads():
