@@ -1,8 +1,4 @@
-"""Locked Sprint 0 rules for Empty Chair Hunter.
-
-Hunter exists to find individual tattoo artists experiencing cancellation/opening pain now.
-These rules are deliberately deterministic and explainable; later learning can tune weights.
-"""
+"""Locked Hunter rules and calibrated discovery/scoring configuration."""
 
 INTENT_PHRASES = (
     "had a cancellation",
@@ -10,14 +6,39 @@ INTENT_PHRASES = (
     "last-minute cancellation",
     "cancellation today",
     "cancellation tomorrow",
+    "someone canceled",
+    "someone cancelled",
+    "appointment fell through",
+    "client rescheduled",
+    "client moved their appointment",
+    "had a no show",
+    "had a no-show",
+    "no show today",
+    "no-show today",
     "spot opened up",
     "spot just opened",
+    "slot opened up",
+    "free spot",
+    "free appointment",
     "opening today",
     "opening tomorrow",
+    "available today",
+    "available tomorrow",
+    "same day availability",
+    "same-day availability",
     "last minute opening",
     "last-minute opening",
     "last minute availability",
     "last-minute availability",
+    "last minute spot",
+    "last-minute spot",
+    "need to fill this spot",
+    "need to fill this appointment",
+    "who wants this slot",
+    "gap in my schedule",
+    "walk-in availability",
+    "walk in availability",
+    "opening this week",
     "cancellation flash",
     "day opened up",
     "appointment opened up",
@@ -51,6 +72,8 @@ URGENCY_TERMS = (
     "tonight",
     "this afternoon",
     "this evening",
+    "same day",
+    "same-day",
     "last minute",
     "last-minute",
 )
@@ -65,9 +88,8 @@ PRICE_TERMS = (
     "full day",
 )
 
-# Search engines often do not index fresh Instagram media directly. Hunter therefore uses
-# both direct-Instagram queries and broader public-web queries that can resolve an artist's
-# Instagram handle/profile from their own website, booking page, or public mirror.
+# Public-web only. The second query family widens coverage beyond directly indexed
+# Instagram pages while still requiring the resolver to tie evidence to a real account.
 SEARCH_QUERIES = tuple(
     query
     for phrase in INTENT_PHRASES
@@ -77,10 +99,10 @@ SEARCH_QUERIES = tuple(
     )
 )
 
-# Sprint 3 intent score. Missing/unknown information gets zero points rather than being
-# guessed. Negative weights protect the queue from broad marketing and stale demand.
 SCORE_WEIGHTS = {
     "explicit_cancellation": 35,
+    "schedule_disruption": 35,
+    "fill_intent": 20,
     "urgent": 20,
     "individual_artist": 15,
     "active_commercial_account": 10,
