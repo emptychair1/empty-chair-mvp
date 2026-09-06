@@ -20,8 +20,6 @@ on:
 permissions:
   contents: read
 
-# One Hunter run per ref at a time. Scheduled main runs queue instead of overlapping,
-# preventing two collectors from racing the same persisted queue history.
 concurrency:
   group: hunter-discovery-${{ github.ref }}
   cancel-in-progress: false
@@ -52,6 +50,10 @@ jobs:
       - name: Collect public cancellation signals
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/collect.py --out hunter-signals.json
+
+      - name: Probe public source freshness
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: python hunter/source_probe.py --out hunter-source-probe.json
 
       - name: Resolve tattoo artist accounts
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -129,8 +131,6 @@ jobs:
             --signals hunter-signals.json \
             --out hunter-learning-report.json
 
-      # Do not use always() here. A failed upstream stage must not overwrite the last
-      # known-good queue history with partial state.
       - name: Save Hunter queue history
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
@@ -183,9 +183,21 @@ jobs:
             echo '## Hunter validation' >> "$GITHUB_STEP_SUMMARY"
             echo 'Validation summary was not produced.' >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -f hunter-source-probe.json ]; then
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '## Hunter source freshness probe' >> "$GITHUB_STEP_SUMMARY"
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          data=json.load(open('hunter-source-probe.json'))
+          print(f"**Verdict:** {data['verdict']}")
+          print('')
+          print('| Source | Signals | <=24h | <=72h | Stale | Unknown date |')
+          print('|---|---:|---:|---:|---:|---:|')
+          for source, s in data['by_family'].items():
+              print(f"| {source} | {s['signals']} | {s['within_24h']} | {s['within_72h']} | {s['stale_over_72h']} | {s['unknown_date']} |")
+          PY
+          fi
 
-      # Always upload partial output for diagnosis. Missing files warn rather than
-      # replacing the primary failure signal from the stage that actually broke.
       - name: Upload Hunter artifacts
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
@@ -193,6 +205,7 @@ jobs:
           name: hunter-signals-${{ github.run_id }}
           path: |
             hunter-signals.json
+            hunter-source-probe.json
             hunter-artists.json
             hunter-scores.json
             hunter-queue.json
