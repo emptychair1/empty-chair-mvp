@@ -77,19 +77,25 @@ SEARCH_QUERIES = tuple(
     )
 )
 
+# Sprint 3 intent score. Missing/unknown information gets zero points rather than being
+# guessed. Negative weights protect the queue from broad marketing and stale demand.
 SCORE_WEIGHTS = {
     "explicit_cancellation": 35,
     "urgent": 20,
-    "tattoo_context": 15,
-    "commercial_activity": 10,
+    "individual_artist": 15,
+    "active_commercial_account": 10,
     "price_signal": 5,
-    "instagram_result": 5,
-    "fresh_search_result": 10,
+    "us_location": 5,
+    "very_recent_post": 10,
+    "stale": -30,
+    "generic_books_open": -15,
+    "studio_account": -15,
 }
 
 HOT_THRESHOLD = 80
 WARM_THRESHOLD = 60
 STALE_HOURS = 72
+VERY_RECENT_HOURS = 24
 TARGET_COOLDOWN_HOURS = 72
 
 TARGET_STATES = (
