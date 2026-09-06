@@ -1,13 +1,17 @@
-name: Hunter Discovery + Resolution + Intent + Queue + Actions + Attribution + Learning + Validation
+name: Hunter Discovery + Resolution + Intent + Queue + Actions + Attribution + Learning + Validation + Operator
 
 on:
   push:
     paths:
       - 'hunter/**'
+      - 'v2_hunter_operator.py'
+      - 'bootstrap.py'
       - '.github/workflows/hunter-sprint1.yml'
   pull_request:
     paths:
       - 'hunter/**'
+      - 'v2_hunter_operator.py'
+      - 'bootstrap.py'
       - '.github/workflows/hunter-sprint1.yml'
   schedule:
     - cron: '7,37 * * * *'
@@ -41,6 +45,9 @@ jobs:
       - name: Run Hunter contract tests
         working-directory: hunter
         run: pytest -q
+
+      - name: Compile operator production extension
+        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py
 
       - name: Collect public cancellation signals
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -139,6 +146,34 @@ jobs:
             --summary-out hunter-validation-summary.md \
             --strict
 
+      - name: Build operator snapshot
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          python hunter/operator_console.py \
+            --queue hunter-queue-after-actions.json \
+            --attribution hunter-attribution-report.json \
+            --validation hunter-validation.json \
+            --learning hunter-learning-report.json \
+            --signals hunter-signals.json \
+            --out hunter-operator-snapshot.json
+
+      - name: Sync operator console
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          HUNTER_OPERATOR_INGEST_URL: ${{ secrets.HUNTER_OPERATOR_INGEST_URL }}
+          HUNTER_OPERATOR_INGEST_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+        run: |
+          if [ -z "$HUNTER_OPERATOR_INGEST_URL" ] || [ -z "$HUNTER_OPERATOR_INGEST_TOKEN" ]; then
+            echo "Hunter operator sync not configured; snapshot remains an artifact."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error \
+            --max-time 30 \
+            -X POST "$HUNTER_OPERATOR_INGEST_URL" \
+            -H "Authorization: Bearer $HUNTER_OPERATOR_INGEST_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @hunter-operator-snapshot.json
+
       - name: Publish Hunter validation summary
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
@@ -169,5 +204,6 @@ jobs:
             hunter-learning-report.json
             hunter-validation.json
             hunter-validation-summary.md
+            hunter-operator-snapshot.json
           if-no-files-found: warn
           retention-days: 14
