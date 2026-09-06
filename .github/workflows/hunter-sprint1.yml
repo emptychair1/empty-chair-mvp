@@ -1,4 +1,4 @@
-name: Hunter Discovery + Resolution + Intent + Queue + Actions
+name: Hunter Discovery + Resolution + Intent + Queue + Actions + Attribution
 
 on:
   push:
@@ -89,6 +89,29 @@ jobs:
           mkdir -p .hunter-state
           cp hunter-queue-after-actions.json .hunter-state/hunter-queue.json
 
+      - name: Restore Hunter attribution events
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/cache/restore@v4
+        with:
+          path: .hunter-state/hunter-attribution-events.json
+          key: hunter-attribution-events-${{ github.run_id }}
+          restore-keys: |
+            hunter-attribution-events-
+
+      - name: Build attribution manifest and report
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          EVENTS_ARG=""
+          if [ -f .hunter-state/hunter-attribution-events.json ]; then
+            EVENTS_ARG="--events .hunter-state/hunter-attribution-events.json"
+          fi
+          python hunter/attribution.py \
+            --queue hunter-queue-after-actions.json \
+            --base-url https://app.tryemptychair.com \
+            $EVENTS_ARG \
+            --manifest-out hunter-attribution.json \
+            --report-out hunter-attribution-report.json
+
       - name: Save Hunter queue history
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@v4
@@ -109,5 +132,7 @@ jobs:
             hunter-actions.json
             hunter-queue-after-actions.json
             hunter-action-journal.jsonl
+            hunter-attribution.json
+            hunter-attribution-report.json
           if-no-files-found: warn
           retention-days: 14
