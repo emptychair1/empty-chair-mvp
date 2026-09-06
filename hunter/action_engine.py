@@ -184,14 +184,13 @@ def execute_one(
         token=webhook_token,
         sleep=sleep,
     )
-    completed_at = datetime.now(timezone.utc)
     result = {
         **base,
         "status": "SUCCEEDED" if success else "FAILED",
         "reason": result_reason,
         "attempts": attempts,
         "http_status": http_status,
-        "completed_at": iso(completed_at),
+        "completed_at": iso(now),
     }
     append_journal(journal, {**result, "phase": "ATTEMPT_FINISHED"})
     return result
@@ -214,10 +213,13 @@ def update_queue_after_actions(queue_payload: dict, results: list[dict], *, now:
         item["reason"] = "action_succeeded"
         item["last_action_at"] = result.get("completed_at") or iso(now)
         item["last_action_key"] = item.get("action_key")
-    updated["next_action_batch"] = [
-        item for item in updated.get("targets", []) if item.get("eligible") is True
-    ][: int(updated.get("batch_size") or 50)]
-    updated["eligible_count"] = sum(1 for item in updated.get("targets", []) if item.get("eligible") is True)
+
+    eligible = [item for item in updated.get("targets", []) if item.get("eligible") is True]
+    for priority, item in enumerate(eligible, start=1):
+        item["priority"] = priority
+    updated["next_action_batch"] = [dict(item) for item in eligible[: int(updated.get("batch_size") or 50)]]
+    updated["eligible_count"] = len(eligible)
+    updated["state_counts"] = dict(Counter(str(item.get("queue_state")) for item in updated.get("targets", [])))
     updated["generated_at"] = iso(now)
     return updated
 
