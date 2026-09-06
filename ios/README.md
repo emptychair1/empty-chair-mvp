@@ -1,15 +1,26 @@
-# Empty Chair iPhone shell
+# Empty Chair native containers
 
-Native SwiftUI/EventKit shell for the headless Empty Chair product.
+## iOS
 
-## Product flow
+The iPhone container is intentionally thin and headless:
 
-Face ID -> Apple Calendar native permission -> choose tattoo calendar -> ARMED -> close app.
+SMS link -> device authentication -> EventKit permission -> choose tattoo calendar -> ARMED -> close app.
 
-No Apple ID or app-specific password is collected.
+It uses native EventKit. No Apple ID, CalDAV URL, or app-specific password is collected in the iOS app. Selected calendar snapshots are sent to the existing Empty Chair backend; removed appointments enter the existing recovery engine; filled-chair write commands return to EventKit and are acknowledged by the device.
 
-## Current boundary
+Background refresh is registered as `com.tryemptychair.calendar-sync`. iOS schedules background work at system discretion, so foreground/EventKit-change sync remains part of the design.
 
-This commit establishes the native permission, calendar selection, Face ID, and ARMED surfaces. The next implementation step is the sync bridge: snapshot selected EventKit appointments to the Empty Chair backend, detect device-side calendar changes/background refresh, and accept filled-booking writes back into EventKit.
+## Android
 
-The existing server CalDAV credential flow is legacy and must not be exposed as the shipped Apple experience.
+The Android container uses Android Calendar Provider with READ_CALENDAR/WRITE_CALENDAR and the same backend sync/outbox protocol. It is under `android/`.
+
+## Distribution boundary
+
+Source is ready for native project builds, but repository commits are not proof of a signed device build. Shipping requires the external platform steps:
+
+- Apple Developer membership, bundle/App ID, signing team and provisioning profile.
+- Xcode archive -> App Store Connect -> TestFlight.
+- Google Play Console app, signing key / Play App Signing, release bundle -> internal testing.
+- Real-device permission/background tests on each platform before public distribution.
+
+Do not replace the native calendar experience with the web CalDAV password flow. The web flow remains the fallback for the current web product.
