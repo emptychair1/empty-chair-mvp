@@ -1,8 +1,7 @@
-"""Native iPhone EventKit bridge for Empty Chair 2.0.
+"""Native calendar bridge for Empty Chair 2.0.
 
-The phone owns Apple Calendar access. The server receives snapshots, detects removed
-appointments through the existing recovery engine, and queues replacement bookings for
-the phone to write back through EventKit.
+The device owns calendar permission. iOS uses EventKit; Android uses Calendar Provider.
+Both send snapshots to the same recovery engine and receive filled-chair write commands.
 """
 from __future__ import annotations
 
@@ -30,25 +29,26 @@ def native_schema():
     finally:d.close()
 
 
-def issue_device(artist_id:str,calendar_id:str=""):
+def issue_device(artist_id:str,calendar_id:str="",platform:str="ios"):
+    if platform not in ("ios","android"): platform="ios"
     token=secrets.token_urlsafe(32);did=secrets.token_hex(16);now=core.utcnow()
-    core.run("INSERT INTO native_devices(id,artist_id,token_hash,platform,calendar_id,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?)",(did,artist_id,hashlib.sha256(token.encode()).hexdigest(),"ios",calendar_id,now,now))
-    core.run("INSERT INTO calendar_accounts(artist_id,provider,calendar_id,connected_at) VALUES(?,?,?,?) ON CONFLICT(artist_id) DO UPDATE SET provider=excluded.provider,calendar_id=excluded.calendar_id,access_token=NULL,refresh_token=NULL,token_expires_at=NULL,apple_username=NULL,apple_password=NULL,apple_calendar_url=NULL,connected_at=excluded.connected_at",(artist_id,"apple_native",calendar_id,now))
+    core.run("INSERT INTO native_devices(id,artist_id,token_hash,platform,calendar_id,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?)",(did,artist_id,hashlib.sha256(token.encode()).hexdigest(),platform,calendar_id,now,now))
+    core.run("INSERT INTO calendar_accounts(artist_id,provider,calendar_id,connected_at) VALUES(?,?,?,?) ON CONFLICT(artist_id) DO UPDATE SET provider=excluded.provider,calendar_id=excluded.calendar_id,access_token=NULL,refresh_token=NULL,token_expires_at=NULL,apple_username=NULL,apple_password=NULL,apple_calendar_url=NULL,connected_at=excluded.connected_at",(artist_id,"native",calendar_id,now))
     return token
 
 @core.app.post("/native/device/register")
 async def register_device(request:Request):
     artist=core.current_artist(request)
     if not artist:raise HTTPException(401,"sign in required")
-    body=await request.json();calendar_id=str(body.get("calendar_id") or "")
-    return {"device_token":issue_device(artist["id"],calendar_id),"artist_id":artist["id"]}
+    body=await request.json();calendar_id=str(body.get("calendar_id") or "");platform=str(body.get("platform") or "ios").lower()
+    return {"device_token":issue_device(artist["id"],calendar_id,platform),"artist_id":artist["id"]}
 
 
 def _cancel_from_snapshot(artist:dict,event_id:str,row:dict):
-    existing=core.one("SELECT * FROM appointments WHERE artist_id=? AND provider='apple_native' AND remote_id=?",(artist["id"],event_id))
+    existing=core.one("SELECT * FROM appointments WHERE artist_id=? AND provider='native' AND remote_id=?",(artist["id"],event_id))
     if not existing:
         appt_id=str(uuid.uuid4())
-        core.run("INSERT INTO appointments(id,artist_id,provider,remote_id,title,starts_at,ends_at,remote_status,active,snapshot_at) VALUES(?,?,?,?,?,?,?,'deleted',0,?)",(appt_id,artist["id"],"apple_native",event_id,row.get("title") or "Tattoo",row["start_at"],row["end_at"],core.utcnow()))
+        core.run("INSERT INTO appointments(id,artist_id,provider,remote_id,title,starts_at,ends_at,remote_status,active,snapshot_at) VALUES(?,?,?,?,?,?,?,'deleted',0,?)",(appt_id,artist["id"],"native",event_id,row.get("title") or "Tattoo",row["start_at"],row["end_at"],core.utcnow()))
         existing=core.one("SELECT * FROM appointments WHERE id=?",(appt_id,))
     elif existing.get("active"):
         core.run("UPDATE appointments SET active=0,remote_status='deleted',snapshot_at=? WHERE id=?",(core.utcnow(),existing["id"]))
@@ -65,39 +65,33 @@ async def sync_calendar(request:Request,authorization:str|None=Header(None)):
         for event_id,row in previous.items():
             if event_id not in incoming:
                 try:_cancel_from_snapshot(artist,event_id,row)
-                except Exception as exc:print(f"Native Apple cancellation failed {event_id}: {type(exc).__name__}: {exc}",flush=True)
+                except Exception as exc:print(f"Native cancellation failed {event_id}: {type(exc).__name__}: {exc}",flush=True)
     core.run("DELETE FROM native_calendar_snapshot WHERE artist_id=?",(artist["id"],))
     for event_id,e in incoming.items():
         core.run("INSERT INTO native_calendar_snapshot(artist_id,event_id,title,start_at,end_at,updated_at) VALUES(?,?,?,?,?,?)",(artist["id"],event_id,str(e.get("title") or "Tattoo"),str(e["start_at"]),str(e["end_at"]),now))
-        existing=core.one("SELECT * FROM appointments WHERE artist_id=? AND provider='apple_native' AND remote_id=?",(artist["id"],event_id))
-        if existing:
-            core.run("UPDATE appointments SET title=?,starts_at=?,ends_at=?,remote_status='confirmed',active=1,snapshot_at=? WHERE id=?",(str(e.get("title") or "Tattoo"),str(e["start_at"]),str(e["end_at"]),now,existing["id"]))
-        else:
-            core.run("INSERT INTO appointments(id,artist_id,provider,remote_id,title,starts_at,ends_at,remote_status,active,snapshot_at) VALUES(?,?,?,?,?,?,?,'confirmed',1,?)",(str(uuid.uuid4()),artist["id"],"apple_native",event_id,str(e.get("title") or "Tattoo"),str(e["start_at"]),str(e["end_at"]),now))
+        existing=core.one("SELECT * FROM appointments WHERE artist_id=? AND provider='native' AND remote_id=?",(artist["id"],event_id))
+        if existing:core.run("UPDATE appointments SET title=?,starts_at=?,ends_at=?,remote_status='confirmed',active=1,snapshot_at=? WHERE id=?",(str(e.get("title") or "Tattoo"),str(e["start_at"]),str(e["end_at"]),now,existing["id"]))
+        else:core.run("INSERT INTO appointments(id,artist_id,provider,remote_id,title,starts_at,ends_at,remote_status,active,snapshot_at) VALUES(?,?,?,?,?,?,?,'confirmed',1,?)",(str(uuid.uuid4()),artist["id"],"native",event_id,str(e.get("title") or "Tattoo"),str(e["start_at"]),str(e["end_at"]),now))
     calendar_id=str(body.get("calendar_id") or device.get("calendar_id") or "")
     core.run("UPDATE native_devices SET last_seen_at=?,calendar_id=? WHERE id=?",(now,calendar_id,device["id"]))
-    core.run("UPDATE calendar_accounts SET provider='apple_native',calendar_id=?,connected_at=? WHERE artist_id=?",(calendar_id,now,artist["id"]))
+    core.run("UPDATE calendar_accounts SET provider='native',calendar_id=?,connected_at=? WHERE artist_id=?",(calendar_id,now,artist["id"]))
     commands=core.all_rows("SELECT id,kind,payload FROM native_calendar_outbox WHERE artist_id=? AND status='pending' ORDER BY created_at",(artist["id"],))
     return {"ok":True,"commands":[{"id":c["id"],"kind":c["kind"],"payload":json.loads(c["payload"])} for c in commands]}
 
 @core.app.post("/native/calendar/ack/{command_id}")
 def ack_calendar(command_id:str,authorization:str|None=Header(None)):
-    device=_bearer(authorization)
-    core.run("UPDATE native_calendar_outbox SET status='acked',acked_at=? WHERE id=? AND artist_id=?",(core.utcnow(),command_id,device["artist_id"]))
-    return {"ok":True}
+    device=_bearer(authorization);core.run("UPDATE native_calendar_outbox SET status='acked',acked_at=? WHERE id=? AND artist_id=?",(core.utcnow(),command_id,device["artist_id"]));return {"ok":True}
 
 
 def queue_event_write(artist_id:str,title:str,start_at:str,end_at:str,notes:str=""):
-    cid=secrets.token_hex(16)
-    core.run("INSERT INTO native_calendar_outbox(id,artist_id,kind,payload,status,created_at) VALUES(?,?,?,?,?,?)",(cid,artist_id,"upsert_event",json.dumps({"title":title,"start_at":start_at,"end_at":end_at,"notes":notes},separators=(",",":")),"pending",core.utcnow()))
-    return cid
+    cid=secrets.token_hex(16);core.run("INSERT INTO native_calendar_outbox(id,artist_id,kind,payload,status,created_at) VALUES(?,?,?,?,?,?)",(cid,artist_id,"upsert_event",json.dumps({"title":title,"start_at":start_at,"end_at":end_at,"notes":notes},separators=(",",":")),"pending",core.utcnow()));return cid
 
 _original_apple_create_event=core.apple_create_event
 
 def _native_aware_apple_create_event(acct,artist,opening,client):
-    if acct and acct.get("provider")=="apple_native":
+    if acct and acct.get("provider") in ("native","apple_native"):
         return queue_event_write(artist["id"],f"{client['name']} // Tattoo",opening["starts_at"],opening["ends_at"],"Filled by Empty Chair")
     return _original_apple_create_event(acct,artist,opening,client)
 
 core.apple_create_event=_native_aware_apple_create_event
-print("Empty Chair 2.0 native Apple calendar bridge loaded",flush=True)
+print("Empty Chair 2.0 native calendar bridge loaded // iOS + Android",flush=True)
