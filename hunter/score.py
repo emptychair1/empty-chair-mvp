@@ -1,8 +1,8 @@
-"""Sprint 3: score resolved Hunter accounts by immediate cancellation intent.
+"""Calibrated Hunter scoring for immediate cancellation/opening intent.
 
-The scorer is deterministic and evidence-backed. Unknown information earns zero points.
-Discovery timestamps are never treated as post timestamps. The output is a ranked queue
-candidate file for Sprint 4; this module performs no outreach or production-app writes.
+The scorer remains deterministic and evidence-backed. Known stale evidence can be
+scored for diagnostics but can never enter HOT/WARM. Discovery time is never used
+as post/activity time.
 """
 from __future__ import annotations
 
@@ -34,6 +34,33 @@ GENERIC_BOOKING_PATTERNS = (
     r"\baccepting (?:bookings|appointments)\b",
 )
 
+DISRUPTION_PATTERNS = (
+    r"\bsomeone cancel(?:ed|led)\b",
+    r"\bappointment fell through\b",
+    r"\bclient rescheduled\b",
+    r"\bclient moved (?:their|the) appointment\b",
+    r"\bhad a no[- ]show\b",
+    r"\bno[- ]show today\b",
+)
+
+FILL_INTENT_PATTERNS = (
+    r"\bslot opened up\b",
+    r"\bfree spot\b",
+    r"\bfree appointment\b",
+    r"\bavailable today\b",
+    r"\bavailable tomorrow\b",
+    r"\bsame[- ]day availability\b",
+    r"\blast[- ]minute spot\b",
+    r"\bneed to fill this (?:spot|appointment)\b",
+    r"\bwho wants this slot\b",
+    r"\bgap in my schedule\b",
+    r"\bwalk[- ]in availability\b",
+    r"\bopening this week\b",
+    r"\bspot (?:just )?opened(?: up)?\b",
+    r"\bappointment opened up\b",
+    r"\bday opened up\b",
+)
+
 
 def parse_timestamp(value: object) -> datetime | None:
     if not isinstance(value, str) or not value:
@@ -62,45 +89,58 @@ def contains_any(text: str, terms: tuple[str, ...]) -> str | None:
     return None
 
 
+def first_pattern(text: str, patterns: tuple[str, ...]) -> str | None:
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            return match.group(0)
+    return None
+
+
+def signal_text(signal: dict) -> str:
+    return " ".join(str(signal.get(key) or "") for key in ("matched_phrase", "title", "snippet")).strip()
+
+
 def explicit_cancellation(signal: dict) -> str | None:
     phrase = str(signal.get("matched_phrase") or "").lower()
     if "cancellation" in phrase or "cancelled" in phrase or "canceled" in phrase:
         return str(signal.get("matched_phrase"))
-    text = f"{signal.get('title', '')} {signal.get('snippet', '')}".lower()
-    match = re.search(r"\b(?:had a |last[- ]minute )?cancell?ation\b|\bcancelled appointment\b|\bcanceled appointment\b", text)
+    text = signal_text(signal).lower()
+    match = re.search(
+        r"\b(?:had a |last[- ]minute )?cancell?ation\b|"
+        r"\bcancelled appointment\b|\bcanceled appointment\b",
+        text,
+    )
     return match.group(0) if match else None
-
-
-def signal_text(signal: dict) -> str:
-    return " ".join(
-        str(signal.get(key) or "")
-        for key in ("matched_phrase", "title", "snippet")
-    ).strip()
 
 
 def generic_books_open(signals: list[dict]) -> str | None:
     for signal in signals:
-        text = signal_text(signal)
-        for pattern in GENERIC_BOOKING_PATTERNS:
-            match = re.search(pattern, text, re.I)
-            if match:
-                return match.group(0)
+        evidence = first_pattern(signal_text(signal), GENERIC_BOOKING_PATTERNS)
+        if evidence:
+            return evidence
     return None
 
 
 def score_account(account: dict, signals: list[dict], *, now: datetime) -> dict:
-    """Return one explainable score. Missing facts add no positive or negative weight."""
     components: list[dict] = []
 
     def add(rule: str, evidence: object) -> None:
-        points = SCORE_WEIGHTS[rule]
-        components.append({"rule": rule, "points": points, "evidence": evidence})
-
-    cancellation_evidence = next((explicit_cancellation(s) for s in signals if explicit_cancellation(s)), None)
-    if cancellation_evidence:
-        add("explicit_cancellation", cancellation_evidence)
+        components.append({"rule": rule, "points": SCORE_WEIGHTS[rule], "evidence": evidence})
 
     combined = " | ".join(signal_text(s) for s in signals)
+
+    cancellation_evidence = next((explicit_cancellation(s) for s in signals if explicit_cancellation(s)), None)
+    disruption_evidence = first_pattern(combined, DISRUPTION_PATTERNS)
+    fill_evidence = first_pattern(combined, FILL_INTENT_PATTERNS)
+
+    if cancellation_evidence:
+        add("explicit_cancellation", cancellation_evidence)
+    elif disruption_evidence:
+        add("schedule_disruption", disruption_evidence)
+    elif fill_evidence:
+        add("fill_intent", fill_evidence)
+
     urgency_evidence = contains_any(combined, URGENCY_TERMS)
     if urgency_evidence:
         add("urgent", urgency_evidence)
@@ -117,11 +157,7 @@ def score_account(account: dict, signals: list[dict], *, now: datetime) -> dict:
 
     location = account.get("location")
     if isinstance(location, dict) and str(location.get("country") or "").upper() == "US":
-        add("us_location", {
-            "city": location.get("city"),
-            "region": location.get("region"),
-            "country": "US",
-        })
+        add("us_location", {"city": location.get("city"), "region": location.get("region"), "country": "US"})
 
     hours = age_hours(account.get("last_activity_at"), now)
     if hours is not None and hours <= VERY_RECENT_HOURS:
@@ -138,10 +174,15 @@ def score_account(account: dict, signals: list[dict], *, now: datetime) -> dict:
 
     raw_score = sum(component["points"] for component in components)
     score = max(0, min(100, raw_score))
-    eligible = account.get("status") == "RESOLVED" and account.get("is_tattoo_artist") is True
+    identity_eligible = account.get("status") == "RESOLVED" and account.get("is_tattoo_artist") is True
+    stale_known = hours is not None and hours > STALE_HOURS
+    intent_evidence = bool(cancellation_evidence or disruption_evidence or fill_evidence)
+    eligible = identity_eligible and not stale_known and intent_evidence
     state = "HOT" if eligible and score >= HOT_THRESHOLD else (
         "WARM" if eligible and score >= WARM_THRESHOLD else "IGNORE"
     )
+
+    freshness = "unknown" if hours is None else "recent" if hours <= STALE_HOURS else "stale"
     return {
         "account_id": account.get("account_id"),
         "username": account.get("username"),
@@ -150,6 +191,15 @@ def score_account(account: dict, signals: list[dict], *, now: datetime) -> dict:
         "raw_score": raw_score,
         "state": state,
         "eligible": eligible,
+        "eligibility_reason": (
+            "identity_not_eligible" if not identity_eligible else
+            "stale_intent" if stale_known else
+            "no_specific_fill_intent" if not intent_evidence else
+            "score_below_threshold" if state == "IGNORE" else
+            "eligible"
+        ),
+        "freshness": freshness,
+        "activity_age_hours": round(hours, 2) if hours is not None else None,
         "components": components,
         "signal_ids": [s.get("id") for s in signals if s.get("id")],
         "signal_count": len(signals),
@@ -174,27 +224,35 @@ def score_payload(artists_payload: dict, signals_payload: dict, *, now: datetime
     for account in artists_payload["accounts"]:
         if not isinstance(account, dict):
             continue
-        ids = [
-            item.get("id")
-            for item in account.get("signals", [])
-            if isinstance(item, dict) and isinstance(item.get("id"), str)
-        ]
+        ids = [item.get("id") for item in account.get("signals", []) if isinstance(item, dict) and isinstance(item.get("id"), str)]
         evidence = [by_id[signal_id] for signal_id in ids if signal_id in by_id]
         scored.append(score_account(account, evidence, now=now))
 
-    scored.sort(key=lambda item: (-item["score"], str(item.get("username") or "")))
+    scored.sort(key=lambda item: (
+        0 if item["state"] == "HOT" else 1 if item["state"] == "WARM" else 2,
+        -item["score"],
+        item["activity_age_hours"] if item["activity_age_hours"] is not None else 10**9,
+        str(item.get("username") or ""),
+    ))
     counts = Counter(item["state"] for item in scored)
+    freshness_counts = Counter(item["freshness"] for item in scored)
+    reason_counts = Counter(item["eligibility_reason"] for item in scored)
     return {
         "schema": SCHEMA,
         "generated_at": now.isoformat(),
         "account_count": len(scored),
         "state_counts": dict(counts),
+        "calibration": {
+            "stale_cutoff_hours": STALE_HOURS,
+            "freshness_counts": dict(freshness_counts),
+            "eligibility_reason_counts": dict(reason_counts),
+            "actionable_count": counts.get("HOT", 0) + counts.get("WARM", 0),
+        },
         "targets": scored,
     }
 
 
 def ranking_separation(targets: list[dict], size: int = 20) -> dict:
-    """Diagnostic for Sprint 3 acceptance: compare top and bottom cohorts."""
     if not targets:
         return {"cohort_size": 0, "top_average": None, "bottom_average": None, "gap": None}
     cohort = min(size, max(1, len(targets) // 2))
@@ -226,8 +284,8 @@ def main() -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(
-        f"hunter // scored {result['account_count']} accounts // "
-        f"{result['state_counts']} // separation {result['ranking_separation']}"
+        f"hunter // scored {result['account_count']} accounts // {result['state_counts']} // "
+        f"calibration {result['calibration']} // separation {result['ranking_separation']}"
     )
     return 0
 
