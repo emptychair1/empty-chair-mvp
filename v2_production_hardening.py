@@ -19,18 +19,26 @@ def _safe_event(kind: str, artist_id: str | None, payload: dict):
         print(f"Empty Chair diagnostic event failed: {kind}: {type(exc).__name__}: {exc}", flush=True)
 
 
+def _stamp(value) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
 def _recent(kind: str, artist_id: str, minutes: int) -> bool:
     try:
         row = core.one(
             "SELECT created_at FROM events WHERE artist_id=? AND kind=? ORDER BY created_at DESC LIMIT 1",
             (artist_id, kind),
         )
-        if not row:
-            return False
-        stamp = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
-        if stamp.tzinfo is None:
-            stamp = stamp.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) - stamp < timedelta(minutes=minutes)
+        stamp = _stamp(row["created_at"]) if row else None
+        return bool(stamp and datetime.now(timezone.utc) - stamp < timedelta(minutes=minutes))
     except Exception:
         return False
 
@@ -94,11 +102,12 @@ def send_next_offer(opening_id: str):
 
     ready, reason = _payment_ready(opening["artist_id"])
     if not ready:
-        _safe_event(
-            "payment.recovery_blocked",
-            opening["artist_id"],
-            {"opening_id": opening_id, "reason": reason},
-        )
+        if not _recent("payment.recovery_blocked", opening["artist_id"], 5):
+            _safe_event(
+                "payment.recovery_blocked",
+                opening["artist_id"],
+                {"opening_id": opening_id, "reason": reason},
+            )
         _artist_alert(
             opening["artist_id"],
             "alert.payment",
@@ -108,6 +117,38 @@ def send_next_offer(opening_id: str):
         return None
 
     return _original_send_next_offer(opening_id)
+
+
+def _resume_after_payment_reconnect(artist_id: str):
+    """A successful Square reconnect should restart any chair paused for payment."""
+    try:
+        blocked = core.one(
+            "SELECT created_at FROM events WHERE artist_id=? AND kind='payment.recovery_blocked' ORDER BY created_at DESC LIMIT 1",
+            (artist_id,),
+        )
+        connected = core.one(
+            "SELECT created_at FROM events WHERE artist_id=? AND kind='payment.square.connected' ORDER BY created_at DESC LIMIT 1",
+            (artist_id,),
+        )
+        blocked_at = _stamp(blocked["created_at"]) if blocked else None
+        connected_at = _stamp(connected["created_at"]) if connected else None
+        if not blocked_at or not connected_at or connected_at <= blocked_at:
+            return
+        openings = core.all_rows(
+            "SELECT id FROM openings WHERE artist_id=? AND status='OPEN' ORDER BY created_at",
+            (artist_id,),
+        )
+        for opening in openings:
+            active = core.one(
+                "SELECT id FROM offers WHERE opening_id=? AND status IN ('SENT','HOLDING') LIMIT 1",
+                (opening["id"],),
+            )
+            if not active:
+                send_next_offer(opening["id"])
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}"[:500]
+        print(f"Empty Chair payment resume isolated // artist={artist_id} // {detail}", flush=True)
+        _safe_event("payment.resume_failed", artist_id, {"error": detail})
 
 
 def _safe_expire_offers():
@@ -139,6 +180,11 @@ def worker_tick():
             print(f"Empty Chair worker artist failed // artist={aid} // {detail}", flush=True)
             _safe_event("worker.artist_failed", aid, {"stage": "calendar", "error": detail})
         try:
+            _resume_after_payment_reconnect(aid)
+        except Exception as exc:
+            detail = f"{type(exc).__name__}: {exc}"[:500]
+            _safe_event("worker.artist_failed", aid, {"stage": "payment_resume", "error": detail})
+        try:
             core.send_digests_if_due(artist)
         except Exception as exc:
             detail = f"{type(exc).__name__}: {exc}"[:500]
@@ -146,14 +192,11 @@ def worker_tick():
             _safe_event("worker.artist_failed", aid, {"stage": "digest", "error": detail})
 
 
-# Patch globals used dynamically by the already-running worker/recovery code.
 core.poll_calendar = poll_calendar
 core.worker_tick = worker_tick
 core.send_next_offer = send_next_offer
 
 
-# Calendar providers can report the same deletion more than once. source_appointment_id is
-# the idempotency key; keep an explicit guard here and record any unexpected creator error.
 _original_create_opening = core.create_opening_from_appointment
 
 
