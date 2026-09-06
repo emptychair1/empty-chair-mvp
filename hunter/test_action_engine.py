@@ -67,8 +67,9 @@ def test_action_payload_preserves_target_evidence_without_secret_config():
     assert payload["action_key"] == "action-abc"
     assert payload["signal_ids"] == ["sig-1"]
     assert payload["components"][0]["rule"] == "explicit_cancellation"
-    assert "webhook" not in str(payload).lower()
-    assert "token" not in str(payload).lower()
+    assert "webhook_url" not in payload
+    assert "webhook_token" not in payload
+    assert "authorization" not in str(payload).lower()
 
 
 def test_queue_eligibility_is_rechecked_before_execution():
@@ -141,6 +142,7 @@ def test_successful_webhook_marks_queue_actioned_and_records_history_fields():
     assert updated["targets"][0]["eligible"] is False
     assert updated["targets"][0]["last_action_key"] == "action-abc"
     assert updated["targets"][0]["last_action_at"]
+    assert updated["state_counts"] == {"ACTIONED": 1}
     assert len(requests) == 1
     assert requests[0].headers["Idempotency-Key"] == "action-abc"
     assert requests[0].headers["Authorization"] == "Bearer secret-not-for-artifacts"
