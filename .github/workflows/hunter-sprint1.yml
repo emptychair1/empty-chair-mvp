@@ -45,15 +45,11 @@ jobs:
         run: pytest -q
 
       - name: Compile operator production extension
-        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py hunter/integrate_instagram.py
+        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py hunter/integrate_instagram.py hunter/instagram_hashtag_source.py
 
       - name: Collect public cancellation signals
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/collect.py --out hunter-signals.json
-
-      - name: Probe public source freshness
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: python hunter/source_probe.py --out hunter-source-probe.json --summary-out hunter-source-probe-summary.md
 
       - name: Check Meta Instagram configuration
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -82,7 +78,7 @@ jobs:
           HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
           HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
           HUNTER_META_GRAPH_VERSION: v26.0
-        run: python hunter/instagram_hashtag_source.py --out hunter-instagram-signals.json
+        run: python hunter/instagram_hashtag_source.py --out hunter-instagram-signals.json --limit 50 --max-resolutions 40
 
       - name: Resolve public-web tattoo artist accounts
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -215,6 +211,24 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary @hunter-operator-snapshot.json
 
+      - name: Publish Hunter discovery metrics
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          if [ -f hunter-instagram-signals.json ]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          p = json.load(open('hunter-instagram-signals.json'))
+          m = p.get('metrics', {})
+          print('## Hunter Instagram discovery')
+          print(f"- tags: {p.get('tag_count', len(p.get('tags', [])))}")
+          print(f"- media scanned: {m.get('media_scanned', 0)}")
+          print(f"- fresh media: {m.get('fresh_media', 0)}")
+          print(f"- unique intent candidates: {m.get('unique_candidate_posts', p.get('signal_count', 0))}")
+          print(f"- resolved artists: {m.get('resolved_count', p.get('resolved_count', 0))}")
+          print(f"- duplicate hits removed: {m.get('duplicate_hits', 0)}")
+          PY
+          fi
+
       - name: Publish Hunter validation summary
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
@@ -223,10 +237,6 @@ jobs:
           else
             echo '## Hunter validation' >> "$GITHUB_STEP_SUMMARY"
             echo 'Validation summary was not produced.' >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -f hunter-source-probe-summary.md ]; then
-            echo '' >> "$GITHUB_STEP_SUMMARY"
-            cat hunter-source-probe-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload Hunter artifacts
@@ -237,8 +247,6 @@ jobs:
           path: |
             hunter-signals.json
             hunter-instagram-signals.json
-            hunter-source-probe.json
-            hunter-source-probe-summary.md
             hunter-artists.json
             hunter-scores.json
             hunter-queue.json
