@@ -31,7 +31,14 @@ def calendar(request:Request):
     artist=_artist_or_setup(request)
     if not artist:return RedirectResponse("/setup")
     acct=_calendar_account(artist["id"]);provider=(acct.get("provider") or "calendar").upper() if acct else "NO CALENDAR";detail="CONNECTED [✓]" if acct else "NOT CONNECTED"
-    return core.page("Calendar",f'<h1>CALENDAR</h1><p class="bright">{html.escape(provider)}</p><p>{detail}</p><a class="button" href="/setup/calendar">CHANGE / RECONNECT</a>')
+    return core.page("Calendar",f'<h1>CALENDAR</h1><p class="bright">{html.escape(provider)}</p><p>{detail}</p><a class="button" href="/settings/calendar/change">CHANGE / RECONNECT</a>')
+
+@core.app.get("/settings/calendar/change")
+def calendar_change(request:Request):
+    artist=_artist_or_setup(request)
+    if not artist:return RedirectResponse("/setup")
+    google='<a class="button" href="/auth/google/start">[ G ] GOOGLE CALENDAR</a>' if core.GOOGLE_CLIENT_ID else '<div class="button quiet">[ G ] GOOGLE // NEEDS CONFIG</div>'
+    return core.page("Calendar",f'''<h1>WHERE DO YOUR APPOINTMENTS LIVE?</h1><p class="dim">Choose the calendar Empty Chair should protect.</p><div class="stack">{google}<a class="button" href="/setup/apple">[ A ] APPLE CALENDAR</a></div><div class="space"></div><a class="button quiet" href="/settings/calendar">BACK</a>''')
 
 @core.app.get("/settings/deposits")
 def deposits(request:Request):
