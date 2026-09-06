@@ -20,9 +20,10 @@ from instagram_visual_resolver import resolve
 GRAPH_VERSION = os.getenv("HUNTER_META_GRAPH_VERSION", "v26.0")
 GRAPH_BASE = f"https://graph.facebook.com/{GRAPH_VERSION}"
 
-# Meta's hashtag discovery is intentionally bounded. Keep the default pool below
-# the rolling unique-hashtag ceiling and use broad inventory + strict caption
-# intent filtering rather than relying only on sparse cancellation hashtags.
+# Meta hashtag discovery is intentionally bounded. The default pool stays under
+# the rolling unique-hashtag ceiling while combining sparse high-intent tags,
+# broad tattoo inventory, and major-market discovery. Intent still comes from
+# the caption, not from the hashtag itself.
 HIGH_INTENT_TAGS = (
     "tattooopenings",
     "tattoocancellation",
@@ -222,7 +223,7 @@ def run(
 
     resolved_count = sum(1 for s in candidates if s["username"])
     return {
-        "schema": "empty-chair-hunter-instagram-meta-v2",
+        "schema": "empty-chair-hunter-instagram-meta-v1",
         "generated_at": now.isoformat(),
         "freshness_hours": max_age_hours,
         "tags": list(tags),
