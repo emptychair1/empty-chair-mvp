@@ -1,15 +1,15 @@
 """Production hardening for Empty Chair 2.0.
 
 Keeps the headless product quiet on the happy path while making background failures
-observable and isolated. One broken artist/calendar must never stop protection for the
-rest of the fleet.
+observable and isolated. One broken artist/calendar/payment account must never stop
+protection for the rest of the fleet.
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-import traceback
 
 import v2_app as core
+import v2_artist_payments as payments
 
 
 def _safe_event(kind: str, artist_id: str | None, payload: dict):
@@ -64,6 +64,52 @@ def poll_calendar(artist_id: str):
         return None
 
 
+def _payment_ready(artist_id: str) -> tuple[bool, str]:
+    """Verify that a replacement client can actually pay before an offer leaves."""
+    try:
+        acct = payments.square_account(artist_id)
+        if not acct:
+            return False, "square_not_connected"
+        if not acct.get("location_id"):
+            return False, "square_location_missing"
+        token = payments.square_token(acct)
+        if not token:
+            return False, "square_token_missing"
+        return True, "ok"
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}"[:300]
+        print(f"Empty Chair payment readiness failed // artist={artist_id} // {detail}", flush=True)
+        _safe_event("payment.readiness_error", artist_id, {"error": detail})
+        return False, "square_refresh_failed"
+
+
+_original_send_next_offer = core.send_next_offer
+
+
+def send_next_offer(opening_id: str):
+    """Do not invite a customer into a chair that cannot accept its deposit."""
+    opening = core.one("SELECT * FROM openings WHERE id=?", (opening_id,))
+    if not opening or opening.get("status") != "OPEN":
+        return None
+
+    ready, reason = _payment_ready(opening["artist_id"])
+    if not ready:
+        _safe_event(
+            "payment.recovery_blocked",
+            opening["artist_id"],
+            {"opening_id": opening_id, "reason": reason},
+        )
+        _artist_alert(
+            opening["artist_id"],
+            "alert.payment",
+            "EMPTY CHAIR // CHECK PAYMENT\n\nWe found an open chair, but\nyour deposit connection needs\nattention before we can offer it.\n\nNo client has been contacted yet.\n\n" + core.BASE_URL + "/settings/payments",
+            cooldown_minutes=120,
+        )
+        return None
+
+    return _original_send_next_offer(opening_id)
+
+
 def _safe_expire_offers():
     try:
         core.expire_offers()
@@ -88,7 +134,7 @@ def worker_tick():
         aid = artist["id"]
         try:
             poll_calendar(aid)
-        except Exception as exc:  # belt-and-suspenders isolation
+        except Exception as exc:
             detail = f"{type(exc).__name__}: {exc}"[:500]
             print(f"Empty Chair worker artist failed // artist={aid} // {detail}", flush=True)
             _safe_event("worker.artist_failed", aid, {"stage": "calendar", "error": detail})
@@ -100,15 +146,14 @@ def worker_tick():
             _safe_event("worker.artist_failed", aid, {"stage": "digest", "error": detail})
 
 
-# Patch globals used dynamically by the already-running worker loop. The loop resolves
-# core.worker_tick on every cycle, so this takes effect without replacing the worker.
+# Patch globals used dynamically by the already-running worker/recovery code.
 core.poll_calendar = poll_calendar
 core.worker_tick = worker_tick
+core.send_next_offer = send_next_offer
 
 
-# Guard the opening creator too. Calendar providers can report the same deletion more
-# than once; source_appointment_id is the idempotency key and the core creator already
-# checks it. Record unexpected failures without allowing them to poison the worker tick.
+# Calendar providers can report the same deletion more than once. source_appointment_id is
+# the idempotency key; keep an explicit guard here and record any unexpected creator error.
 _original_create_opening = core.create_opening_from_appointment
 
 
@@ -122,10 +167,14 @@ def create_opening_from_appointment(appt: dict):
         aid = appt.get("artist_id") if isinstance(appt, dict) else None
         detail = f"{type(exc).__name__}: {exc}"[:500]
         print(f"Empty Chair opening creation failed // artist={aid} // {detail}", flush=True)
-        _safe_event("opening.create_failed", aid, {"appointment_id": appt.get("id") if isinstance(appt, dict) else None, "error": detail})
+        _safe_event(
+            "opening.create_failed",
+            aid,
+            {"appointment_id": appt.get("id") if isinstance(appt, dict) else None, "error": detail},
+        )
         return None
 
 
 core.create_opening_from_appointment = create_opening_from_appointment
 
-print("Empty Chair 2.0 production hardening loaded", flush=True)
+print("Empty Chair 2.0 production hardening loaded // calendar + payment + worker isolation", flush=True)
