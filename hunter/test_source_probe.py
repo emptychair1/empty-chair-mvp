@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from source_probe import HIGH_INTENT, SOURCE_FAMILIES, publication_time, queries
+from source_probe import HIGH_INTENT, SOURCE_FAMILIES, markdown_summary, publication_time, queries
 
 NOW = datetime(2026, 9, 6, 18, 0, tzinfo=timezone.utc)
 
@@ -35,3 +35,17 @@ def test_publication_time_understands_absolute_dates():
 
 def test_unknown_date_stays_unknown():
     assert publication_time("tattoo artist had a cancellation", NOW) is None
+
+
+def test_markdown_summary_makes_fail_fast_verdict_visible():
+    result = {
+        "verdict": "PUBLIC_SEARCH_TOO_STALE_OR_UNDATED",
+        "by_family": {
+            "instagram": {"signals": 3, "within_24h": 0, "within_72h": 0, "stale_over_72h": 2, "unknown_date": 1},
+            "x": {"signals": 0, "within_24h": 0, "within_72h": 0, "stale_over_72h": 0, "unknown_date": 0},
+        },
+    }
+    summary = markdown_summary(result)
+    assert "PUBLIC_SEARCH_TOO_STALE_OR_UNDATED" in summary
+    assert "| instagram | 3 | 0 | 0 | 2 | 1 |" in summary
+    assert "stop tuning this crawler" in summary
