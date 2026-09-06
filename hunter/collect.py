@@ -3,7 +3,7 @@
 Design goals:
 - public web only
 - HTTP first, no production-app dependency
-- normalize Instagram-indexed search results into explainable signals
+- find direct Instagram results OR public pages that resolve to an Instagram artist
 - deterministic rule matching and dedupe
 - JSON output suitable for GitHub Actions artifacts and later DB ingestion
 """
@@ -39,7 +39,8 @@ class Signal:
     id: str
     source: str
     query: str
-    url: str
+    source_url: str
+    instagram_url: str
     username: str
     title: str
     snippet: str
@@ -56,7 +57,6 @@ def clean_text(value: str) -> str:
 
 
 def normalize_result_url(href: str) -> str:
-    """Extract a real result URL from common search-engine redirect wrappers."""
     href = unescape(href or "").strip()
     if not href:
         return ""
@@ -76,10 +76,7 @@ def instagram_username(url: str) -> str:
         if "instagram.com" not in parsed.netloc.lower():
             return ""
         parts = [p for p in parsed.path.split("/") if p]
-        if not parts:
-            return ""
-        # /p/, /reel/, /reels/ and /tv/ are media paths and do not contain username.
-        if parts[0].lower() in {"p", "reel", "reels", "tv", "explore", "accounts"}:
+        if not parts or parts[0].lower() in {"p", "reel", "reels", "tv", "explore", "accounts"}:
             return ""
         return parts[0].lstrip("@").lower()
     except Exception:
@@ -96,22 +93,73 @@ def detect_phrase(text: str) -> str:
     return ""
 
 
-def relevant(text: str, url: str) -> tuple[bool, str]:
+def relevant_text(text: str) -> tuple[bool, str]:
     phrase = detect_phrase(text)
     if not phrase:
         return False, ""
     lower = text.lower()
-    tattoo = any(term in lower for term in TATTOO_TERMS)
-    instagram = "instagram.com" in url.lower()
-    return bool(tattoo and instagram), phrase
+    return any(term in lower for term in TATTOO_TERMS), phrase
 
 
-def signal_id(url: str, phrase: str, snippet: str) -> str:
-    raw = f"{url}|{phrase}|{snippet[:240]}".encode("utf-8", "ignore")
+def find_instagram_url(html: str, fallback_text: str = "") -> str:
+    soup = BeautifulSoup(html, "lxml")
+    for link in soup.select('a[href*="instagram.com"]'):
+        href = normalize_result_url(link.get("href", ""))
+        username = instagram_username(href)
+        if username:
+            return f"https://www.instagram.com/{username}/"
+    text = f"{fallback_text} {soup.get_text(' ', strip=True)[:12000]}"
+    match = re.search(r"(?:instagram(?:\.com)?[/ :]|@)([A-Za-z0-9._]{2,30})", text, flags=re.I)
+    if match:
+        username = match.group(1).strip(".").lower()
+        if username not in {"instagram", "tattoo", "com"}:
+            return f"https://www.instagram.com/{username}/"
+    return ""
+
+
+def resolve_instagram(client: httpx.Client, source_url: str, text: str) -> str:
+    if "instagram.com" in source_url.lower():
+        username = instagram_username(source_url)
+        if username:
+            return f"https://www.instagram.com/{username}/"
+        return source_url
+    try:
+        response = client.get(source_url)
+        response.raise_for_status()
+        return find_instagram_url(response.text, text)
+    except Exception:
+        # Search snippets sometimes expose @handles even when the page is unavailable.
+        return find_instagram_url("", text)
+
+
+def signal_id(source_url: str, instagram_url: str, phrase: str, snippet: str) -> str:
+    raw = f"{source_url}|{instagram_url}|{phrase}|{snippet[:240]}".encode("utf-8", "ignore")
     return hashlib.sha256(raw).hexdigest()[:32]
 
 
-def parse_duckduckgo(html: str, query: str) -> list[Signal]:
+def result_to_signal(client: httpx.Client, *, source: str, query: str, url: str, title: str, snippet: str) -> Signal | None:
+    combined = f"{title} {snippet}"
+    ok, phrase = relevant_text(combined)
+    if not ok:
+        return None
+    instagram_url = resolve_instagram(client, url, combined)
+    if not instagram_url:
+        return None
+    return Signal(
+        id=signal_id(url, instagram_url, phrase, snippet),
+        source=source,
+        query=query,
+        source_url=url,
+        instagram_url=instagram_url,
+        username=instagram_username(instagram_url),
+        title=title,
+        snippet=snippet,
+        matched_phrase=phrase,
+        discovered_at=utc_now(),
+    )
+
+
+def parse_duckduckgo(client: httpx.Client, html: str, query: str) -> list[Signal]:
     soup = BeautifulSoup(html, "lxml")
     signals: list[Signal] = []
     for result in soup.select(".result"):
@@ -122,27 +170,13 @@ def parse_duckduckgo(html: str, query: str) -> list[Signal]:
         title = clean_text(link.get_text(" ", strip=True))
         snippet_node = result.select_one(".result__snippet")
         snippet = clean_text(snippet_node.get_text(" ", strip=True) if snippet_node else "")
-        combined = f"{title} {snippet}"
-        ok, phrase = relevant(combined, url)
-        if not ok:
-            continue
-        signals.append(
-            Signal(
-                id=signal_id(url, phrase, snippet),
-                source="duckduckgo_html",
-                query=query,
-                url=url,
-                username=instagram_username(url),
-                title=title,
-                snippet=snippet,
-                matched_phrase=phrase,
-                discovered_at=utc_now(),
-            )
-        )
+        signal = result_to_signal(client, source="duckduckgo_html", query=query, url=url, title=title, snippet=snippet)
+        if signal:
+            signals.append(signal)
     return signals[:MAX_RESULTS_PER_QUERY]
 
 
-def parse_bing(html: str, query: str) -> list[Signal]:
+def parse_bing(client: httpx.Client, html: str, query: str) -> list[Signal]:
     soup = BeautifulSoup(html, "lxml")
     signals: list[Signal] = []
     for result in soup.select("li.b_algo"):
@@ -153,23 +187,9 @@ def parse_bing(html: str, query: str) -> list[Signal]:
         title = clean_text(link.get_text(" ", strip=True))
         snippet_node = result.select_one(".b_caption p")
         snippet = clean_text(snippet_node.get_text(" ", strip=True) if snippet_node else "")
-        combined = f"{title} {snippet}"
-        ok, phrase = relevant(combined, url)
-        if not ok:
-            continue
-        signals.append(
-            Signal(
-                id=signal_id(url, phrase, snippet),
-                source="bing_html",
-                query=query,
-                url=url,
-                username=instagram_username(url),
-                title=title,
-                snippet=snippet,
-                matched_phrase=phrase,
-                discovered_at=utc_now(),
-            )
-        )
+        signal = result_to_signal(client, source="bing_html", query=query, url=url, title=title, snippet=snippet)
+        if signal:
+            signals.append(signal)
     return signals[:MAX_RESULTS_PER_QUERY]
 
 
@@ -184,7 +204,7 @@ def fetch_search(client: httpx.Client, query: str) -> list[Signal]:
         try:
             response = client.get(url)
             response.raise_for_status()
-            found = parser(response.text, query)
+            found = parser(client, response.text, query)
             if found:
                 return found
         except Exception as exc:
@@ -196,9 +216,17 @@ def fetch_search(client: httpx.Client, query: str) -> list[Signal]:
 
 def dedupe(signals: list[Signal]) -> list[Signal]:
     by_id: dict[str, Signal] = {}
+    by_artist_phrase: set[tuple[str, str]] = set()
+    output: list[Signal] = []
     for signal in signals:
-        by_id.setdefault(signal.id, signal)
-    return list(by_id.values())
+        key = (signal.username, signal.matched_phrase)
+        if signal.id in by_id or (signal.username and key in by_artist_phrase):
+            continue
+        by_id[signal.id] = signal
+        if signal.username:
+            by_artist_phrase.add(key)
+        output.append(signal)
+    return output
 
 
 def collect(limit_queries: int | None = None) -> list[Signal]:
@@ -230,10 +258,9 @@ def main() -> int:
     parser.add_argument("--out", default="hunter-signals.json")
     parser.add_argument("--limit-queries", type=int, default=None)
     args = parser.parse_args()
-
     signals = collect(limit_queries=args.limit_queries)
     write_output(signals, Path(args.out))
-    print(f"hunter // collected {len(signals)} unique public Instagram signals")
+    print(f"hunter // collected {len(signals)} unique public tattoo-to-Instagram signals")
     return 0
 
 
