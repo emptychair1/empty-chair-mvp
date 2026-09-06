@@ -29,5 +29,6 @@ import v2_production_hardening  # noqa: F401,E402
 import v2_payment_failure_hardening  # noqa: F401,E402
 import v2_final_hardening  # noqa: F401,E402
 import v2_paid_finalize_recovery  # noqa: F401,E402
+import v2_native_finalize_bridge  # noqa: F401,E402
 
 print("Empty Chair 2.0 bootstrap loaded")
