@@ -20,14 +20,15 @@ class V2DB:
             import psycopg2
             import psycopg2.extras
 
-            # Neon rejects libpq startup `options=-c search_path=...` on some
-            # connections. Connect normally, then set the schema with SQL.
+            # Neon production may sit behind transaction pooling. Session-level SET
+            # state is not safe across commits there, so CREATE/SET and the caller's
+            # query intentionally remain in the SAME transaction. The helper that
+            # owns this connection commits only after its actual query completes.
             self.raw = psycopg2.connect(core.DATABASE_URL)
             self.dict_cursor = psycopg2.extras.RealDictCursor
             cur = self.raw.cursor()
             cur.execute(f"CREATE SCHEMA IF NOT EXISTS {PG_SCHEMA}")
-            cur.execute(f"SET search_path TO {PG_SCHEMA}")
-            self.raw.commit()
+            cur.execute(f"SET LOCAL search_path TO {PG_SCHEMA}")
         else:
             self.raw = sqlite3.connect(core.SQLITE_PATH, check_same_thread=False)
             self.raw.row_factory = sqlite3.Row
