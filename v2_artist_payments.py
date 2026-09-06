@@ -42,7 +42,11 @@ def square_connect(request:Request):
     artist=core.current_artist(request)
     if not artist:return RedirectResponse("/setup")
     if not (core.SQUARE_APP_ID and SQUARE_CLIENT_SECRET):return core.page("Square","<div class='error'>SQUARE CONNECTION IS NOT CONFIGURED YET.</div><a class='button' href='/settings/payments'>BACK</a>")
-    params={"client_id":core.SQUARE_APP_ID,"scope":"MERCHANT_PROFILE_READ PAYMENTS_WRITE PAYMENTS_READ","session":"false","state":core.sign(artist["id"])}
+    # Deposit permissions plus the billing permissions needed for the founder/platform
+    # merchant to be silently adopted once. Normal artists still only see CONNECT SQUARE
+    # during setup; they are never asked to sign into Square when paying Empty Chair.
+    scopes=" ".join(["MERCHANT_PROFILE_READ","ITEMS_READ","ITEMS_WRITE","CUSTOMERS_READ","CUSTOMERS_WRITE","PAYMENTS_READ","PAYMENTS_WRITE","SUBSCRIPTIONS_READ","SUBSCRIPTIONS_WRITE","ORDERS_READ","ORDERS_WRITE","INVOICES_READ","INVOICES_WRITE"])
+    params={"client_id":core.SQUARE_APP_ID,"scope":scopes,"session":"false","state":core.sign(artist["id"])}
     return RedirectResponse(f"{SQUARE_OAUTH_BASE}/oauth2/authorize?"+urllib.parse.urlencode(params))
 
 @core.app.get("/settings/payments/square/callback")
@@ -61,22 +65,15 @@ def square_callback(code:str|None=None,state:str|None=None,error:str|None=None):
         if not location:raise RuntimeError("Square account has no active location")
         core.run("INSERT INTO artist_payment_accounts(artist_id,provider,merchant_id,location_id,access_token,refresh_token,token_expires_at,connected_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(artist_id,provider) DO UPDATE SET merchant_id=excluded.merchant_id,location_id=excluded.location_id,access_token=excluded.access_token,refresh_token=excluded.refresh_token,token_expires_at=excluded.token_expires_at,connected_at=excluded.connected_at",(aid,"square",merchant,location,token,data.get("refresh_token"),data.get("expires_at"),core.utcnow()))
         core.event("payment.square.connected",aid,{"merchant_id":merchant,"location_id":location})
-        response=RedirectResponse("/settings/payments",status_code=303)
-        core.set_session(response,aid)
-        return response
+        response=RedirectResponse("/settings/payments",status_code=303);core.set_session(response,aid);return response
     except Exception as exc:
         print(f"Square OAuth callback failed for artist {aid}: {type(exc).__name__}: {exc}",flush=True)
         try:core.event("payment.square.oauth_failed",aid,{"stage":"exchange","type":type(exc).__name__,"error":str(exc)[:500]})
         except Exception:pass
-        response=core.page("Square","<div class='error'>SQUARE CONNECTION FAILED.</div><p class='dim'>Nothing was charged. Try connecting Square again.</p><a class='button' href='/settings/payments'>BACK</a>")
-        core.set_session(response,aid)
-        return response
+        response=core.page("Square","<div class='error'>SQUARE CONNECTION FAILED.</div><p class='dim'>Nothing was charged. Try connecting Square again.</p><a class='button' href='/settings/payments'>BACK</a>");core.set_session(response,aid);return response
 
 def _replace_payment_route(route):
-    path=getattr(route,"path",None)
-    methods=getattr(route,"methods",set()) or set()
-    return (path=="/o/{token}/pay" and "GET" in methods) or (path=="/o/{token}/square" and "POST" in methods)
-
+    path=getattr(route,"path",None);methods=getattr(route,"methods",set()) or set();return (path=="/o/{token}/pay" and "GET" in methods) or (path=="/o/{token}/square" and "POST" in methods)
 core.app.router.routes[:]=[r for r in core.app.router.routes if not _replace_payment_route(r)]
 
 @core.app.get("/o/{token}/pay")
@@ -100,10 +97,7 @@ def _square_payment_error(exc:urllib.error.HTTPError):
     except Exception:pass
     code="";detail=""
     try:
-        payload=json.loads(raw or "{}")
-        first=(payload.get("errors") or [{}])[0]
-        code=str(first.get("code") or "")
-        detail=str(first.get("detail") or "")
+        payload=json.loads(raw or "{}");first=(payload.get("errors") or [{}])[0];code=str(first.get("code") or "");detail=str(first.get("detail") or "")
     except Exception:pass
     print(f"Square payment rejected: HTTP {getattr(exc,'code','?')} code={code or 'UNKNOWN'} detail={detail[:300]}",flush=True)
     if code=="PAYMENT_SOURCE_NOT_ENABLED_FOR_TARGET":return "Cash App isn't enabled for this Square account yet."
