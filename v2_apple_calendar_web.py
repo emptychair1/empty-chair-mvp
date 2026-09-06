@@ -96,9 +96,24 @@ def apple_post(request: Request, username: str = Form(...), password: str = Form
     return _calendar_picker(artist, calendars)
 
 
+def _usable_calendars(calendars: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    blocked_names = {"reminders", "birthdays", "holidays", "contacts"}
+    usable = []
+    for name, url in calendars:
+        clean = (name or "Calendar").strip()
+        if clean.lower() in blocked_names:
+            continue
+        usable.append((clean, url))
+    return usable or calendars
+
+
 def _calendar_picker(artist: dict, calendars: list[tuple[str, str]]):
-    options = "".join(
-        f'<label><input type="radio" name="calendar_url" value="{html.escape(url, quote=True)}" required> {html.escape(name)}</label>'
+    calendars = _usable_calendars(calendars)
+    rows = "".join(
+        f'''<label style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--off);color:var(--bright);cursor:pointer">
+<input type="radio" name="calendar_url" value="{html.escape(url, quote=True)}" required style="width:18px;height:18px;margin:0;accent-color:var(--amber);flex:0 0 auto">
+<span>{html.escape(name)}</span>
+</label>'''
         for name, url in calendars
     )
     return core.page(
@@ -106,7 +121,11 @@ def _calendar_picker(artist: dict, calendars: list[tuple[str, str]]):
         f'''<h1>WHICH ONE HOLDS TATTOOS?</h1>
 <p class="dim">Empty Chair will watch this calendar for canceled appointments and put filled chairs back on it.</p>
 <div class="space"></div>
-<form method="post" action="/setup/apple/select" class="stack">{options}<button>USE THIS CALENDAR</button></form>''',
+<form method="post" action="/setup/apple/select">
+<div>{rows}</div>
+<div class="space"></div>
+<button>USE THIS CALENDAR</button>
+</form>''',
     )
 
 
@@ -136,7 +155,7 @@ def apple_select_post(request: Request, calendar_url: str = Form(...)):
 
     # Only accept URLs that Apple itself returned for this credential.
     try:
-        allowed = {url for _, url in core.apple_discover_calendars(acct["apple_username"], acct["apple_password"])}
+        allowed = {url for _, url in _usable_calendars(core.apple_discover_calendars(acct["apple_username"], acct["apple_password"]))}
     except Exception:
         return RedirectResponse("/setup/apple")
     if calendar_url not in allowed:
@@ -150,10 +169,9 @@ def apple_select_post(request: Request, calendar_url: str = Form(...)):
         "UPDATE artists SET setup_state='PAYMENT',updated_at=? WHERE id=?",
         (core.utcnow(), artist["id"]),
     )
-    return core.page(
-        "Calendar Connected",
-        '''<div class="center"><h1 class="bright">CALENDAR CONNECTED [✓]</h1><p>APPLE</p><div class="space"></div><a class="button" href="/setup/payment">CONTINUE</a></div>''',
-    )
+    # Calendar selection is a step, not a destination. Go straight into the
+    # specific next job instead of bouncing the artist through a generic setup page.
+    return RedirectResponse("/setup/payment", status_code=303)
 
 
 print("Empty Chair 2.0 web Apple Calendar UX loaded", flush=True)
