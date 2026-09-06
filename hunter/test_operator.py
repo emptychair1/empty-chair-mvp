@@ -88,6 +88,29 @@ def test_build_snapshot_ranks_hot_and_joins_outcomes():
     assert snapshot["targets"][0]["decision"] == "PENDING"
 
 
+def test_snapshot_joins_original_source_evidence():
+    signals = {
+        "schema": "empty-chair-hunter-signals-v1",
+        "signals": [
+            {
+                "id": "sig1",
+                "source": "bing",
+                "query": "tattoo artist cancellation today",
+                "source_url": "https://example.com/post",
+                "title": "Cancellation today",
+                "snippet": "Had a cancellation today",
+                "matched_phrase": "had a cancellation",
+            }
+        ],
+    }
+    snapshot = build_snapshot(*payloads(), signals)
+    evidence = snapshot["targets"][0]["signals"]
+    assert len(evidence) == 1
+    assert evidence[0]["id"] == "sig1"
+    assert evidence[0]["matched_phrase"] == "had a cancellation"
+    assert evidence[0]["source_url"] == "https://example.com/post"
+
+
 def test_snapshot_surfaces_only_validation_warnings_and_failures():
     snapshot = build_snapshot(*payloads())
     assert len(snapshot["validation_warnings"]) == 1
