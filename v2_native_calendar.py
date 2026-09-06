@@ -80,17 +80,33 @@ async def sync_calendar(request:Request,authorization:str|None=Header(None)):
 
 @core.app.post("/native/calendar/ack/{command_id}")
 def ack_calendar(command_id:str,authorization:str|None=Header(None)):
-    device=_bearer(authorization);core.run("UPDATE native_calendar_outbox SET status='acked',acked_at=? WHERE id=? AND artist_id=?",(core.utcnow(),command_id,device["artist_id"]));return {"ok":True}
+    device=_bearer(authorization)
+    row=core.one("SELECT * FROM native_calendar_outbox WHERE id=? AND artist_id=?",(command_id,device["artist_id"]))
+    if not row:return {"ok":True}
+    core.run("UPDATE native_calendar_outbox SET status='acked',acked_at=? WHERE id=? AND artist_id=?",(core.utcnow(),command_id,device["artist_id"]))
+    try:
+        payload=json.loads(row.get("payload") or "{}")
+        booking_id=payload.get("booking_id");opening_id=payload.get("opening_id")
+        if booking_id:core.run("UPDATE bookings SET remote_event_id=? WHERE id=?",(f"native:{command_id}",booking_id))
+        artist=core.one("SELECT * FROM artists WHERE id=?",(device["artist_id"],));opening=core.one("SELECT * FROM openings WHERE id=?",(opening_id,)) if opening_id else None
+        if artist and opening:
+            core.send_sms(artist.get("phone"),"EMPTY CHAIR // CALENDAR FIXED ✓\n\n"+core.fmt_when(opening["starts_at"])+" is on your calendar.\n\nNothing else needed.")
+            core.event("calendar.native_write_acked",artist["id"],{"opening_id":opening_id,"booking_id":booking_id,"command_id":command_id})
+    except Exception as exc:print(f"Native calendar ack bookkeeping failed {command_id}: {type(exc).__name__}: {exc}",flush=True)
+    return {"ok":True}
 
 
-def queue_event_write(artist_id:str,title:str,start_at:str,end_at:str,notes:str=""):
-    cid=secrets.token_hex(16);core.run("INSERT INTO native_calendar_outbox(id,artist_id,kind,payload,status,created_at) VALUES(?,?,?,?,?,?)",(cid,artist_id,"upsert_event",json.dumps({"title":title,"start_at":start_at,"end_at":end_at,"notes":notes},separators=(",",":")),"pending",core.utcnow()));return cid
+def queue_event_write(artist_id:str,title:str,start_at:str,end_at:str,notes:str="",booking_id:str|None=None,opening_id:str|None=None):
+    cid=secrets.token_hex(16);payload={"title":title,"start_at":start_at,"end_at":end_at,"notes":notes}
+    if booking_id:payload["booking_id"]=booking_id
+    if opening_id:payload["opening_id"]=opening_id
+    core.run("INSERT INTO native_calendar_outbox(id,artist_id,kind,payload,status,created_at) VALUES(?,?,?,?,?,?)",(cid,artist_id,"upsert_event",json.dumps(payload,separators=(",",":")),"pending",core.utcnow()));return cid
 
 _original_apple_create_event=core.apple_create_event
 
 def _native_aware_apple_create_event(acct,artist,opening,client):
     if acct and acct.get("provider") in ("native","apple_native"):
-        return queue_event_write(artist["id"],f"{client['name']} // Tattoo",opening["starts_at"],opening["ends_at"],"Filled by Empty Chair")
+        return queue_event_write(artist["id"],f"{client['name']} // Tattoo",opening["starts_at"],opening["ends_at"],"Filled by Empty Chair",opening_id=opening["id"])
     return _original_apple_create_event(acct,artist,opening,client)
 
 core.apple_create_event=_native_aware_apple_create_event
