@@ -109,7 +109,7 @@ def validate(directory: Path) -> dict:
     attribution_targets = attribution.get("targets") if isinstance(attribution.get("targets"), list) else []
     after = payloads.get("queue_after_actions", {})
     after_targets = after.get("targets") if isinstance(after.get("targets"), list) else []
-    if attribution_targets and len(attribution_targets) != len(after_targets):
+    if "attribution" in payloads and "queue_after_actions" in payloads and len(attribution_targets) != len(after_targets):
         checks.append({
             "stage": "attribution",
             "status": "FAIL",
