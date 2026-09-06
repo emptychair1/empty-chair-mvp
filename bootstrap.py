@@ -19,7 +19,6 @@ import v2_entitlement  # noqa: F401,E402
 import v2_subscription_billing  # noqa: F401,E402
 import v2_settings  # noqa: F401,E402
 import v2_artist_payments  # noqa: F401,E402
-import v2_square_oauth_bridge  # noqa: F401,E402
 import v2_billing_autoadopt  # noqa: F401,E402
 import v2_paypal_sellers  # noqa: F401,E402
 import v2_payment_settings_ui  # noqa: F401,E402
