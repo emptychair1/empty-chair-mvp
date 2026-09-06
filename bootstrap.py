@@ -23,5 +23,6 @@ import v2_billing_autoadopt  # noqa: F401,E402
 import v2_paypal_sellers  # noqa: F401,E402
 import v2_payment_settings_ui  # noqa: F401,E402
 import v2_pwa  # noqa: F401,E402
+import v2_native_calendar  # noqa: F401,E402
 
 print("Empty Chair 2.0 bootstrap loaded")
