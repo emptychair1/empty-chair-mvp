@@ -19,7 +19,11 @@ from instagram_visual_resolver import resolve
 
 GRAPH_VERSION = os.getenv("HUNTER_META_GRAPH_VERSION", "v26.0")
 GRAPH_BASE = f"https://graph.facebook.com/{GRAPH_VERSION}"
-DEFAULT_TAGS = (
+
+# Meta's hashtag discovery is intentionally bounded. Keep the default pool below
+# the rolling unique-hashtag ceiling and use broad inventory + strict caption
+# intent filtering rather than relying only on sparse cancellation hashtags.
+HIGH_INTENT_TAGS = (
     "tattooopenings",
     "tattoocancellation",
     "tattoocancellations",
@@ -29,21 +33,59 @@ DEFAULT_TAGS = (
     "booksopen",
     "tattooflash",
 )
+BROAD_INVENTORY_TAGS = (
+    "tattoo",
+    "tattoos",
+    "tattooartist",
+    "tattooartists",
+    "tattooing",
+    "tattooshop",
+    "tattoostudio",
+    "traditionaltattoo",
+    "blackworktattoo",
+    "finelinetattoo",
+)
+MARKET_TAGS = (
+    "atlantatattoo",
+    "nashvilletattoo",
+    "austintattoo",
+    "denvertattoo",
+    "chicagotattoo",
+    "nyctattoo",
+    "losangelestattoo",
+    "sandiegotattoo",
+    "portlandtattoo",
+    "seattletattoo",
+)
+DEFAULT_TAGS = HIGH_INTENT_TAGS + BROAD_INVENTORY_TAGS + MARKET_TAGS
+
 HIGH_INTENT = (
     "cancellation",
+    "cancelation",
     "cancelled",
     "canceled",
     "rescheduled",
+    "reschedule",
     "no show",
     "no-show",
     "opening today",
     "opening tomorrow",
+    "opening tonight",
     "available today",
     "available tomorrow",
+    "available tonight",
     "last minute",
     "last-minute",
     "spot opened",
+    "spot opened up",
     "spot available",
+    "appointment opened",
+    "appointment opened up",
+    "appointment available",
+    "gap in my schedule",
+    "gap in the schedule",
+    "free today",
+    "free tomorrow",
     "walk in",
     "walk-in",
 )
@@ -91,12 +133,24 @@ def intent_matches(caption: str) -> list[str]:
     return [phrase for phrase in HIGH_INTENT if phrase in lower]
 
 
-def run(*, token: str, ig_user_id: str, tags: tuple[str, ...] = DEFAULT_TAGS, limit: int = 25,
-        max_age_hours: float = 72.0, resolve_authors: bool = True, now: datetime | None = None) -> dict:
+def run(
+    *,
+    token: str,
+    ig_user_id: str,
+    tags: tuple[str, ...] = DEFAULT_TAGS,
+    limit: int = 50,
+    max_age_hours: float = 72.0,
+    resolve_authors: bool = True,
+    max_resolutions: int = 75,
+    now: datetime | None = None,
+) -> dict:
     now = now or datetime.now(timezone.utc)
-    signals: list[dict] = []
     errors: list[dict] = []
-    seen: set[str] = set()
+    media_by_id: dict[str, dict] = {}
+    media_scanned = 0
+    fresh_media = 0
+    duplicate_hits = 0
+
     with httpx.Client(timeout=20.0, follow_redirects=True) as client:
         for tag in tags:
             try:
@@ -108,50 +162,86 @@ def run(*, token: str, ig_user_id: str, tags: tuple[str, ...] = DEFAULT_TAGS, li
                 errors.append({"tag": tag, "error": type(exc).__name__})
                 continue
 
+            media_scanned += len(rows)
             for row in rows:
                 media_id = str(row.get("id") or "")
-                if not media_id or media_id in seen:
+                if not media_id:
                     continue
-                seen.add(media_id)
                 age = age_hours(str(row.get("timestamp") or ""), now)
                 if age is None or age > max_age_hours:
                     continue
+                fresh_media += 1
                 caption = str(row.get("caption") or "")
                 matches = intent_matches(caption)
                 if not matches:
                     continue
-                permalink = str(row.get("permalink") or "")
-                author = None
-                resolution = None
-                if resolve_authors and permalink:
-                    resolution = resolve(permalink)
-                    author = resolution.username if resolution.status == "resolved" else None
-                signals.append({
+
+                existing = media_by_id.get(media_id)
+                if existing:
+                    duplicate_hits += 1
+                    if tag not in existing["hashtags"]:
+                        existing["hashtags"].append(tag)
+                    existing["intent_matches"] = sorted(set(existing["intent_matches"]) | set(matches))
+                    continue
+
+                media_by_id[media_id] = {
                     "source": "instagram_meta_hashtag",
                     "platform": "instagram",
                     "media_id": media_id,
                     "hashtag": tag,
+                    "hashtags": [tag],
                     "caption": caption,
                     "timestamp": row.get("timestamp"),
                     "age_hours": round(age, 2),
-                    "permalink": permalink,
+                    "permalink": str(row.get("permalink") or ""),
                     "intent_matches": matches,
-                    "username": author,
-                    "resolution_status": resolution.status if resolution else "not_attempted",
-                    "resolution_method": resolution.method if resolution else None,
-                    "resolution_confidence": resolution.confidence if resolution else 0.0,
-                    "resolution_reason": resolution.reason if resolution else None,
-                })
+                    "username": None,
+                    "resolution_status": "not_attempted",
+                    "resolution_method": None,
+                    "resolution_confidence": 0.0,
+                    "resolution_reason": None,
+                }
 
+    candidates = sorted(media_by_id.values(), key=lambda s: s["age_hours"])
+    resolutions_attempted = 0
+    for signal in candidates:
+        permalink = signal["permalink"]
+        if not resolve_authors or not permalink:
+            continue
+        if resolutions_attempted >= max_resolutions:
+            signal["resolution_status"] = "deferred_limit"
+            signal["resolution_reason"] = "max_resolutions_reached"
+            continue
+        resolutions_attempted += 1
+        resolution = resolve(permalink)
+        signal["username"] = resolution.username if resolution.status == "resolved" else None
+        signal["resolution_status"] = resolution.status
+        signal["resolution_method"] = resolution.method
+        signal["resolution_confidence"] = resolution.confidence
+        signal["resolution_reason"] = resolution.reason
+
+    resolved_count = sum(1 for s in candidates if s["username"])
     return {
-        "schema": "empty-chair-hunter-instagram-meta-v1",
+        "schema": "empty-chair-hunter-instagram-meta-v2",
         "generated_at": now.isoformat(),
         "freshness_hours": max_age_hours,
         "tags": list(tags),
-        "signal_count": len(signals),
-        "resolved_count": sum(1 for s in signals if s["username"]),
+        "tag_count": len(tags),
+        "per_tag_limit": limit,
+        "metrics": {
+            "media_scanned": media_scanned,
+            "fresh_media": fresh_media,
+            "intent_matches": len(candidates) + duplicate_hits,
+            "unique_candidate_posts": len(candidates),
+            "duplicate_hits": duplicate_hits,
+            "resolutions_attempted": resolutions_attempted,
+            "resolved_count": resolved_count,
+            "unresolved_count": len(candidates) - resolved_count,
+        },
+        "signal_count": len(candidates),
+        "resolved_count": resolved_count,
         "errors": errors,
-        "signals": sorted(signals, key=lambda s: s["age_hours"]),
+        "signals": candidates,
     }
 
 
@@ -159,7 +249,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="hunter-instagram-signals.json")
     parser.add_argument("--tag", action="append", dest="tags")
-    parser.add_argument("--limit", type=int, default=25)
+    parser.add_argument("--limit", type=int, default=50)
+    parser.add_argument("--max-resolutions", type=int, default=75)
     parser.add_argument("--no-resolve", action="store_true")
     args = parser.parse_args()
     token = os.getenv("HUNTER_META_ACCESS_TOKEN", "").strip()
@@ -172,10 +263,16 @@ def main() -> int:
         ig_user_id=ig_user_id,
         tags=tuple(args.tags) if args.tags else DEFAULT_TAGS,
         limit=args.limit,
+        max_resolutions=args.max_resolutions,
         resolve_authors=not args.no_resolve,
     )
     Path(args.out).write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"hunter instagram source // signals={result['signal_count']} resolved={result['resolved_count']}")
+    metrics = result["metrics"]
+    print(
+        "hunter instagram source // "
+        f"scanned={metrics['media_scanned']} fresh={metrics['fresh_media']} "
+        f"candidates={metrics['unique_candidate_posts']} resolved={metrics['resolved_count']}"
+    )
     return 0
 
 
