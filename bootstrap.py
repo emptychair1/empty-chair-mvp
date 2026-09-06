@@ -38,5 +38,6 @@ import v2_instagram_growth_brain  # noqa: F401,E402
 import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
 import v2_instagram_webhook_subscription  # noqa: F401,E402
+import v2_instagram_bio_entry  # noqa: F401,E402
 
 print("Empty Chair 2.0 bootstrap loaded")
