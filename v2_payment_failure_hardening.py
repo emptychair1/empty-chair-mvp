@@ -31,6 +31,17 @@ def _alert(artist_id:str, reason:str):
     except Exception:pass
 
 
+def _alert_paid_pending(artist_id:str, opening_id:str, payment_id:str|None):
+    try:
+        recent=core.one("SELECT id FROM events WHERE artist_id=? AND kind='alert.payment.finalize' AND created_at>=? LIMIT 1",(artist_id,(core.datetime.now(core.timezone.utc)-core.timedelta(hours=2)).isoformat()))
+        if recent:return
+    except Exception:pass
+    artist=core.one("SELECT * FROM artists WHERE id=?",(artist_id,))
+    accepted=bool(artist and core.send_sms(artist.get("phone"),"EMPTY CHAIR // CHECK PAYMENT\n\nThe deposit LANDED, but the\nbooking did not finish cleanly.\n\nWe're retrying automatically.\nDo not ask the client to pay again."))
+    try:core.event("alert.payment.finalize" if accepted else "alert.payment.finalize.delivery_failed",artist_id,{"opening_id":opening_id,"payment_id":payment_id})
+    except Exception:pass
+
+
 def _read_square_error(exc:urllib.error.HTTPError):
     raw=""
     try:raw=exc.read().decode("utf-8","replace")
@@ -68,7 +79,6 @@ async def hardened_square_pay(token:str,request:Request):
         data=core.http_json(f"{core.SQUARE_BASE}/v2/payments","POST",{"source_id":body["source_id"],"idempotency_key":offer["id"],"amount_money":{"amount":int(opening["deposit_cents"]),"currency":"USD"},"location_id":acct["location_id"],"reference_id":opening["id"],"note":f"Empty Chair deposit // {core.fmt_when(opening['starts_at'])}"},{"Authorization":f"Bearer {access}","Square-Version":"2026-08-19"})
         payment=data.get("payment") or {}
         if payment.get("status") not in ("COMPLETED","APPROVED"):raise RuntimeError("Square did not complete the payment")
-        core.finalize_booking(offer,"square",payment.get("id"));return {"redirect":f"/o/{token}/yours"}
     except urllib.error.HTTPError as exc:
         code,message=_read_square_error(exc)
         try:core.event("payment.square.rejected",opening["artist_id"],{"opening_id":opening["id"],"http_status":getattr(exc,"code",None),"code":code,"message":message})
@@ -79,5 +89,17 @@ async def hardened_square_pay(token:str,request:Request):
         try:core.event("payment.square.failed",opening["artist_id"],{"opening_id":opening["id"],"error":str(exc)[:500]})
         except Exception:pass
         return JSONResponse({"error":"Payment could not be completed. Nothing was charged."},status_code=400)
+
+    payment_id=payment.get("id")
+    try:
+        core.finalize_booking(offer,"square",payment_id)
+        return {"redirect":f"/o/{token}/yours"}
+    except Exception as exc:
+        # Money already moved. Never tell the customer it did not. Persist enough state
+        # for the background worker to finish the booking without another charge.
+        try:core.event("payment.finalize_pending",opening["artist_id"],{"opening_id":opening["id"],"offer_id":offer["id"],"payment_id":payment_id,"provider":"square","error":str(exc)[:500]})
+        except Exception:pass
+        _alert_paid_pending(opening["artist_id"],opening["id"],payment_id)
+        return JSONResponse({"error":"Your deposit landed. We're finishing your appointment now. Do not pay again."},status_code=202)
 
 print("Empty Chair 2.0 payment failure hardening loaded",flush=True)
