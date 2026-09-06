@@ -16,6 +16,7 @@ import v2_test_payment  # noqa: F401,E402
 import v2_winner_link  # noqa: F401,E402
 import v2_crt_ui  # noqa: F401,E402
 import v2_entitlement  # noqa: F401,E402
+import v2_subscription_billing  # noqa: F401,E402
 import v2_settings  # noqa: F401,E402
 import v2_artist_payments  # noqa: F401,E402
 import v2_paypal_sellers  # noqa: F401,E402
