@@ -55,6 +55,10 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/source_probe.py --out hunter-source-probe.json --summary-out hunter-source-probe-summary.md
 
+      - name: Probe hashtag freshness
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: python hunter/hashtag_probe.py --out hunter-hashtag-probe.json --summary-out hunter-hashtag-probe-summary.md
+
       - name: Resolve tattoo artist accounts
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/resolve.py --input hunter-signals.json --out hunter-artists.json
@@ -187,6 +191,10 @@ jobs:
             echo '' >> "$GITHUB_STEP_SUMMARY"
             cat hunter-source-probe-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -f hunter-hashtag-probe-summary.md ]; then
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            cat hunter-hashtag-probe-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload Hunter artifacts
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -197,6 +205,8 @@ jobs:
             hunter-signals.json
             hunter-source-probe.json
             hunter-source-probe-summary.md
+            hunter-hashtag-probe.json
+            hunter-hashtag-probe-summary.md
             hunter-artists.json
             hunter-scores.json
             hunter-queue.json
