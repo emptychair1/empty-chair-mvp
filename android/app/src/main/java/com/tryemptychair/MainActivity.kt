@@ -11,12 +11,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -105,7 +105,15 @@ object NativeCalendarSync {
     fun sync(context:android.content.Context,calendarId:Long,token:String){
         val now=System.currentTimeMillis();val end=now+180L*86400000L;val events=JSONArray();val uri=CalendarContract.Instances.CONTENT_URI.buildUpon();ContentUris.appendId(uri,now-86400000L);ContentUris.appendId(uri,end)
         context.contentResolver.query(uri.build(),arrayOf(CalendarContract.Instances.EVENT_ID,CalendarContract.Instances.TITLE,CalendarContract.Instances.BEGIN,CalendarContract.Instances.END),"${CalendarContract.Instances.CALENDAR_ID}=?",arrayOf(calendarId.toString()),null)?.use{c->while(c.moveToNext())events.put(JSONObject().put("id",c.getLong(0).toString()).put("title",c.getString(1)?:"Tattoo").put("start_at",Instant.ofEpochMilli(c.getLong(2)).toString()).put("end_at",Instant.ofEpochMilli(c.getLong(3)).toString()))}
-        val reply=MainActivity.post("/native/calendar/sync",JSONObject().put("calendar_id",calendarId.toString()).put("events",events),token);val commands=reply.optJSONArray("commands")?:JSONArray();for(i in 0 until commands.length()){val command=commands.getJSONObject(i);if(command.optString("kind")!="upsert_event")continue;val p=command.getJSONObject("payload");val values=ContentValues().apply{put(CalendarContract.Events.CALENDAR_ID,calendarId);put(CalendarContract.Events.TITLE,p.getString("title"));put(CalendarContract.Events.DESCRIPTION,p.optString("notes"));put(CalendarContract.Events.DTSTART,Instant.parse(p.getString("start_at")).toEpochMilli());put(CalendarContract.Events.DTEND,Instant.parse(p.getString("end_at")).toEpochMilli());put(CalendarContract.Events.EVENT_TIMEZONE,"UTC")};context.contentResolver.insert(CalendarContract.Events.CONTENT_URI,values);MainActivity.post("/native/calendar/ack/${command.getString("id")}",JSONObject(),token)}
+        val reply=MainActivity.post("/native/calendar/sync",JSONObject().put("calendar_id",calendarId.toString()).put("events",events),token);val commands=reply.optJSONArray("commands")?:JSONArray()
+        for(i in 0 until commands.length()){
+            val command=commands.getJSONObject(i);if(command.optString("kind")!="upsert_event")continue
+            val commandId=command.getString("id");val marker="Empty Chair command: $commandId"
+            var exists=false
+            context.contentResolver.query(CalendarContract.Events.CONTENT_URI,arrayOf(CalendarContract.Events._ID),"${CalendarContract.Events.CALENDAR_ID}=? AND ${CalendarContract.Events.DESCRIPTION} LIKE ?",arrayOf(calendarId.toString(),"%$marker%"),null)?.use{exists=it.moveToFirst()}
+            if(!exists){val p=command.getJSONObject("payload");val notes=p.optString("notes");val values=ContentValues().apply{put(CalendarContract.Events.CALENDAR_ID,calendarId);put(CalendarContract.Events.TITLE,p.getString("title"));put(CalendarContract.Events.DESCRIPTION,(if(notes.isBlank()) "" else "$notes\n\n")+marker);put(CalendarContract.Events.DTSTART,Instant.parse(p.getString("start_at")).toEpochMilli());put(CalendarContract.Events.DTEND,Instant.parse(p.getString("end_at")).toEpochMilli());put(CalendarContract.Events.EVENT_TIMEZONE,"UTC")};context.contentResolver.insert(CalendarContract.Events.CONTENT_URI,values)}
+            MainActivity.post("/native/calendar/ack/$commandId",JSONObject(),token)
+        }
     }
 }
 
