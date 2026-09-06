@@ -1,4 +1,4 @@
-name: Hunter Discovery + Resolution + Intent + Target Queue
+name: Hunter Discovery + Resolution + Intent + Queue + Actions
 
 on:
   push:
@@ -68,8 +68,26 @@ jobs:
             --scores hunter-scores.json \
             --history .hunter-state/hunter-queue.json \
             --out hunter-queue.json
+
+      - name: Run action engine
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          HUNTER_ACTION_ENABLED: ${{ vars.HUNTER_ACTION_ENABLED }}
+          HUNTER_ACTION_WEBHOOK_URL: ${{ secrets.HUNTER_ACTION_WEBHOOK_URL }}
+          HUNTER_ACTION_WEBHOOK_TOKEN: ${{ secrets.HUNTER_ACTION_WEBHOOK_TOKEN }}
+        run: |
+          MODE=preview
+          if [ "$HUNTER_ACTION_ENABLED" = "true" ] && [ -n "$HUNTER_ACTION_WEBHOOK_URL" ]; then
+            MODE=execute
+          fi
+          python hunter/action_engine.py \
+            --queue hunter-queue.json \
+            --out hunter-actions.json \
+            --queue-out hunter-queue-after-actions.json \
+            --journal hunter-action-journal.jsonl \
+            --mode "$MODE"
           mkdir -p .hunter-state
-          cp hunter-queue.json .hunter-state/hunter-queue.json
+          cp hunter-queue-after-actions.json .hunter-state/hunter-queue.json
 
       - name: Save Hunter queue history
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -88,5 +106,8 @@ jobs:
             hunter-artists.json
             hunter-scores.json
             hunter-queue.json
-          if-no-files-found: error
+            hunter-actions.json
+            hunter-queue-after-actions.json
+            hunter-action-journal.jsonl
+          if-no-files-found: warn
           retention-days: 14
