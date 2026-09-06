@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -21,9 +22,13 @@ def _post(path: str, form: dict[str, str]) -> dict:
         data=data,
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        raw = r.read().decode()
-        return json.loads(raw) if raw else {}
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            raw = r.read().decode()
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")[:1200]
+        raise RuntimeError(f"HTTP {exc.code}: {body}") from exc
 
 
 def already_published() -> bool:
@@ -34,6 +39,7 @@ def already_published() -> bool:
 
 
 def publish_test_post() -> str | None:
+    core.event("growth.instagram_launch_attempt", None, {"token": bool(growth.META_TOKEN), "ig_user_id": bool(growth.IG_USER_ID), "image_url": TEST_IMAGE_URL})
     if not (growth.META_TOKEN and growth.IG_USER_ID) or already_published():
         return None
     created = _post(f"{growth.IG_USER_ID}/media", {"image_url": TEST_IMAGE_URL, "caption": TEST_CAPTION})
@@ -54,6 +60,7 @@ def _startup():
     try:
         publish_test_post()
     except Exception as exc:
+        core.event("growth.instagram_launch_failed", None, {"error": str(exc)[:1500]})
         print(f"IG launch publish failed: {exc}", flush=True)
 
 
