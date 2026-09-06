@@ -44,8 +44,9 @@ import v2_instagram_growth_brain  # noqa: F401,E402
 import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
 import v2_instagram_webhook_subscription  # noqa: F401,E402
+import v2_hunter_operator  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-ig-20260906-0725"
+BUILD_ID = "bootstrap-hunter-operator-20260906"
 
 
 @app.middleware("http")
