@@ -82,7 +82,7 @@ async def sync_calendar(request:Request,authorization:str|None=Header(None)):
 def ack_calendar(command_id:str,authorization:str|None=Header(None)):
     device=_bearer(authorization)
     row=core.one("SELECT * FROM native_calendar_outbox WHERE id=? AND artist_id=?",(command_id,device["artist_id"]))
-    if not row:return {"ok":True}
+    if not row or row.get("status")=="acked":return {"ok":True}
     core.run("UPDATE native_calendar_outbox SET status='acked',acked_at=? WHERE id=? AND artist_id=?",(core.utcnow(),command_id,device["artist_id"]))
     try:
         payload=json.loads(row.get("payload") or "{}")
