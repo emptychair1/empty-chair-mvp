@@ -35,6 +35,7 @@ import v2_instagram_api_fix  # noqa: F401,E402
 import v2_instagram_growth_attribution  # noqa: F401,E402
 import v2_instagram_organic  # noqa: F401,E402
 import v2_instagram_content  # noqa: F401,E402
+import v2_instagram_cards  # noqa: F401,E402
 import v2_instagram_growth_brain  # noqa: F401,E402
 import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
