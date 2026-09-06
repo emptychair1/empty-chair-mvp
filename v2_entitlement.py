@@ -56,13 +56,14 @@ core.create_opening_from_appointment=create_opening_entitled
 def entitlement_startup():ensure_schema()
 
 # Customer offer/payment URLs must continue working so an in-flight recovery can finish.
-# Billing/settings remain reachable so an expired artist can subscribe or repair payment.
+# Expired artists may reach only the paywall, billing checkout, and rare account/subscription settings.
 _PUBLIC_PREFIXES=("/o/","/healthz","/manifest.webmanifest","/icon.svg","/auth/","/webhook","/static/")
+_ALLOWED_EXPIRED_PREFIXES=("/billing/",)
 _ALLOWED_EXPIRED=("/paywall","/settings/subscription","/settings/account")
 @core.app.middleware("http")
 async def entitlement_gate(request:Request,call_next):
     path=request.url.path
-    if path.startswith(_PUBLIC_PREFIXES) or path in _ALLOWED_EXPIRED:return await call_next(request)
+    if path.startswith(_PUBLIC_PREFIXES) or path.startswith(_ALLOWED_EXPIRED_PREFIXES) or path in _ALLOWED_EXPIRED:return await call_next(request)
     try:artist=core.current_artist(request)
     except Exception:artist=None
     if artist and artist.get("verified") and not allowed(artist):return RedirectResponse("/paywall",status_code=303)
@@ -75,7 +76,7 @@ def paywall(request:Request):
     artist=core.one("SELECT * FROM artists WHERE id=?",(artist["id"],))
     if allowed(artist):return RedirectResponse("/",status_code=303)
     label="PAYMENT REQUIRED" if state(artist)=="expired" else "CHECK PAYMENT"
-    return core.page("Subscription Required",f'''<div class="center"><h1>EMPTY CHAIR // {label}</h1><p>Your 7-day full trial has ended.</p><p class="bright">Keep your chair covered.</p><div class="space"></div><a class="button" href="/settings/subscription">CHOOSE A PLAN</a><p class="dim">Your account and settings stay here. Recovery resumes when payment is confirmed.</p></div>''',chair=True)
+    return core.page("Subscription Required",f'''<div class="center"><h1>EMPTY CHAIR // {label}</h1><p>Your 7-day trial has ended.</p><p class="bright">Your chair is no longer covered.</p><div class="space"></div><p class="big">$97 / MONTH</p><a class="button" href="/billing/subscribe/monthly">KEEP MY CHAIR COVERED</a><p class="dim">Cancel anytime. Recovery resumes as soon as payment is confirmed.</p></div>''',chair=True)
 
 ensure_schema()
-print("Empty Chair 2.0 entitlement loaded // 7-day full trial + paywall",flush=True)
+print("Empty Chair 2.0 entitlement loaded // 7-day trial -> $97 monthly paywall",flush=True)
