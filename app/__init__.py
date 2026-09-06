@@ -25,5 +25,6 @@ import demand_compliance  # noqa: E402,F401
 import demand_launch  # noqa: E402,F401
 import demand_shortlinks  # noqa: E402,F401
 import demand_ui  # noqa: E402,F401
+import hunter_operator  # noqa: E402,F401
 
 app = legacy.app
