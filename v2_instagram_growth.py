@@ -75,7 +75,6 @@ def current_mrr_cents() -> int:
 
 
 def growth_live() -> bool:
-    # Milestones are reporting checkpoints, never shutdown conditions.
     return True
 
 
@@ -111,6 +110,7 @@ def handle_comment(value: dict):
     media_id = str(media.get("id") or value.get("media_id") or "")
     words = {w.strip(".,!?;:#@()[]{}\"'").lower() for w in text.split()}
     keyword = next((w for w in CTA_WORDS if w in words), "")
+    log(None, "instagram.comment_seen", {"comment_id": bool(comment_id), "sender_id": bool(sender_id), "media_id": bool(media_id), "text": text[:80], "keyword": keyword})
     if not (comment_id and sender_id and keyword):
         return
     if core.one("SELECT id FROM growth_instagram_leads WHERE comment_id=?", (comment_id,)):
@@ -145,15 +145,29 @@ def instagram_verify(request: Request):
 @core.app.post("/webhooks/instagram")
 async def instagram_webhook(request: Request):
     body = await request.body()
-    if not valid_signature(body, request.headers.get("x-hub-signature-256")):
+    signature_ok = valid_signature(body, request.headers.get("x-hub-signature-256"))
+    if not signature_ok:
+        try:
+            log(None, "instagram.webhook_rejected", {"bytes": len(body), "signature_present": bool(request.headers.get("x-hub-signature-256"))})
+        except Exception:
+            pass
         return Response(status_code=403)
     try:
         payload = json.loads(body or b"{}")
+        fields = []
+        for entry in payload.get("entry", []):
+            for change in entry.get("changes", []):
+                fields.append(str(change.get("field") or ""))
+        log(None, "instagram.webhook_received", {"object": payload.get("object"), "entries": len(payload.get("entry", [])), "fields": fields[:20], "bytes": len(body)})
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
                 if change.get("field") in {"comments", "live_comments"}:
                     handle_comment(change.get("value") or {})
     except Exception as exc:
+        try:
+            log(None, "instagram.webhook_error", {"error": str(exc)[:1000]})
+        except Exception:
+            pass
         print(f"IG webhook error: {exc}", flush=True)
     return JSONResponse({"ok": True})
 
