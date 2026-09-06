@@ -45,7 +45,7 @@ jobs:
         run: pytest -q
 
       - name: Compile operator production extension
-        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py
+        run: python -m py_compile hunter/operator_console.py v2_hunter_operator.py bootstrap.py hunter/integrate_instagram.py
 
       - name: Collect public cancellation signals
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -55,13 +55,50 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/source_probe.py --out hunter-source-probe.json --summary-out hunter-source-probe-summary.md
 
-      - name: Probe hashtag freshness
+      - name: Check Meta Instagram configuration
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: python hunter/hashtag_probe.py --out hunter-hashtag-probe.json --summary-out hunter-hashtag-probe-summary.md
+        id: meta_config
+        env:
+          HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+          HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
+        run: |
+          if [ -n "$HUNTER_META_ACCESS_TOKEN" ] && [ -n "$HUNTER_META_IG_USER_ID" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'Meta Instagram discovery is not configured; continuing with public-web signals only.'
+          fi
 
-      - name: Resolve tattoo artist accounts
+      - name: Install Chromium and Tesseract for Instagram resolver
+        if: steps.meta_config.outputs.configured == 'true'
+        run: |
+          python -m playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      - name: Discover and visually resolve fresh Instagram signals
+        if: steps.meta_config.outputs.configured == 'true'
+        env:
+          HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+          HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
+          HUNTER_META_GRAPH_VERSION: v26.0
+        run: python hunter/instagram_hashtag_source.py --out hunter-instagram-signals.json
+
+      - name: Resolve public-web tattoo artist accounts
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: python hunter/resolve.py --input hunter-signals.json --out hunter-artists.json
+
+      - name: Merge Meta Instagram discoveries into Hunter
+        if: steps.meta_config.outputs.configured == 'true'
+        run: |
+          python hunter/integrate_instagram.py \
+            --signals hunter-signals.json \
+            --artists hunter-artists.json \
+            --instagram hunter-instagram-signals.json \
+            --signals-out hunter-signals-merged.json \
+            --artists-out hunter-artists-merged.json
+          mv hunter-signals-merged.json hunter-signals.json
+          mv hunter-artists-merged.json hunter-artists.json
 
       - name: Score cancellation intent
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -191,10 +228,6 @@ jobs:
             echo '' >> "$GITHUB_STEP_SUMMARY"
             cat hunter-source-probe-summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
-          if [ -f hunter-hashtag-probe-summary.md ]; then
-            echo '' >> "$GITHUB_STEP_SUMMARY"
-            cat hunter-hashtag-probe-summary.md >> "$GITHUB_STEP_SUMMARY"
-          fi
 
       - name: Upload Hunter artifacts
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -203,10 +236,9 @@ jobs:
           name: hunter-signals-${{ github.run_id }}
           path: |
             hunter-signals.json
+            hunter-instagram-signals.json
             hunter-source-probe.json
             hunter-source-probe-summary.md
-            hunter-hashtag-probe.json
-            hunter-hashtag-probe-summary.md
             hunter-artists.json
             hunter-scores.json
             hunter-queue.json
