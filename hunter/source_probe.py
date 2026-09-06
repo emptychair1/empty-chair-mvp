@@ -10,7 +10,7 @@ import argparse
 import json
 import re
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -213,8 +213,7 @@ def run(*, max_queries: int | None = None, now: datetime | None = None) -> dict:
     totals = Counter()
     for stats in by_family.values():
         totals.update(stats)
-    fresh_72 = totals["within_72h"]
-    verdict = "PUBLIC_SEARCH_HAS_FRESH_INVENTORY" if fresh_72 else "PUBLIC_SEARCH_TOO_STALE_OR_UNDATED"
+    verdict = "PUBLIC_SEARCH_HAS_FRESH_INVENTORY" if totals["within_72h"] else "PUBLIC_SEARCH_TOO_STALE_OR_UNDATED"
     return {
         "schema": "empty-chair-hunter-source-probe-v1",
         "generated_at": now.isoformat(),
@@ -227,13 +226,33 @@ def run(*, max_queries: int | None = None, now: datetime | None = None) -> dict:
     }
 
 
+def markdown_summary(result: dict) -> str:
+    lines = [
+        "## Hunter source freshness probe",
+        "",
+        f"**Verdict:** {result['verdict']}",
+        "",
+        "| Source | Signals | <=24h | <=72h | Stale | Unknown date |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for source, stats in result["by_family"].items():
+        lines.append(
+            f"| {source} | {stats['signals']} | {stats['within_24h']} | {stats['within_72h']} | "
+            f"{stats['stale_over_72h']} | {stats['unknown_date']} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="hunter-source-probe.json")
+    parser.add_argument("--summary-out", default=None)
     parser.add_argument("--max-queries", type=int, default=None)
     args = parser.parse_args()
     result = run(max_queries=args.max_queries)
     Path(args.out).write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    if args.summary_out:
+        Path(args.summary_out).write_text(markdown_summary(result), encoding="utf-8")
     print(f"hunter source probe // {result['verdict']} // {result['by_family']}")
     return 0
 
