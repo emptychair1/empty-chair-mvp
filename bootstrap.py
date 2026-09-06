@@ -28,5 +28,6 @@ import v2_native_calendar  # noqa: F401,E402
 import v2_native_auth  # noqa: F401,E402
 import v2_production_hardening  # noqa: F401,E402
 import v2_payment_failure_hardening  # noqa: F401,E402
+import v2_final_hardening  # noqa: F401,E402
 
 print("Empty Chair 2.0 bootstrap loaded")
