@@ -2,10 +2,40 @@ import SwiftUI
 import EventKit
 import LocalAuthentication
 import Security
+import BackgroundTasks
+import UIKit
+
+final class BackgroundSyncCoordinator {
+    static let shared=BackgroundSyncCoordinator()
+    weak var model:EmptyChairModel?
+    let identifier="com.tryemptychair.calendar-sync"
+    func register(){
+        BGTaskScheduler.shared.register(forTaskWithIdentifier:identifier,using:nil){ task in
+            guard let refresh=task as? BGAppRefreshTask else{task.setTaskCompleted(success:false);return}
+            self.schedule()
+            let work=Task { @MainActor in await self.model?.sync(); refresh.setTaskCompleted(success:true) }
+            refresh.expirationHandler={work.cancel()}
+        }
+    }
+    func schedule(){
+        let request=BGAppRefreshTaskRequest(identifier:identifier)
+        request.earliestBeginDate=Date(timeIntervalSinceNow:15*60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+}
+
+final class AppDelegate:NSObject,UIApplicationDelegate {
+    func application(_ application:UIApplication,didFinishLaunchingWithOptions launchOptions:[UIApplication.LaunchOptionsKey:Any]?=nil)->Bool {
+        BackgroundSyncCoordinator.shared.register();BackgroundSyncCoordinator.shared.schedule();return true
+    }
+    func applicationDidEnterBackground(_ application:UIApplication){BackgroundSyncCoordinator.shared.schedule()}
+}
 
 @main
 struct EmptyChairApp: App {
-    @StateObject private var model = EmptyChairModel()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var model:EmptyChairModel
+    init(){let m=EmptyChairModel();_model=StateObject(wrappedValue:m);BackgroundSyncCoordinator.shared.model=m}
     var body: some Scene { WindowGroup { RootView().environmentObject(model) } }
 }
 
@@ -124,6 +154,7 @@ final class EmptyChairModel: ObservableObject {
         var r=URLRequest(url:api.appending(path:"native/calendar/sync"));r.httpMethod="POST";r.setValue("Bearer \(token)",forHTTPHeaderField:"Authorization");r.setValue("application/json",forHTTPHeaderField:"Content-Type");r.httpBody=try? JSONEncoder().encode(SyncPayload(calendar_id:calendarID,events:events))
         guard let (data,response)=try? await URLSession.shared.data(for:r),(response as? HTTPURLResponse)?.statusCode==200,let reply=try? JSONDecoder().decode(SyncReply.self,from:data) else{return}
         for command in reply.commands where command.kind=="upsert_event" { await apply(command,calendar:calendar,token:token) }
+        BackgroundSyncCoordinator.shared.schedule()
     }
 
     private func apply(_ command:NativeCommand,calendar:EKCalendar,token:String) async {
