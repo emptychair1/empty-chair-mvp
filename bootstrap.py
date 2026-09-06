@@ -10,6 +10,7 @@ import v2_sms_only  # noqa: F401,E402
 import v2_timezone  # noqa: F401,E402
 import v2_offer_delivery  # noqa: F401,E402
 import v2_auth  # noqa: F401,E402
+import v2_apple_calendar_web  # noqa: F401,E402
 import v2_phone_safe  # noqa: F401,E402
 import v2_client_sources  # noqa: F401,E402
 import v2_test_payment  # noqa: F401,E402
