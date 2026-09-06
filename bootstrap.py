@@ -3,6 +3,12 @@
 Render imports only the headless 2.0 application and focused 2.0 extensions. Legacy 1.x
 modules remain in the repository for history/rollback and are never imported in production.
 """
+import secrets
+import uuid
+
+from fastapi.responses import JSONResponse, RedirectResponse
+
+import v2_app as core
 from v2_app import app
 import v2_db_namespace  # noqa: F401,E402
 import v2_sms  # noqa: F401,E402
@@ -30,7 +36,7 @@ import v2_payment_failure_hardening  # noqa: F401,E402
 import v2_final_hardening  # noqa: F401,E402
 import v2_paid_finalize_recovery  # noqa: F401,E402
 import v2_native_finalize_bridge  # noqa: F401,E402
-import v2_instagram_growth  # noqa: F401,E402
+import v2_instagram_growth as ig_growth  # noqa: F401,E402
 import v2_instagram_api_fix  # noqa: F401,E402
 import v2_instagram_growth_attribution  # noqa: F401,E402
 import v2_instagram_content  # noqa: F401,E402
@@ -38,6 +44,38 @@ import v2_instagram_growth_brain  # noqa: F401,E402
 import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
 import v2_instagram_webhook_subscription  # noqa: F401,E402
-import v2_instagram_bio_entry  # noqa: F401,E402
 
-print("Empty Chair 2.0 bootstrap loaded")
+BUILD_ID = "bootstrap-ig-20260906-0714"
+
+
+@app.middleware("http")
+async def bootstrap_entrypoints(request, call_next):
+    path = request.url.path.rstrip("/") or "/"
+    if path == "/__ec_build":
+        return JSONResponse({"build": BUILD_ID, "instagram_bio": True})
+    if path == "/ig":
+        token = secrets.token_urlsafe(18)
+        try:
+            lead_id = str(uuid.uuid4())
+            created = ig_growth.now()
+            core.run(
+                "INSERT INTO growth_instagram_leads(id,ig_user_id,username,comment_id,media_id,keyword,token,status,created_at,clicked_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (lead_id, "organic", "", f"organic:{uuid.uuid4()}", "", "bio", token, "CLICKED", created, created),
+            )
+            ig_growth.log(lead_id, "instagram.organic_clicked", {"source": "bio"})
+        except Exception as exc:
+            print(f"IG bio attribution write failed: {exc}", flush=True)
+        response = RedirectResponse("/signup", status_code=303)
+        response.set_cookie(
+            "ec_growth",
+            token,
+            max_age=60 * 60 * 24 * 14,
+            httponly=True,
+            secure=core.BASE_URL.startswith("https://"),
+            samesite="lax",
+        )
+        return response
+    return await call_next(request)
+
+
+print(f"Empty Chair 2.0 bootstrap loaded // {BUILD_ID}")
