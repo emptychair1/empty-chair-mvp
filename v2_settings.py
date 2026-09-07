@@ -5,6 +5,7 @@ import html, os
 import v2_app as core
 import v2_entitlement as entitlement
 MANAGE_URL=os.getenv("EMPTY_CHAIR_MANAGE_SUBSCRIPTION_URL","").strip()
+ADMIN_EMAILS={e.strip().lower() for e in os.getenv("EMPTY_CHAIR_ADMIN_EMAILS","").split(",") if e.strip()}
 
 def _artist_or_setup(request):return core.current_artist(request)
 
@@ -24,7 +25,9 @@ def settings_home(request:Request):
     if not artist:return RedirectResponse("/setup")
     acct=_calendar_account(artist["id"]);client_count=_count_clients(artist["id"])
     calendar_label=(acct.get("provider") or "not connected").upper() if acct else "NOT CONNECTED";methods=", ".join(m.upper() for m in (artist.get("payment_methods") or "").split(",") if m) or "NOT SET"
-    return core.page("Settings",f'''<h1>SETTINGS</h1><p class="dim">Rare adjustments. Empty Chair stays out of your way.</p><div class="settings-list"><a class="settings-row" href="/settings/calendar"><span>CALENDAR<small>{html.escape(calendar_label)}</small></span><span>›</span></a><a class="settings-row" href="/settings/deposits"><span>DEPOSITS<small>{core.fmt_money(int(artist.get('deposit_cents') or 0))} default // {core.fmt_money(int(artist.get('average_value_cents') or 0))} avg</small></span><span>›</span></a><a class="settings-row" href="/settings/clients"><span>CLIENTS<small>{client_count} ready</small></span><span>›</span></a><a class="settings-row" href="/settings/payments"><span>PAYMENT METHODS<small>{html.escape(methods)}</small></span><span>›</span></a><a class="settings-row" href="/settings/subscription"><span>SUBSCRIPTION<small>$97 monthly</small></span><span>›</span></a><a class="settings-row" href="/settings/account"><span>ACCOUNT<small>{html.escape(artist.get('name') or '')}</small></span><span>›</span></a></div>''')
+    founder=str(artist.get("email") or "").strip().lower() in ADMIN_EMAILS
+    hunter='<a class="settings-row" href="/owner/hunter"><span>HUNTER<small>artist acquisition queue</small></span><span>›</span></a>' if founder else ''
+    return core.page("Settings",f'''<h1>SETTINGS</h1><p class="dim">Rare adjustments. Empty Chair stays out of your way.</p><div class="settings-list">{hunter}<a class="settings-row" href="/settings/calendar"><span>CALENDAR<small>{html.escape(calendar_label)}</small></span><span>›</span></a><a class="settings-row" href="/settings/deposits"><span>DEPOSITS<small>{core.fmt_money(int(artist.get('deposit_cents') or 0))} default // {core.fmt_money(int(artist.get('average_value_cents') or 0))} avg</small></span><span>›</span></a><a class="settings-row" href="/settings/clients"><span>CLIENTS<small>{client_count} ready</small></span><span>›</span></a><a class="settings-row" href="/settings/payments"><span>PAYMENT METHODS<small>{html.escape(methods)}</small></span><span>›</span></a><a class="settings-row" href="/settings/subscription"><span>SUBSCRIPTION<small>$97 monthly</small></span><span>›</span></a><a class="settings-row" href="/settings/account"><span>ACCOUNT<small>{html.escape(artist.get('name') or '')}</small></span><span>›</span></a></div>''')
 
 @core.app.get("/settings/calendar")
 def calendar(request:Request):
@@ -74,9 +77,6 @@ def subscription(request:Request):
     a=_artist_or_setup(request)
     if not a:return RedirectResponse("/setup")
     a=core.one("SELECT * FROM artists WHERE id=?",(a["id"],)) or a;s=entitlement.state(a)
-    # The completed $1 founder E2E marked this account square_test/active. That proves
-    # entitlement but is not a real recurring subscription, so keep the production checkout
-    # reachable until an actual Square subscription replaces it.
     founder_test=(a.get("subscription_provider") or "")=="square_test"
     if s=="active" and not founder_test:
         manage=f'<a class="button" href="{html.escape(MANAGE_URL,quote=True)}">MANAGE SUBSCRIPTION</a>' if MANAGE_URL else '<p class="bright">SUBSCRIPTION ACTIVE [✓]</p>'
@@ -91,4 +91,4 @@ def account(request:Request):
     a=_artist_or_setup(request)
     if not a:return RedirectResponse("/setup")
     return core.page("Account",f'''<h1>ACCOUNT</h1><div class="status"><span>name</span><span>{html.escape(a.get('name') or '')}</span></div><div class="status"><span>mobile</span><span>{html.escape(a.get('phone') or '')}</span></div><a class="button" href="/settings/subscription">SUBSCRIPTION</a>''')
-print("Empty Chair 2.0 settings UI loaded // one $97 monthly plan",flush=True)
+print("Empty Chair 2.0 settings UI loaded // founder Hunter link + one $97 monthly plan",flush=True)
