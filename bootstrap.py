@@ -49,10 +49,9 @@ import v2_hunter_operator  # noqa: F401,E402
 import v2_hunter_operator_transaction_fix  # noqa: F401,E402
 import v2_hunter_operator_phone_auth  # noqa: F401,E402
 import v2_hunter_crt_ui  # noqa: F401,E402
-import v2_hunter_outreach  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-hunter-outreach-20260907"
+BUILD_ID = "bootstrap-hunter-hotfix-20260907"
 
 
 @app.middleware("http")
