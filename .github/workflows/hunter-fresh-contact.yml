@@ -1,4 +1,4 @@
-name: Hunter Fresh Contact + Pain Leads
+name: Hunter Fresh Contact + Social Pain Leads
 
 on:
   push:
@@ -7,8 +7,9 @@ on:
       - 'hunter/test_fresh_contact_bucket.py'
       - 'hunter/fresh_pain_verifier.py'
       - 'hunter/test_fresh_pain_verifier.py'
-      - 'hunter/indexed_fresh_pain.py'
-      - 'hunter/test_indexed_fresh_pain.py'
+      - 'hunter/instagram_hashtag_source.py'
+      - 'hunter/social_pain_sweep.py'
+      - 'hunter/test_social_pain_sweep.py'
       - '.github/workflows/hunter-fresh-contact.yml'
   pull_request:
     paths:
@@ -16,8 +17,9 @@ on:
       - 'hunter/test_fresh_contact_bucket.py'
       - 'hunter/fresh_pain_verifier.py'
       - 'hunter/test_fresh_pain_verifier.py'
-      - 'hunter/indexed_fresh_pain.py'
-      - 'hunter/test_indexed_fresh_pain.py'
+      - 'hunter/instagram_hashtag_source.py'
+      - 'hunter/social_pain_sweep.py'
+      - 'hunter/test_social_pain_sweep.py'
       - '.github/workflows/hunter-fresh-contact.yml'
   schedule:
     - cron: '15,45 * * * *'
@@ -27,13 +29,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: hunter-fresh-contact-${{ github.ref }}
+  group: hunter-fresh-contact-social-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    env:
+      HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+      HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,96 +51,96 @@ jobs:
       - name: Install Hunter dependencies
         run: pip install -r hunter/requirements.txt
 
-      - name: Test fresh contact and pain pipeline
+      - name: Test fresh contact + social pain pipeline
         working-directory: hunter
-        run: pytest -q test_fresh_contact_bucket.py test_fresh_pain_verifier.py test_indexed_fresh_pain.py
+        run: pytest -q test_fresh_contact_bucket.py test_fresh_pain_verifier.py test_social_pain_sweep.py
 
       - name: Compile fresh lead modules
-        run: python -m py_compile hunter/fresh_contact_bucket.py hunter/fresh_pain_verifier.py hunter/indexed_fresh_pain.py
+        run: python -m py_compile hunter/fresh_contact_bucket.py hunter/fresh_pain_verifier.py hunter/instagram_hashtag_source.py hunter/social_pain_sweep.py
+
+      - name: Install Chromium for public post author resolution
+        run: python -m playwright install --with-deps chromium
 
       - name: Fill fresh contact bucket
         run: python hunter/fresh_contact_bucket.py --out hunter-fresh-contact-bucket.json
 
-      - name: Enforce bucket freshness and volume
+      - name: Enforce fresh artist inventory
         run: |
           python - <<'PY'
           import json, sys
           p = json.load(open('hunter-fresh-contact-bucket.json'))
           m = p.get('metrics', {})
-          artists = p.get('artists', [])
-          stale = [a for a in artists if not a.get('fresh_activity')]
-          print(f"Hunter fresh bucket: {m.get('unique_artists', 0)} unique artists; {m.get('contactable_artists', 0)} contactable; {m.get('direct_contact_artists', 0)} direct-contact")
+          stale = [a for a in p.get('artists', []) if not a.get('fresh_activity')]
+          print(f"Hunter fresh bucket: {m.get('unique_artists', 0)} unique; {m.get('contactable_artists', 0)} contactable")
           if stale:
               print(f"FAIL: {len(stale)} stale artists escaped the freshness gate")
               sys.exit(1)
-          if m.get('unique_artists', 0) < 100:
-              print('WARN: bucket is below the 100-artist live target')
           PY
 
-      - name: Verify <=72h pain on public business pages
+      - name: Collect direct <=72h Instagram pain posts
         run: |
-          python hunter/fresh_pain_verifier.py \
-            --bucket hunter-fresh-contact-bucket.json \
-            --out hunter-fresh-pain-leads.json \
-            --workers 12 \
-            --timeout 10
+          python hunter/instagram_hashtag_source.py \
+            --out hunter-instagram-signals.json \
+            --limit 50 \
+            --max-resolutions 100
 
-      - name: Search indexed public web for <=72h pain
+      - name: Sweep roster artists for <=72h social pain
         run: |
-          python hunter/indexed_fresh_pain.py \
+          python hunter/social_pain_sweep.py \
             --bucket hunter-fresh-contact-bucket.json \
-            --out hunter-indexed-fresh-pain.json \
-            --workers 16 \
-            --timeout 8
+            --hashtag hunter-instagram-signals.json \
+            --out hunter-social-pain.json \
+            --media-limit 25 \
+            --max-artists 300
 
-      - name: Measure combined 100-fresh-lead target
+      - name: Measure 100-fresh-social-lead target
         run: |
           python - <<'PY'
           import json
-          direct = json.load(open('hunter-fresh-pain-leads.json'))
-          indexed = json.load(open('hunter-indexed-fresh-pain.json'))
-          usernames = {str(x.get('username') or '').lower() for x in direct.get('leads', []) if x.get('username')}
-          usernames |= {str(x.get('username') or '').lower() for x in indexed.get('leads', []) if x.get('username')}
-          count = len(usernames)
-          target = 100
-          print(f"Hunter combined verified fresh pain leads: {count}/{target}")
-          print(f"- direct page verifier: {direct.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
-          print(f"- indexed public web: {indexed.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
+          p = json.load(open('hunter-social-pain.json'))
+          m = p.get('metrics', {})
+          count = int(m.get('verified_fresh_social_pain_leads', 0))
+          target = int(m.get('target_fresh_leads', 100))
+          print(f"Hunter verified fresh social pain leads: {count}/{target}")
+          print(f"- roster artists checked with Business Discovery: {m.get('business_discovery_checked', 0)}")
+          print(f"- Business Discovery supported: {m.get('business_discovery_supported', 0)}")
+          print(f"- social media scanned: {m.get('business_media_scanned', 0)}")
+          print(f"- resolved direct hashtag candidates: {m.get('resolved_hashtag_candidates', 0)}")
           if count < target:
-              print(f"FAIL TARGET (non-blocking): short by {target-count}. Do not call the goal achieved.")
+              print(f"FAIL TARGET (non-blocking): short by {target-count}. Do not call Hunter's 100-lead goal achieved.")
           else:
-              print('PASS TARGET: Hunter produced at least 100 unique verified fresh pain leads.')
+              print('PASS TARGET: Hunter produced at least 100 unique verified <=72h social pain leads.')
           PY
 
-      - name: Publish bucket summary
+      - name: Publish fresh lead summary
         if: always()
         run: |
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json, os
-          print('## Hunter fresh lead funnel')
+          print('## Hunter fresh social lead funnel')
           if os.path.exists('hunter-fresh-contact-bucket.json'):
               m = json.load(open('hunter-fresh-contact-bucket.json')).get('metrics', {})
-              print(f"- unique active artists: {m.get('unique_artists', 0)}")
-              print(f"- contactable artists: {m.get('contactable_artists', 0)}")
-              print(f"- direct public email/booking contacts: {m.get('direct_contact_artists', 0)}")
-          direct = json.load(open('hunter-fresh-pain-leads.json')) if os.path.exists('hunter-fresh-pain-leads.json') else {}
-          indexed = json.load(open('hunter-indexed-fresh-pain.json')) if os.path.exists('hunter-indexed-fresh-pain.json') else {}
-          print(f"- direct-page <=72h pain: {direct.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
-          print(f"- indexed-web <=72h pain: {indexed.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
-          users = {str(x.get('username') or '').lower() for x in direct.get('leads', []) if x.get('username')}
-          users |= {str(x.get('username') or '').lower() for x in indexed.get('leads', []) if x.get('username')}
-          print(f"- combined unique verified <=72h pain leads: {len(users)} / 100")
-          print('- no timestamp or identity match = not counted')
+              print(f"- fresh/contactable artist inventory: {m.get('contactable_artists', 0)}")
+          if os.path.exists('hunter-instagram-signals.json'):
+              m = json.load(open('hunter-instagram-signals.json')).get('metrics', {})
+              print(f"- direct Instagram pain candidates: {m.get('unique_candidate_posts', 0)}")
+              print(f"- resolved direct Instagram candidates: {m.get('resolved_count', 0)}")
+          if os.path.exists('hunter-social-pain.json'):
+              m = json.load(open('hunter-social-pain.json')).get('metrics', {})
+              print(f"- Business Discovery supported artists: {m.get('business_discovery_supported', 0)} / {m.get('business_discovery_checked', 0)}")
+              print(f"- verified <=72h social pain leads: {m.get('verified_fresh_social_pain_leads', 0)} / 100")
+              print(f"- direct-contact verified social leads: {m.get('verified_direct_contact_leads', 0)}")
+          print('- stale, unresolved, private, login-gated, or challenge-gated content never counts')
           PY
 
-      - name: Upload fresh lead artifacts
+      - name: Upload fresh social lead artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: hunter-fresh-leads-${{ github.run_id }}
+          name: hunter-fresh-social-leads-${{ github.run_id }}
           path: |
             hunter-fresh-contact-bucket.json
-            hunter-fresh-pain-leads.json
-            hunter-indexed-fresh-pain.json
+            hunter-instagram-signals.json
+            hunter-social-pain.json
           if-no-files-found: warn
           retention-days: 14
