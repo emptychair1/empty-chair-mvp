@@ -1,0 +1,116 @@
+name: Hunter Fresh Roster Expansion
+
+on:
+  push:
+    paths:
+      - 'hunter/fresh_contact_bucket.py'
+      - 'hunter/fresh_roster_expansion.py'
+      - '.github/workflows/hunter-fresh-expansion.yml'
+  pull_request:
+    paths:
+      - 'hunter/fresh_contact_bucket.py'
+      - 'hunter/fresh_roster_expansion.py'
+      - '.github/workflows/hunter-fresh-expansion.yml'
+  schedule:
+    - cron: '20,50 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hunter-fresh-expansion-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: hunter/requirements.txt
+
+      - name: Install Hunter dependencies
+        run: pip install -r hunter/requirements.txt
+
+      - name: Compile fresh roster expansion
+        run: python -m py_compile hunter/fresh_contact_bucket.py hunter/fresh_roster_expansion.py
+
+      - name: Build base fresh roster
+        run: python hunter/fresh_contact_bucket.py --out hunter-fresh-contact-bucket.json
+
+      - name: Expand with additional current US artist rosters
+        run: |
+          python hunter/fresh_roster_expansion.py \
+            --bucket hunter-fresh-contact-bucket.json \
+            --out hunter-fresh-contact-bucket.json \
+            --max-anime-pages 500
+
+      - name: Require productive discovery
+        run: |
+          python - <<'PY'
+          import json, sys
+          p = json.load(open('hunter-fresh-contact-bucket.json'))
+          m = p.get('metrics', {})
+          total = int(m.get('unique_artists', 0))
+          added = int(m.get('expansion_added_to_bucket', 0))
+          bizarre = int(m.get('bizarre_bazaar_artists', 0))
+          anime = int(m.get('anime_ink_artists', 0))
+          pages = int(m.get('anime_ink_profile_pages_discovered', 0))
+          print(f'Hunter expanded inventory: total={total} expansion_added={added} bizarre={bizarre} anime={anime} anime_pages={pages}')
+          if total < 100:
+              print('FAIL: Hunter did not produce at least 100 fresh/contactable current-roster artists.')
+              sys.exit(1)
+          if added < 25:
+              print('FAIL: fallback roster expansion is no longer productive; source refresh required.')
+              sys.exit(1)
+          PY
+
+      - name: Sync expanded artists into Hunter queue
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          HUNTER_OPERATOR_INGEST_URL: ${{ secrets.HUNTER_OPERATOR_INGEST_URL }}
+          HUNTER_OPERATOR_INGEST_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+        run: |
+          if [ -z "$HUNTER_OPERATOR_INGEST_URL" ] || [ -z "$HUNTER_OPERATOR_INGEST_TOKEN" ]; then
+            echo 'Hunter operator sync is not configured.'
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            --max-time 45 \
+            -X POST "$HUNTER_OPERATOR_INGEST_URL" \
+            -H "Authorization: Bearer $HUNTER_OPERATOR_INGEST_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @hunter-fresh-contact-bucket.json
+
+      - name: Publish expansion summary
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          print('## Hunter fresh roster expansion')
+          if not os.path.exists('hunter-fresh-contact-bucket.json'):
+              print('- bucket missing')
+              raise SystemExit
+          m = json.load(open('hunter-fresh-contact-bucket.json')).get('metrics', {})
+          print(f"- total fresh/contactable inventory: {m.get('unique_artists', 0)}")
+          print(f"- newly added by expansion sources: {m.get('expansion_added_to_bucket', 0)}")
+          print(f"- Bizarre Bazaar 2026 artists: {m.get('bizarre_bazaar_artists', 0)}")
+          print(f"- Anime Ink 2026 artists: {m.get('anime_ink_artists', 0)}")
+          print(f"- Anime Ink artist pages discovered: {m.get('anime_ink_profile_pages_discovered', 0)}")
+          print('- Current/upcoming roster activity is inventory, not cancellation-pain evidence.')
+          PY
+
+      - name: Upload expanded Hunter bucket
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hunter-fresh-expanded-${{ github.run_id }}
+          path: hunter-fresh-contact-bucket.json
+          if-no-files-found: error
+          retention-days: 7
