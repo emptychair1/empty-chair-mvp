@@ -48,6 +48,7 @@ import v2_instagram_webhook_subscription  # noqa: F401,E402
 import v2_hunter_operator  # noqa: F401,E402
 import v2_hunter_operator_transaction_fix  # noqa: F401,E402
 import v2_hunter_operator_phone_auth  # noqa: F401,E402
+import v2_hunter_crt_ui  # noqa: F401,E402
 
 BUILD_ID = "bootstrap-instagram-crt-autopilot-20260907"
 
