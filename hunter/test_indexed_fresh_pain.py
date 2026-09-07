@@ -4,7 +4,7 @@ from indexed_fresh_pain import age_hours, identity_matches, pain_matches, parse_
 
 
 def test_pain_matches_and_score():
-    m = pain_matches("Cancellation just opened tomorrow afternoon")
+    m = pain_matches("Cancellation — appointment just opened up tomorrow")
     assert m["disruption"]
     assert m["urgent_capacity"]
     assert score(m, 3) >= 85
