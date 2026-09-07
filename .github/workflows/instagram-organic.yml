@@ -1,14 +1,86 @@
-name: Instagram Organic Publisher
+name: Instagram CRT Autopilot
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instagram-crt-autopilot
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Wake Empty Chair and publish due post
+      - name: Prepare due feed post
+        id: prepare
+        env:
+          AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
-          curl --fail-with-body --retry 4 --retry-delay 15 --max-time 120 \
-            -X POST https://app.tryemptychair.com/internal/instagram/publish-due
+          set -euo pipefail
+          RESPONSE=$(curl --fail-with-body --silent --show-error --retry 4 --retry-delay 15 --max-time 120 \
+            -X POST https://app.tryemptychair.com/internal/instagram/autopilot/prepare \
+            -H "Authorization: Bearer $AUTOPILOT_TOKEN")
+          echo "$RESPONSE"
+          DUE=$(echo "$RESPONSE" | jq -r '.due // false')
+          PUBLISHED=$(echo "$RESPONSE" | jq -r '.published // false')
+          echo "due=$DUE" >> "$GITHUB_OUTPUT"
+          echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+          if [ "$DUE" = "true" ] && [ "$PUBLISHED" != "true" ]; then
+            echo "post_id=$(echo "$RESPONSE" | jq -r '.id')" >> "$GITHUB_OUTPUT"
+            echo "render_url=$(echo "$RESPONSE" | jq -r '.render_url')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install headless browser
+        if: steps.prepare.outputs.due == 'true' && steps.prepare.outputs.published != 'true'
+        run: |
+          python -m pip install --quiet playwright pillow
+          python -m playwright install --with-deps chromium
+
+      - name: Screenshot real Empty Chair CRT post
+        if: steps.prepare.outputs.due == 'true' && steps.prepare.outputs.published != 'true'
+        env:
+          RENDER_URL: ${{ steps.prepare.outputs.render_url }}
+        run: |
+          python - <<'PY'
+          import os
+          from PIL import Image
+          from playwright.sync_api import sync_playwright
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              page = browser.new_page(viewport={"width": 1080, "height": 1080}, device_scale_factor=1)
+              page.goto(os.environ["RENDER_URL"], wait_until="networkidle", timeout=120000)
+              page.screenshot(path="crt-post.png", full_page=False)
+              browser.close()
+
+          img = Image.open("crt-post.png").convert("RGB")
+          img.save("crt-post.jpg", "JPEG", quality=94, optimize=True)
+          PY
+
+      - name: Upload screenshot to Empty Chair
+        if: steps.prepare.outputs.due == 'true' && steps.prepare.outputs.published != 'true'
+        env:
+          AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+          POST_ID: ${{ steps.prepare.outputs.post_id }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST "https://app.tryemptychair.com/internal/instagram/autopilot/image/$POST_ID" \
+            -H "Authorization: Bearer $AUTOPILOT_TOKEN" \
+            -H "Content-Type: image/jpeg" \
+            --data-binary @crt-post.jpg
+
+      - name: Publish to Instagram feed
+        if: steps.prepare.outputs.due == 'true' && steps.prepare.outputs.published != 'true'
+        env:
+          AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+          POST_ID: ${{ steps.prepare.outputs.post_id }}
+        run: |
+          curl --fail-with-body --silent --show-error --retry 2 --retry-delay 10 --max-time 180 \
+            -X POST "https://app.tryemptychair.com/internal/instagram/autopilot/publish/$POST_ID" \
+            -H "Authorization: Bearer $AUTOPILOT_TOKEN"
