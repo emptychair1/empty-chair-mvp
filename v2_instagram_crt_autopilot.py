@@ -39,13 +39,20 @@ POST_TABLE = """CREATE TABLE IF NOT EXISTS growth_crt_posts (
     UNIQUE(local_day, slot)
 )"""
 
-# Three feed slots every day. The workflow checks hourly; these are Eastern local hours,
-# so DST is handled by the app rather than hard-coded UTC cron math.
 SLOTS = {
     "morning": 9,
     "afternoon": 14,
     "evening": 19,
 }
+
+INTRO_MESSAGES = [
+    "CANCELLATION -> OPENING\nOPENING -> FILLED\n\n7-DAY FREE TRIAL\nNO CARD REQUIRED",
+    "NO NEW SOFTWARE.\nNO NEW WORKFLOW.\nHEADLESS.\n\n7-DAY FREE TRIAL\nNO CARD REQUIRED",
+    "RECOVER ONE SPOT.\nIT CAN PAY FOR\nEMPTY CHAIR.\n\n7-DAY FREE TRIAL\nNO CARD REQUIRED",
+    "A CANCELLATION\nDOESN'T HAVE TO\nSTAY EMPTY.\n\n7-DAY FREE TRIAL\nNO CARD REQUIRED",
+    "CALENDAR CHANGES.\nEMPTY CHAIR REACTS.\nTHE GAP GETS FILLED.\n\n7-DAY FREE TRIAL\nNO CARD REQUIRED",
+    "WHEN THEY CANCEL,\nWE HELP FILL\nTHE CHAIR.\n\n7-DAY FREE TRIAL\nNO CARD REQUIRED",
+]
 
 MESSAGES = [
     "A CANCELLATION\nDOESN'T HAVE TO\nSTAY EMPTY.\n\n7-DAY FREE TRIAL",
@@ -106,11 +113,14 @@ def _pick(values: list[str], day: str, slot: str, salt: str) -> str:
     return values[int.from_bytes(digest[:4], "big") % len(values)]
 
 
-def _due_slot(now_utc: datetime | None = None) -> tuple[str | None, str]:
+def _local_day(now_utc: datetime | None = None) -> tuple[datetime, str]:
     local = (now_utc or datetime.now(timezone.utc)).astimezone(EASTERN)
-    day = local.date().isoformat()
+    return local, local.date().isoformat()
+
+
+def _due_slot(now_utc: datetime | None = None) -> tuple[str | None, str]:
+    local, day = _local_day(now_utc)
     for slot, hour in SLOTS.items():
-        # One-hour due window. Hourly workflow jitter is safe and publishing is idempotent.
         if local.hour == hour:
             return slot, day
     return None, day
@@ -121,10 +131,36 @@ def _caption(message: str) -> str:
     return (
         f"{readable}\n\n"
         "Empty Chair recovers canceled tattoo appointments in the background. "
-        "No new workflow to manage. One recovered spot can cover the cost.\n\n"
-        "7-DAY FREE TRIAL // LINK IN BIO\n\n"
+        "No new software to babysit. No new workflow to manage. One recovered spot can cover the cost.\n\n"
+        "7-DAY FREE TRIAL // NO CARD REQUIRED // LINK IN BIO\n\n"
         f"{HASHTAGS}"
     )
+
+
+def _intro_published_count() -> int:
+    row = core.one("SELECT COUNT(*) AS n FROM growth_crt_posts WHERE slot LIKE 'intro-%' AND status='PUBLISHED'") or {"n": 0}
+    return int(row.get("n") or 0)
+
+
+def _next_intro(day: str) -> dict | None:
+    # Finish any already-prepared intro first so retries never skip or duplicate a post.
+    pending = core.one(
+        "SELECT * FROM growth_crt_posts WHERE slot LIKE 'intro-%' AND status!='PUBLISHED' ORDER BY slot ASC LIMIT 1"
+    )
+    if pending:
+        return pending
+    index = _intro_published_count()
+    if index >= len(INTRO_MESSAGES):
+        return None
+    slot = f"intro-{index + 1:02d}"
+    message = INTRO_MESSAGES[index]
+    ornament = ORNAMENTS[index % len(ORNAMENTS)]
+    post_id = "crt_intro_" + hashlib.sha256(slot.encode()).hexdigest()[:16]
+    core.run(
+        "INSERT INTO growth_crt_posts(id,local_day,slot,message,ornament,caption,status,created_at) VALUES(?,?,?,?,?,?,?,?)",
+        (post_id, day, slot, message, ornament, _caption(message), "PREPARED", _now()),
+    )
+    return core.one("SELECT * FROM growth_crt_posts WHERE id=?", (post_id,))
 
 
 def _ensure_post(day: str, slot: str) -> dict:
@@ -158,24 +194,37 @@ body:after{{content:'';position:absolute;inset:0;pointer-events:none;background:
 </style></head><body><div class=\"screen\"><div class=\"brand\">EMPTY CHAIR // RECOVERY SYSTEM</div><div class=\"orn\">{ornament}</div><div class=\"msg\">{message}</div><div class=\"orn\">{ornament}</div><div class=\"footer\">TRYEMPTYCHAIR.COM</div></div></body></html>"""
 
 
-@core.app.post("/internal/instagram/autopilot/prepare")
-def prepare(request: Request):
-    _auth(request)
-    slot, day = _due_slot()
-    if not slot:
-        return {"ok": True, "due": False, "day": day}
-    post = _ensure_post(day, slot)
+def _prepared_payload(post: dict, *, bootstrap: bool) -> dict:
     if str(post.get("status")) == "PUBLISHED":
-        return {"ok": True, "due": True, "published": True, "slot": slot, "id": post["id"]}
+        return {"ok": True, "due": True, "published": True, "slot": post["slot"], "id": post["id"], "bootstrap": bootstrap}
     return {
         "ok": True,
         "due": True,
         "published": False,
-        "slot": slot,
+        "slot": post["slot"],
         "id": post["id"],
+        "bootstrap": bootstrap,
         "render_url": f"{BASE_URL}/instagram/autopilot/render/{post['id']}",
         "image_url": f"{BASE_URL}/instagram/autopilot/image/{post['id']}.jpg",
     }
+
+
+@core.app.post("/internal/instagram/autopilot/prepare")
+def prepare(request: Request):
+    _auth(request)
+    _, day = _local_day()
+
+    # Bootstrap the profile first. Until all six intro posts are live, every hourly
+    # autopilot run publishes the next intro post. Then the system automatically
+    # falls back to the normal 3-post/day schedule.
+    intro = _next_intro(day)
+    if intro:
+        return _prepared_payload(intro, bootstrap=True)
+
+    slot, day = _due_slot()
+    if not slot:
+        return {"ok": True, "due": False, "day": day, "bootstrap": False}
+    return _prepared_payload(_ensure_post(day, slot), bootstrap=False)
 
 
 @core.app.get("/instagram/autopilot/render/{post_id}", response_class=HTMLResponse)
@@ -240,4 +289,4 @@ def publish(post_id: str, request: Request):
 
 
 _init()
-print("Empty Chair CRT Instagram autopilot loaded // 3 feed posts/day", flush=True)
+print("Empty Chair CRT Instagram autopilot loaded // 6 intro posts then 3 feed posts/day", flush=True)
