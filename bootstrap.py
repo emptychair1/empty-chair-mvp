@@ -53,9 +53,10 @@ import v2_hunter_outreach  # noqa: F401,E402
 import v2_hunter_outreach_primary  # noqa: F401,E402
 import v2_hunter_outreach_runtime_fix  # noqa: F401,E402
 import v2_hunter_dm_variety  # noqa: F401,E402
+import v2_hunter_reply_opportunity  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-hunter-dm-variety-20260907"
+BUILD_ID = "bootstrap-hunter-reply-opportunity-20260907"
 
 
 @app.middleware("http")
