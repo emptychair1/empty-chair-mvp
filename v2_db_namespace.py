@@ -21,9 +21,8 @@ class V2DB:
             import psycopg2.extras
 
             # Neon production may sit behind transaction pooling. Session-level SET
-            # state is not safe across commits there, so CREATE/SET and the caller's
-            # query intentionally remain in the SAME transaction. The helper that
-            # owns this connection commits only after its actual query completes.
+            # state is not safe across commits there, so create the namespace first;
+            # execute() reapplies SET LOCAL at the start of every transaction.
             self.raw = psycopg2.connect(core.DATABASE_URL)
             self.dict_cursor = psycopg2.extras.RealDictCursor
             cur = self.raw.cursor()
@@ -37,6 +36,10 @@ class V2DB:
     def execute(self, q, params=()):
         if self.pg:
             cur = self.raw.cursor(cursor_factory=self.dict_cursor)
+            # SET LOCAL is transaction-scoped. Any commit ends it, so every new query
+            # must reapply the v2 namespace before touching an unqualified table name.
+            # This keeps Neon transaction pooling from silently falling back to public.
+            cur.execute(f"SET LOCAL search_path TO {PG_SCHEMA}")
             q = q.replace("?", "%s")
         else:
             cur = self.raw.cursor()
