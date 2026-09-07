@@ -1,0 +1,94 @@
+name: Hunter Fresh Contact Bucket
+
+on:
+  push:
+    paths:
+      - 'hunter/fresh_contact_bucket.py'
+      - 'hunter/test_fresh_contact_bucket.py'
+      - '.github/workflows/hunter-fresh-contact.yml'
+  pull_request:
+    paths:
+      - 'hunter/fresh_contact_bucket.py'
+      - 'hunter/test_fresh_contact_bucket.py'
+      - '.github/workflows/hunter-fresh-contact.yml'
+  schedule:
+    - cron: '15,45 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hunter-fresh-contact-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: hunter/requirements.txt
+
+      - name: Install Hunter dependencies
+        run: pip install -r hunter/requirements.txt
+
+      - name: Test fresh contact bucket
+        working-directory: hunter
+        run: pytest -q test_fresh_contact_bucket.py
+
+      - name: Compile fresh contact bucket
+        run: python -m py_compile hunter/fresh_contact_bucket.py
+
+      - name: Fill fresh contact bucket
+        run: python hunter/fresh_contact_bucket.py --out hunter-fresh-contact-bucket.json
+
+      - name: Enforce bucket freshness and volume
+        run: |
+          python - <<'PY'
+          import json, sys
+          p = json.load(open('hunter-fresh-contact-bucket.json'))
+          m = p.get('metrics', {})
+          artists = p.get('artists', [])
+          stale = [a for a in artists if not a.get('fresh_activity')]
+          print(f"Hunter fresh bucket: {m.get('unique_artists', 0)} unique artists; {m.get('contactable_artists', 0)} contactable; {m.get('direct_contact_artists', 0)} direct-contact")
+          if stale:
+              print(f"FAIL: {len(stale)} stale artists escaped the freshness gate")
+              sys.exit(1)
+          if m.get('unique_artists', 0) < 100:
+              print('WARN: bucket is below the 100-artist live target; discovery needs more fresh roster sources')
+          PY
+
+      - name: Publish bucket summary
+        if: always()
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          print('## Hunter fresh contact bucket')
+          if not os.path.exists('hunter-fresh-contact-bucket.json'):
+              print('- bucket was not produced')
+          else:
+              p = json.load(open('hunter-fresh-contact-bucket.json'))
+              m = p.get('metrics', {})
+              print(f"- unique active artists: {m.get('unique_artists', 0)}")
+              print(f"- contactable artists: {m.get('contactable_artists', 0)}")
+              print(f"- direct public email/booking contacts: {m.get('direct_contact_artists', 0)}")
+              print('- stale policy: event/roster activity expires 7 days after event end')
+              print('- pain policy: activity never substitutes for <=72h Empty Chair pain evidence')
+              for source in p.get('source_metrics', []):
+                  print(f"- {source.get('source')}: {source.get('status')} / {source.get('artists', 0)} artists")
+          PY
+
+      - name: Upload fresh contact bucket
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hunter-fresh-contact-${{ github.run_id }}
+          path: hunter-fresh-contact-bucket.json
+          if-no-files-found: warn
+          retention-days: 14
