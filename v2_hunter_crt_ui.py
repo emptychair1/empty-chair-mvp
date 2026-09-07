@@ -24,7 +24,7 @@ HUNTER_CSS = """
 .hunter-metrics { margin:18px 0 24px; }
 .hunter-metrics .status span:last-child { color:var(--bright); }
 .hunter-deck { position:relative; min-height:430px; overflow:hidden; touch-action:pan-y; }
-.hunter-target { position:relative; border:1px solid var(--off); border-radius:18px; padding:28px 22px 22px; margin-top:8px; background:rgba(11,9,5,.95); box-shadow:0 0 30px rgba(255,176,0,.06); transform-origin:center 120%; will-change:transform,opacity; user-select:none; -webkit-user-select:none; }
+.hunter-target { position:relative; border:1px solid var(--off); border-radius:18px; padding:28px 22px 22px; margin-top:8px; background:rgba(11,9,5,.95); box-shadow:0 0 30px rgba(255,176,0,.06); transform-origin:center 120%; will-change:transform,opacity; user-select:none; -webkit-user-select:none; touch-action:pan-y; }
 .hunter-target.dragging { transition:none; }
 .hunter-target.settling { transition:transform .18s ease, opacity .18s ease; }
 .hunter-eyebrow { color:var(--amber); font-size:11px; letter-spacing:.14em; margin-bottom:16px; }
@@ -107,7 +107,7 @@ def operator_console_crt(request: Request):
             {identity}
             <h1>@{username}</h1>
             <p class='hunter-context'>{context or 'FRESH TATTOO ARTIST'}</p>
-            <div class='hunter-swipe-label' id='hunter-swipe-label'>SWIPE RIGHT TO FOLLOW\nSWIPE LEFT TO SKIP</div>
+            <div class='hunter-swipe-label' id='hunter-swipe-label'>SWIPE RIGHT TO FOLLOW<br>SWIPE LEFT TO SKIP</div>
             <div class='hunter-actions'>
               <button type='button' class='hunter-skip' id='hunter-skip'>← SKIP</button>
               <button type='button' class='hunter-follow' id='hunter-follow'>FOLLOW →</button>
@@ -116,41 +116,43 @@ def operator_console_crt(request: Request):
           </section>
         </div>
         """
-        script = """
+        script = r"""
 <script>
 (() => {
   const card = document.getElementById('hunter-card');
   const label = document.getElementById('hunter-swipe-label');
-  if (!card) return;
+  if (!card || !label) return;
   let startX = 0, startY = 0, dx = 0, active = false, committing = false;
-  const threshold = 105;
+  const threshold = 90;
+  const idleLabel = 'SWIPE RIGHT TO FOLLOW\nSWIPE LEFT TO SKIP';
 
   function paint(x) {
     dx = x;
     const rotate = Math.max(-10, Math.min(10, x / 18));
     card.style.transform = `translateX(${x}px) rotate(${rotate}deg)`;
-    if (x > 65) label.textContent = 'FOLLOW →';
-    else if (x < -65) label.textContent = '← SKIP';
-    else label.textContent = 'SWIPE RIGHT TO FOLLOW\nSWIPE LEFT TO SKIP';
+    if (x > 55) label.textContent = 'FOLLOW →';
+    else if (x < -55) label.textContent = '← SKIP';
+    else label.textContent = idleLabel;
   }
 
   function reset() {
     card.classList.remove('dragging');
     card.classList.add('settling');
     card.style.transform = 'translateX(0) rotate(0deg)';
-    label.textContent = 'SWIPE RIGHT TO FOLLOW\nSWIPE LEFT TO SKIP';
+    label.textContent = idleLabel;
     setTimeout(() => card.classList.remove('settling'), 190);
   }
 
-  function record(decision) {
+  async function record(decision) {
     const form = new FormData();
     form.append('decision', decision);
-    return fetch(card.dataset.decisionUrl, {
+    const response = await fetch(card.dataset.decisionUrl, {
       method: 'POST',
       body: form,
       credentials: 'same-origin',
-      keepalive: true
+      redirect: 'follow'
     });
+    if (!response.ok) throw new Error(`Hunter decision failed: ${response.status}`);
   }
 
   function openInstagram() {
@@ -158,10 +160,14 @@ def operator_console_crt(request: Request):
     const webUrl = card.dataset.instagramWeb;
     let hidden = false;
     const markHidden = () => { hidden = true; };
-    document.addEventListener('visibilitychange', () => { if (document.hidden) markHidden(); }, { once: true });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) markHidden();
+    }, { once: true });
     window.addEventListener('pagehide', markHidden, { once: true });
-    window.location.href = nativeUrl;
-    setTimeout(() => { if (!hidden && document.visibilityState === 'visible') window.location.href = webUrl; }, 900);
+    window.location.assign(nativeUrl);
+    setTimeout(() => {
+      if (!hidden && document.visibilityState === 'visible') window.location.assign(webUrl);
+    }, 850);
   }
 
   function commit(decision) {
@@ -172,27 +178,42 @@ def operator_console_crt(request: Request):
     card.classList.add('settling');
     card.style.transform = `translateX(${follow ? 560 : -560}px) rotate(${follow ? 14 : -14}deg)`;
     card.style.opacity = '0';
-    record(decision).catch(() => {});
+
     if (follow) {
+      record(decision).catch(() => {});
       openInstagram();
-    } else {
-      setTimeout(() => window.location.reload(), 170);
+      return;
     }
+
+    record(decision)
+      .then(() => window.location.reload())
+      .catch(() => {
+        committing = false;
+        card.style.opacity = '1';
+        reset();
+        label.textContent = 'TRY AGAIN';
+      });
   }
 
   card.addEventListener('pointerdown', (e) => {
     if (committing) return;
-    active = true; startX = e.clientX; startY = e.clientY; dx = 0;
+    active = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    dx = 0;
     card.classList.add('dragging');
     try { card.setPointerCapture(e.pointerId); } catch (_) {}
   });
+
   card.addEventListener('pointermove', (e) => {
     if (!active || committing) return;
     const x = e.clientX - startX;
     const y = e.clientY - startY;
     if (Math.abs(y) > Math.abs(x) * 1.2) return;
+    if (Math.abs(x) > 8) e.preventDefault();
     paint(x);
-  });
+  }, { passive: false });
+
   card.addEventListener('pointerup', () => {
     if (!active || committing) return;
     active = false;
@@ -200,10 +221,17 @@ def operator_console_crt(request: Request):
     else if (dx < -threshold) commit('SKIPPED');
     else reset();
   });
-  card.addEventListener('pointercancel', () => { active = false; if (!committing) reset(); });
-  document.getElementById('hunter-follow')?.addEventListener('click', () => commit('HANDLED'));
-  document.getElementById('hunter-skip')?.addEventListener('click', () => commit('SKIPPED'));
-  window.addEventListener('pageshow', () => { if (committing) window.location.reload(); });
+
+  card.addEventListener('pointercancel', () => {
+    active = false;
+    if (!committing) reset();
+  });
+
+  document.getElementById('hunter-follow').addEventListener('click', () => commit('HANDLED'));
+  document.getElementById('hunter-skip').addEventListener('click', () => commit('SKIPPED'));
+  window.addEventListener('pageshow', () => {
+    if (committing) window.location.reload();
+  });
 })();
 </script>
 """
@@ -223,9 +251,8 @@ def operator_console_crt(request: Request):
     </div>
     {metrics}
     {target}
-    {script}
     """
-    return core.page("Hunter", body, head=HUNTER_CSS)
+    return core.page("Hunter", body, script=script, head=HUNTER_CSS)
 
 
 print("Hunter CRT UI loaded // web swipe cards", flush=True)
