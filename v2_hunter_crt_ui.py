@@ -44,6 +44,36 @@ HUNTER_CSS = """
 </style>
 """
 
+HUNTER_SCRIPT = """
+<script>
+function hunterOpenInstagram(link) {
+  const nativeUrl = link.dataset.native;
+  const fallbackUrl = link.href;
+  let fallbackTimer = null;
+  let leftPage = false;
+
+  const cancelFallback = () => {
+    leftPage = true;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+  };
+
+  const onVisibility = () => {
+    if (document.hidden) cancelFallback();
+  };
+
+  document.addEventListener('visibilitychange', onVisibility, {once:true});
+  window.addEventListener('pagehide', cancelFallback, {once:true});
+
+  fallbackTimer = setTimeout(() => {
+    if (!leftPage && !document.hidden) window.location.href = fallbackUrl;
+  }, 1100);
+
+  window.location.href = nativeUrl;
+  return false;
+}
+</script>
+"""
+
 
 @core.app.get("/owner/hunter", response_class=HTMLResponse)
 def operator_console_crt(request: Request):
@@ -92,7 +122,9 @@ def operator_console_crt(request: Request):
         name = hunter.esc(current.get("name") or "")
         market = hunter.esc(current.get("market") or "")
         source = hunter.esc(current.get("activity_source") or "")
-        instagram_profile = f"https://www.instagram.com/_u/{quote(username_raw, safe='._')}/"
+        encoded_username = quote(username_raw, safe="._")
+        instagram_profile = f"https://www.instagram.com/{encoded_username}/"
+        instagram_native = f"instagram://user?username={encoded_username}"
         path_id = quote(account_id, safe="")
         identity = f"<div class='hunter-name'>{name}</div>" if name and name.lower() != username.lower() else ""
         context = " // ".join(bit for bit in (market, source) if bit)
@@ -102,7 +134,7 @@ def operator_console_crt(request: Request):
           {identity}
           <h1>@{username}</h1>
           <p class='hunter-context'>{context or 'FRESH TATTOO ARTIST'}</p>
-          <a class='button hunter-open' href='{hunter.esc(instagram_profile)}'>OPEN INSTAGRAM</a>
+          <a class='button hunter-open' href='{hunter.esc(instagram_profile)}' data-native='{hunter.esc(instagram_native)}' onclick='return hunterOpenInstagram(this)'>OPEN INSTAGRAM</a>
           <div class='hunter-actions'>
             <form method='post' action='/owner/hunter/{path_id}/decision'>
               <input type='hidden' name='decision' value='HANDLED'>
@@ -133,7 +165,7 @@ def operator_console_crt(request: Request):
     {metrics}
     {target}
     """
-    return core.page("Hunter", body, head=HUNTER_CSS)
+    return core.page("Hunter", body, head=HUNTER_CSS, script=HUNTER_SCRIPT)
 
 
 print("Hunter CRT UI loaded // shared Empty Chair shell", flush=True)
