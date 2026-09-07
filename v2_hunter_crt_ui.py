@@ -122,9 +122,20 @@ def operator_console_crt(request: Request):
   const card = document.getElementById('hunter-card');
   const label = document.getElementById('hunter-swipe-label');
   if (!card || !label) return;
+
+  const ADVANCE_KEY = 'ec_hunter_advance_on_return';
   let startX = 0, startY = 0, dx = 0, active = false, committing = false;
   const threshold = 90;
   const idleLabel = 'SWIPE RIGHT TO FOLLOW\nSWIPE LEFT TO SKIP';
+
+  function advanceIfNeeded() {
+    if (sessionStorage.getItem(ADVANCE_KEY) !== '1') return false;
+    sessionStorage.removeItem(ADVANCE_KEY);
+    window.location.replace('/owner/hunter?fresh=' + Date.now());
+    return true;
+  }
+
+  if (advanceIfNeeded()) return;
 
   function paint(x) {
     dx = x;
@@ -139,6 +150,7 @@ def operator_console_crt(request: Request):
     card.classList.remove('dragging');
     card.classList.add('settling');
     card.style.transform = 'translateX(0) rotate(0deg)';
+    card.style.opacity = '1';
     label.textContent = idleLabel;
     setTimeout(() => card.classList.remove('settling'), 190);
   }
@@ -150,9 +162,20 @@ def operator_console_crt(request: Request):
       method: 'POST',
       body: form,
       credentials: 'same-origin',
-      redirect: 'follow'
+      redirect: 'follow',
+      cache: 'no-store'
     });
     if (!response.ok) throw new Error(`Hunter decision failed: ${response.status}`);
+  }
+
+  function beaconRecord(decision) {
+    const body = new URLSearchParams();
+    body.set('decision', decision);
+    try {
+      return navigator.sendBeacon(card.dataset.decisionUrl, body);
+    } catch (_) {
+      return false;
+    }
   }
 
   function openInstagram() {
@@ -170,33 +193,42 @@ def operator_console_crt(request: Request):
     }, 850);
   }
 
-  function commit(decision) {
-    if (committing) return;
-    committing = true;
-    const follow = decision === 'HANDLED';
+  function animateOut(follow) {
     card.classList.remove('dragging');
     card.classList.add('settling');
     card.style.transform = `translateX(${follow ? 560 : -560}px) rotate(${follow ? 14 : -14}deg)`;
     card.style.opacity = '0';
+  }
+
+  function fail() {
+    committing = false;
+    reset();
+    label.textContent = 'TRY AGAIN';
+  }
+
+  function commit(decision) {
+    if (committing) return;
+    committing = true;
+    const follow = decision === 'HANDLED';
+    animateOut(follow);
 
     if (follow) {
-      record(decision).catch(() => {});
+      sessionStorage.setItem(ADVANCE_KEY, '1');
+      const queued = beaconRecord(decision);
+      if (!queued) {
+        record(decision).catch(() => {});
+      }
       openInstagram();
       return;
     }
 
     record(decision)
-      .then(() => window.location.reload())
-      .catch(() => {
-        committing = false;
-        card.style.opacity = '1';
-        reset();
-        label.textContent = 'TRY AGAIN';
-      });
+      .then(() => window.location.replace('/owner/hunter?fresh=' + Date.now()))
+      .catch(fail);
   }
 
   card.addEventListener('pointerdown', (e) => {
-    if (committing) return;
+    if (committing || e.target.closest('button')) return;
     active = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -229,8 +261,12 @@ def operator_console_crt(request: Request):
 
   document.getElementById('hunter-follow').addEventListener('click', () => commit('HANDLED'));
   document.getElementById('hunter-skip').addEventListener('click', () => commit('SKIPPED'));
+
   window.addEventListener('pageshow', () => {
-    if (committing) window.location.reload();
+    advanceIfNeeded();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) advanceIfNeeded();
   });
 })();
 </script>
