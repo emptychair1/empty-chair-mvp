@@ -32,7 +32,7 @@ POST_TABLE = """CREATE TABLE IF NOT EXISTS growth_crt_posts (
     ornament TEXT NOT NULL,
     caption TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'PREPARED',
-    image_bytes BLOB,
+    image_bytes BYTEA,
     media_id TEXT,
     created_at TEXT NOT NULL,
     published_at TEXT,
