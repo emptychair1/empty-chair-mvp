@@ -10,6 +10,8 @@ on:
       - 'hunter/instagram_hashtag_source.py'
       - 'hunter/social_pain_sweep.py'
       - 'hunter/test_social_pain_sweep.py'
+      - 'v2_hunter_operator.py'
+      - 'bootstrap.py'
       - '.github/workflows/hunter-fresh-contact.yml'
   pull_request:
     paths:
@@ -20,6 +22,8 @@ on:
       - 'hunter/instagram_hashtag_source.py'
       - 'hunter/social_pain_sweep.py'
       - 'hunter/test_social_pain_sweep.py'
+      - 'v2_hunter_operator.py'
+      - 'bootstrap.py'
       - '.github/workflows/hunter-fresh-contact.yml'
   schedule:
     - cron: '15,45 * * * *'
@@ -55,8 +59,8 @@ jobs:
         working-directory: hunter
         run: pytest -q test_fresh_contact_bucket.py test_fresh_pain_verifier.py test_social_pain_sweep.py
 
-      - name: Compile fresh lead modules
-        run: python -m py_compile hunter/fresh_contact_bucket.py hunter/fresh_pain_verifier.py hunter/instagram_hashtag_source.py hunter/social_pain_sweep.py
+      - name: Compile fresh lead modules and simple queue
+        run: python -m py_compile hunter/fresh_contact_bucket.py hunter/fresh_pain_verifier.py hunter/instagram_hashtag_source.py hunter/social_pain_sweep.py v2_hunter_operator.py bootstrap.py
 
       - name: Install Chromium for public post author resolution
         run: python -m playwright install --with-deps chromium
@@ -76,6 +80,23 @@ jobs:
               print(f"FAIL: {len(stale)} stale artists escaped the freshness gate")
               sys.exit(1)
           PY
+
+      - name: Sync fresh artists into simple Hunter queue
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          HUNTER_OPERATOR_INGEST_URL: ${{ secrets.HUNTER_OPERATOR_INGEST_URL }}
+          HUNTER_OPERATOR_INGEST_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+        run: |
+          if [ -z "$HUNTER_OPERATOR_INGEST_URL" ] || [ -z "$HUNTER_OPERATOR_INGEST_TOKEN" ]; then
+            echo "Hunter queue sync not configured; fresh bucket remains an artifact."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error \
+            --max-time 30 \
+            -X POST "$HUNTER_OPERATOR_INGEST_URL" \
+            -H "Authorization: Bearer $HUNTER_OPERATOR_INGEST_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @hunter-fresh-contact-bucket.json
 
       - name: Collect direct <=72h Instagram pain posts
         run: |
