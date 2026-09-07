@@ -357,7 +357,8 @@ def operator_console(request: Request):
         name = esc(current.get("name") or "")
         market = esc(current.get("market") or "")
         source = esc(current.get("activity_source") or "")
-        profile = safe_link(current.get("profile_url")) or f"https://www.instagram.com/{username_raw}/"
+        web_profile = safe_link(current.get("profile_url")) or f"https://www.instagram.com/{username_raw}/"
+        native_profile = f"instagram://user?username={quote(username_raw, safe='._')}"
         path_id = quote(account_id, safe="")
         identity = f"<div class='name'>{name}</div>" if name and name.lower() != username.lower() else ""
         context_bits = [bit for bit in (market, source) if bit]
@@ -368,7 +369,7 @@ def operator_console(request: Request):
           {identity}
           <h1>@{username}</h1>
           <p class='context'>{context or 'Fresh tattoo artist'}</p>
-          <a class='instagram' href='{esc(profile)}' target='_blank' rel='noopener noreferrer'>OPEN INSTAGRAM</a>
+          <a class='instagram' href='{esc(native_profile)}' data-fallback='{esc(web_profile)}' onclick="var a=this;setTimeout(function(){{if(!document.hidden)window.location.href=a.dataset.fallback}},900)">OPEN INSTAGRAM</a>
           <div class='actions'>
             <form method='post' action='/owner/hunter/{path_id}/decision'>
               <input type='hidden' name='decision' value='HANDLED'>
