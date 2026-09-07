@@ -50,6 +50,7 @@ import v2_hunter_operator_transaction_fix  # noqa: F401,E402
 import v2_hunter_operator_phone_auth  # noqa: F401,E402
 import v2_hunter_crt_ui  # noqa: F401,E402
 import v2_hunter_auto_engage  # noqa: F401,E402
+import v2_hunter_auto_engage_cap  # noqa: F401,E402
 import v2_hunter_outreach  # noqa: F401,E402
 import v2_hunter_outreach_primary  # noqa: F401,E402
 import v2_hunter_outreach_runtime_fix  # noqa: F401,E402
@@ -58,7 +59,7 @@ import v2_hunter_reply_opportunity  # noqa: F401,E402
 import v2_hunter_instagram_reply_sync  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-hunter-auto-engage-20260907"
+BUILD_ID = "bootstrap-hunter-auto-engage-cap100-20260907"
 
 
 @app.middleware("http")
