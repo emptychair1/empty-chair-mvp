@@ -16,6 +16,8 @@ concurrency:
   group: instagram-crt-autopilot
   cancel-in-progress: false
 
+# trigger: fresh intro batch 2026-09-06
+
 jobs:
   publish:
     runs-on: ubuntu-latest
