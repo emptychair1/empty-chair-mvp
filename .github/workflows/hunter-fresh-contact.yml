@@ -7,6 +7,8 @@ on:
       - 'hunter/test_fresh_contact_bucket.py'
       - 'hunter/fresh_pain_verifier.py'
       - 'hunter/test_fresh_pain_verifier.py'
+      - 'hunter/indexed_fresh_pain.py'
+      - 'hunter/test_indexed_fresh_pain.py'
       - '.github/workflows/hunter-fresh-contact.yml'
   pull_request:
     paths:
@@ -14,6 +16,8 @@ on:
       - 'hunter/test_fresh_contact_bucket.py'
       - 'hunter/fresh_pain_verifier.py'
       - 'hunter/test_fresh_pain_verifier.py'
+      - 'hunter/indexed_fresh_pain.py'
+      - 'hunter/test_indexed_fresh_pain.py'
       - '.github/workflows/hunter-fresh-contact.yml'
   schedule:
     - cron: '15,45 * * * *'
@@ -29,7 +33,7 @@ concurrency:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -44,10 +48,10 @@ jobs:
 
       - name: Test fresh contact and pain pipeline
         working-directory: hunter
-        run: pytest -q test_fresh_contact_bucket.py test_fresh_pain_verifier.py
+        run: pytest -q test_fresh_contact_bucket.py test_fresh_pain_verifier.py test_indexed_fresh_pain.py
 
       - name: Compile fresh lead modules
-        run: python -m py_compile hunter/fresh_contact_bucket.py hunter/fresh_pain_verifier.py
+        run: python -m py_compile hunter/fresh_contact_bucket.py hunter/fresh_pain_verifier.py hunter/indexed_fresh_pain.py
 
       - name: Fill fresh contact bucket
         run: python hunter/fresh_contact_bucket.py --out hunter-fresh-contact-bucket.json
@@ -65,7 +69,7 @@ jobs:
               print(f"FAIL: {len(stale)} stale artists escaped the freshness gate")
               sys.exit(1)
           if m.get('unique_artists', 0) < 100:
-              print('WARN: bucket is below the 100-artist live target; discovery needs more fresh roster sources')
+              print('WARN: bucket is below the 100-artist live target')
           PY
 
       - name: Verify <=72h pain on public business pages
@@ -76,19 +80,31 @@ jobs:
             --workers 12 \
             --timeout 10
 
-      - name: Measure 100-fresh-lead target
+      - name: Search indexed public web for <=72h pain
+        run: |
+          python hunter/indexed_fresh_pain.py \
+            --bucket hunter-fresh-contact-bucket.json \
+            --out hunter-indexed-fresh-pain.json \
+            --workers 16 \
+            --timeout 8
+
+      - name: Measure combined 100-fresh-lead target
         run: |
           python - <<'PY'
           import json
-          p = json.load(open('hunter-fresh-pain-leads.json'))
-          m = p.get('metrics', {})
-          count = int(m.get('verified_fresh_pain_leads', 0))
-          target = int(m.get('target_fresh_leads', 100))
-          print(f"Hunter fresh pain leads: {count}/{target}; direct-contact={m.get('verified_direct_contact_leads', 0)}")
+          direct = json.load(open('hunter-fresh-pain-leads.json'))
+          indexed = json.load(open('hunter-indexed-fresh-pain.json'))
+          usernames = {str(x.get('username') or '').lower() for x in direct.get('leads', []) if x.get('username')}
+          usernames |= {str(x.get('username') or '').lower() for x in indexed.get('leads', []) if x.get('username')}
+          count = len(usernames)
+          target = 100
+          print(f"Hunter combined verified fresh pain leads: {count}/{target}")
+          print(f"- direct page verifier: {direct.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
+          print(f"- indexed public web: {indexed.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
           if count < target:
-              print(f"FAIL TARGET (non-blocking): Hunter is short by {target-count} verified fresh pain leads. Do not call the lead goal achieved.")
+              print(f"FAIL TARGET (non-blocking): short by {target-count}. Do not call the goal achieved.")
           else:
-              print('PASS TARGET: Hunter produced at least 100 verified fresh pain leads.')
+              print('PASS TARGET: Hunter produced at least 100 unique verified fresh pain leads.')
           PY
 
       - name: Publish bucket summary
@@ -98,18 +114,18 @@ jobs:
           import json, os
           print('## Hunter fresh lead funnel')
           if os.path.exists('hunter-fresh-contact-bucket.json'):
-              p = json.load(open('hunter-fresh-contact-bucket.json'))
-              m = p.get('metrics', {})
+              m = json.load(open('hunter-fresh-contact-bucket.json')).get('metrics', {})
               print(f"- unique active artists: {m.get('unique_artists', 0)}")
               print(f"- contactable artists: {m.get('contactable_artists', 0)}")
               print(f"- direct public email/booking contacts: {m.get('direct_contact_artists', 0)}")
-              print('- stale activity policy: event/roster activity expires 7 days after event end')
-          if os.path.exists('hunter-fresh-pain-leads.json'):
-              p = json.load(open('hunter-fresh-pain-leads.json'))
-              m = p.get('metrics', {})
-              print(f"- verified <=72h pain leads: {m.get('verified_fresh_pain_leads', 0)} / target {m.get('target_fresh_leads', 100)}")
-              print(f"- verified pain leads with direct public email/booking contact: {m.get('verified_direct_contact_leads', 0)}")
-              print('- no timestamp = not counted as fresh pain')
+          direct = json.load(open('hunter-fresh-pain-leads.json')) if os.path.exists('hunter-fresh-pain-leads.json') else {}
+          indexed = json.load(open('hunter-indexed-fresh-pain.json')) if os.path.exists('hunter-indexed-fresh-pain.json') else {}
+          print(f"- direct-page <=72h pain: {direct.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
+          print(f"- indexed-web <=72h pain: {indexed.get('metrics', {}).get('verified_fresh_pain_leads', 0)}")
+          users = {str(x.get('username') or '').lower() for x in direct.get('leads', []) if x.get('username')}
+          users |= {str(x.get('username') or '').lower() for x in indexed.get('leads', []) if x.get('username')}
+          print(f"- combined unique verified <=72h pain leads: {len(users)} / 100")
+          print('- no timestamp or identity match = not counted')
           PY
 
       - name: Upload fresh lead artifacts
@@ -120,5 +136,6 @@ jobs:
           path: |
             hunter-fresh-contact-bucket.json
             hunter-fresh-pain-leads.json
+            hunter-indexed-fresh-pain.json
           if-no-files-found: warn
           retention-days: 14
