@@ -6,13 +6,14 @@ No legacy product code. This module only adds install/update behavior and keeps 
 from __future__ import annotations
 
 from fastapi import Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 import v2_app as core
 
 app = core.app
 
-PWA_VERSION = "2.0.2"
+PWA_VERSION = "2.0.3"
+APPLE_TOUCH_ICON = "static/apple-touch-icon.png"
 
 
 @app.middleware("http")
@@ -20,7 +21,7 @@ async def pwa_headers(request: Request, call_next):
     """Make installed copies update aggressively instead of hanging onto stale 1.x UI."""
     response = await call_next(request)
     path = request.url.path
-    if path in {"/", "/manifest.webmanifest", "/sw.js", "/icon.svg", "/install"} or path.startswith("/setup") or path.startswith("/o/"):
+    if path in {"/", "/manifest.webmanifest", "/sw.js", "/icon.svg", "/apple-touch-icon.png", "/install"} or path.startswith("/setup") or path.startswith("/o/"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
@@ -38,7 +39,7 @@ async def pwa_overrides(request: Request, call_next):
                 "name": "Empty Chair",
                 "short_name": "Empty Chair",
                 "description": "When they cancel, we fill the chair.",
-                "start_url": "/?pwa=2.0.2",
+                "start_url": "/?pwa=2.0.3",
                 "scope": "/",
                 "display": "standalone",
                 "orientation": "portrait",
@@ -46,7 +47,7 @@ async def pwa_overrides(request: Request, call_next):
                 "theme_color": core.BG,
                 "icons": [
                     {
-                        "src": "/icon.svg?v=2.0.2",
+                        "src": "/icon.svg?v=2.0.3",
                         "sizes": "any",
                         "type": "image/svg+xml",
                         "purpose": "any maskable",
@@ -56,6 +57,9 @@ async def pwa_overrides(request: Request, call_next):
             media_type="application/manifest+json",
             headers={"Cache-Control": "no-store"},
         )
+
+    if path == "/apple-touch-icon.png":
+        return FileResponse(APPLE_TOUCH_ICON, media_type="image/png", headers={"Cache-Control": "no-store"})
 
     if path == "/sw.js":
         js = f'''const VERSION="empty-chair-{PWA_VERSION}";
@@ -107,7 +111,7 @@ def install_page():
   <a class="button" href="/">OPEN EMPTY CHAIR</a>
 </div>
 '''
-    head = '''<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="Empty Chair">'''
+    head = '''<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2.0.3"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="apple-mobile-web-app-title" content="Empty Chair">'''
     script = '''<script>
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{});
@@ -126,10 +130,14 @@ async def register_worker(request: Request, call_next):
     async for chunk in response.body_iterator:
         chunks.append(chunk)
     body = b"".join(chunks)
-    marker = b"</body>"
-    inject = b'''<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{});}</script></body>'''
-    if marker in body:
-        body = body.replace(marker, inject, 1)
+    head_marker = b"</head>"
+    icon_link = b'<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2.0.3"></head>'
+    if head_marker in body and b'apple-touch-icon' not in body:
+        body = body.replace(head_marker, icon_link, 1)
+    body_marker = b"</body>"
+    worker = b'''<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js",{updateViaCache:"none"}).then(r=>r.update()).catch(()=>{});}</script></body>'''
+    if body_marker in body:
+        body = body.replace(body_marker, worker, 1)
     headers = dict(response.headers)
     headers.pop("content-length", None)
     return Response(body, status_code=response.status_code, headers=headers, media_type="text/html")
