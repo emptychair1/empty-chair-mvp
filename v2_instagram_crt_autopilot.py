@@ -136,10 +136,10 @@ def _caption(message: str) -> str:
 def _ensure_intro_posts(day: str) -> list[dict]:
     posts: list[dict] = []
     for index, message in enumerate(INTRO_MESSAGES, start=1):
-        slot = f"intro-{index:02d}"
+        slot = f"intro-live-{index:02d}"
         existing = core.one("SELECT * FROM growth_crt_posts WHERE slot=? LIMIT 1", (slot,))
         if not existing:
-            post_id = "crt_intro_" + hashlib.sha256(slot.encode()).hexdigest()[:16]
+            post_id = "crt_intro_live_" + hashlib.sha256(slot.encode()).hexdigest()[:16]
             core.run(
                 "INSERT INTO growth_crt_posts(id,local_day,slot,message,ornament,caption,status,created_at) VALUES(?,?,?,?,?,?,?,?)",
                 (post_id, day, slot, message, ORNAMENTS[(index - 1) % len(ORNAMENTS)], _caption(message), "PREPARED", _now()),
@@ -279,4 +279,4 @@ def publish(post_id: str, request: Request):
 
 
 _init()
-print("Empty Chair CRT Instagram autopilot loaded // intro batch then 3 feed posts/day", flush=True)
+print("Empty Chair CRT Instagram autopilot loaded // fresh intro-live batch then 3 feed posts/day", flush=True)
