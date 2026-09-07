@@ -4,8 +4,10 @@ from fastapi.responses import RedirectResponse
 import html, os
 import v2_app as core
 import v2_entitlement as entitlement
+from hunter.operator_auth import is_admin_identity, parse_phones
 MANAGE_URL=os.getenv("EMPTY_CHAIR_MANAGE_SUBSCRIPTION_URL","").strip()
 ADMIN_EMAILS={e.strip().lower() for e in os.getenv("EMPTY_CHAIR_ADMIN_EMAILS","").split(",") if e.strip()}
+ADMIN_PHONES=parse_phones(os.getenv("EMPTY_CHAIR_ADMIN_PHONES", ""))
 
 def _artist_or_setup(request):return core.current_artist(request)
 
@@ -25,7 +27,7 @@ def settings_home(request:Request):
     if not artist:return RedirectResponse("/setup")
     acct=_calendar_account(artist["id"]);client_count=_count_clients(artist["id"])
     calendar_label=(acct.get("provider") or "not connected").upper() if acct else "NOT CONNECTED";methods=", ".join(m.upper() for m in (artist.get("payment_methods") or "").split(",") if m) or "NOT SET"
-    founder=str(artist.get("email") or "").strip().lower() in ADMIN_EMAILS
+    founder=is_admin_identity(artist,admin_emails=ADMIN_EMAILS,admin_phones=ADMIN_PHONES)
     hunter='<a class="settings-row" href="/owner/hunter"><span>HUNTER<small>artist acquisition queue</small></span><span>›</span></a>' if founder else ''
     return core.page("Settings",f'''<h1>SETTINGS</h1><p class="dim">Rare adjustments. Empty Chair stays out of your way.</p><div class="settings-list">{hunter}<a class="settings-row" href="/settings/calendar"><span>CALENDAR<small>{html.escape(calendar_label)}</small></span><span>›</span></a><a class="settings-row" href="/settings/deposits"><span>DEPOSITS<small>{core.fmt_money(int(artist.get('deposit_cents') or 0))} default // {core.fmt_money(int(artist.get('average_value_cents') or 0))} avg</small></span><span>›</span></a><a class="settings-row" href="/settings/clients"><span>CLIENTS<small>{client_count} ready</small></span><span>›</span></a><a class="settings-row" href="/settings/payments"><span>PAYMENT METHODS<small>{html.escape(methods)}</small></span><span>›</span></a><a class="settings-row" href="/settings/subscription"><span>SUBSCRIPTION<small>$97 monthly</small></span><span>›</span></a><a class="settings-row" href="/settings/account"><span>ACCOUNT<small>{html.escape(artist.get('name') or '')}</small></span><span>›</span></a></div>''')
 
