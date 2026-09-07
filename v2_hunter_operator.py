@@ -1,11 +1,8 @@
 """Simple Hunter operator queue for the production v2 app.
 
-Hunter's production UI is intentionally one job: hand the operator a fresh tattoo
-artist, open that artist's public Instagram profile, then record Handled or Skip.
-The richer Hunter machinery may continue running behind the scenes, but none of it is
-exposed in the operator experience.
-
-No follow action, DM, outreach, login automation, or private-data access happens here.
+Hunter gives the founder one fresh tattoo artist at a time, opens that artist's public
+Instagram profile, and records Handled or Skip. No follow action, DM, outreach, login
+automation, or private-data access happens here.
 """
 from __future__ import annotations
 
@@ -14,6 +11,9 @@ import hmac
 import html
 import json
 import os
+import time
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from urllib.parse import quote
 
@@ -31,6 +31,9 @@ ADMIN_EMAILS = {
     for email in os.getenv("EMPTY_CHAIR_ADMIN_EMAILS", "").split(",")
     if email.strip()
 }
+META_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "").strip()
+IG_USER_ID = os.getenv("INSTAGRAM_USER_ID", "").strip()
+GRAPH_VERSION = os.getenv("META_GRAPH_VERSION", "v24.0").strip()
 
 TARGET_TABLE = """CREATE TABLE IF NOT EXISTS hunter_operator_targets (
     account_id TEXT PRIMARY KEY,
@@ -63,6 +66,8 @@ AUDIT_TABLE = """CREATE TABLE IF NOT EXISTS hunter_operator_audit (
     created_at TEXT NOT NULL,
     detail_json TEXT NOT NULL
 )"""
+
+_followers_cache = {"value": None, "at": 0.0}
 
 
 def now() -> str:
@@ -159,7 +164,6 @@ def ingest_snapshot(snapshot: dict) -> int:
     targets, source_generated_at, meta = _normalize_snapshot(snapshot)
     if len(targets) > 5000:
         raise ValueError("snapshot target limit exceeded")
-
     db = core.DB()
     try:
         ensure_tables(db)
@@ -193,18 +197,9 @@ def ingest_snapshot(snapshot: dict) -> int:
                     source_generated_at=excluded.source_generated_at,
                     last_ingested_at=excluded.last_ingested_at""",
                 (
-                    account_id,
-                    target.get("hunter_target_id"),
-                    username,
-                    profile_url,
-                    int(target.get("score") or 0),
-                    target.get("score_state"),
-                    target.get("queue_state"),
-                    "PENDING",
-                    safe_json(target),
-                    source_generated_at,
-                    ingested_at,
-                    ingested_at,
+                    account_id, target.get("hunter_target_id"), username, profile_url,
+                    int(target.get("score") or 0), target.get("score_state"), target.get("queue_state"),
+                    "PENDING", safe_json(target), source_generated_at, ingested_at, ingested_at,
                 ),
             )
             count += 1
@@ -243,10 +238,8 @@ def set_decision(account_id: str, decision: str, actor: str, *, bulk: bool = Fal
             """INSERT INTO hunter_operator_audit
                (id,account_id,action,actor,previous_decision,new_decision,created_at,detail_json)
                VALUES(?,?,?,?,?,?,?,?)""",
-            (
-                audit_id(account_id, actor, created_at), account_id, "DECISION", actor,
-                previous, normalized, created_at, safe_json({"bulk": bulk}),
-            ),
+            (audit_id(account_id, actor, created_at), account_id, "DECISION", actor,
+             previous, normalized, created_at, safe_json({"bulk": bulk})),
         )
         db.commit()
         return True
@@ -288,7 +281,6 @@ async def operator_decision(request: Request, account_id: str):
 
 @core.app.post("/owner/hunter/bulk")
 async def operator_bulk(request: Request):
-    # Kept only for backwards-compatible POSTs. The simple UI never exposes bulk actions.
     artist = admin_artist(request)
     form = await request.form()
     account_ids = [str(value) for value in form.getlist("account_id") if str(value)]
@@ -297,11 +289,6 @@ async def operator_bulk(request: Request):
     for account_id in account_ids:
         set_decision(account_id, str(form.get("decision") or ""), artist["email"], bulk=True)
     return RedirectResponse("/owner/hunter", status_code=303)
-
-
-def safe_link(value: object) -> str | None:
-    url = str(value or "")
-    return url if url.startswith(("https://", "http://")) else None
 
 
 def _display_target(row: dict) -> dict:
@@ -320,6 +307,36 @@ def _today_prefix() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
+def _website_visits() -> int:
+    try:
+        row = core.one(
+            "SELECT COUNT(*) AS n FROM growth_instagram_leads WHERE clicked_at IS NOT NULL AND keyword='bio'"
+        )
+        return int((row or {}).get("n") or 0)
+    except Exception:
+        return 0
+
+
+def _instagram_followers() -> int | None:
+    stamp = time.time()
+    if stamp - float(_followers_cache["at"] or 0) < 600:
+        return _followers_cache["value"]
+    value = None
+    if META_TOKEN and IG_USER_ID:
+        try:
+            query = urllib.parse.urlencode({"fields": "followers_count", "access_token": META_TOKEN})
+            url = f"https://graph.facebook.com/{GRAPH_VERSION}/{IG_USER_ID}?{query}"
+            with urllib.request.urlopen(url, timeout=6) as response:
+                payload = json.loads(response.read().decode() or "{}")
+            if payload.get("followers_count") is not None:
+                value = int(payload["followers_count"])
+        except Exception as exc:
+            print(f"Hunter follower count unavailable: {exc}", flush=True)
+    _followers_cache["value"] = value
+    _followers_cache["at"] = stamp
+    return value
+
+
 @core.app.get("/owner/hunter", response_class=HTMLResponse)
 def operator_console(request: Request):
     admin_artist(request)
@@ -333,20 +350,20 @@ def operator_console(request: Request):
         ).fetchall()]
         today = _today_prefix()
         new_today = int(db.execute(
-            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE first_ingested_at LIKE ?",
-            (today + "%",),
+            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE first_ingested_at LIKE ?", (today + "%",)
         ).fetchone()["n"])
         handled_today = int(db.execute(
-            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE decision='HANDLED' AND decided_at LIKE ?",
-            (today + "%",),
+            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE decision='HANDLED' AND decided_at LIKE ?", (today + "%",)
         ).fetchone()["n"])
         skipped_today = int(db.execute(
-            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE decision='SKIPPED' AND decided_at LIKE ?",
-            (today + "%",),
+            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE decision='SKIPPED' AND decided_at LIKE ?", (today + "%",)
         ).fetchone()["n"])
     finally:
         db.close()
 
+    followers = _instagram_followers()
+    website_visits = _website_visits()
+    follower_display = f"{followers:,}" if followers is not None else "—"
     remaining = len(pending_rows)
     current = _display_target(pending_rows[0]) if pending_rows else None
 
@@ -357,19 +374,19 @@ def operator_console(request: Request):
         name = esc(current.get("name") or "")
         market = esc(current.get("market") or "")
         source = esc(current.get("activity_source") or "")
-        web_profile = safe_link(current.get("profile_url")) or f"https://www.instagram.com/{username_raw}/"
-        native_profile = f"instagram://user?username={quote(username_raw, safe='._')}"
+        # Instagram's HTTPS universal-link form gives iOS the best chance to hand off
+        # directly to the installed app. iOS/Safari may still require a system prompt.
+        instagram_profile = f"https://www.instagram.com/_u/{quote(username_raw, safe='._')}/"
         path_id = quote(account_id, safe="")
         identity = f"<div class='name'>{name}</div>" if name and name.lower() != username.lower() else ""
-        context_bits = [bit for bit in (market, source) if bit]
-        context = " · ".join(context_bits)
+        context = " · ".join(bit for bit in (market, source) if bit)
         card = f"""
         <section class='card'>
           <div class='eyebrow'>NEXT ARTIST</div>
           {identity}
           <h1>@{username}</h1>
           <p class='context'>{context or 'Fresh tattoo artist'}</p>
-          <a class='instagram' href='{esc(native_profile)}' data-fallback='{esc(web_profile)}' onclick="var a=this;setTimeout(function(){{if(!document.hidden)window.location.href=a.dataset.fallback}},900)">OPEN INSTAGRAM</a>
+          <a class='instagram' href='{esc(instagram_profile)}'>OPEN INSTAGRAM</a>
           <div class='actions'>
             <form method='post' action='/owner/hunter/{path_id}/decision'>
               <input type='hidden' name='decision' value='HANDLED'>
@@ -397,11 +414,12 @@ def operator_console(request: Request):
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100vh}}
 main{{width:min(100%,560px);margin:0 auto;padding:calc(22px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom))}}
 .top{{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px}}.brand{{font-size:18px;font-weight:900;letter-spacing:.08em}}.remaining{{text-align:right;color:var(--muted);font-size:11px}}.remaining b{{display:block;color:var(--text);font-size:24px}}
-.stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}}.stat{{border:1px solid var(--line);border-radius:12px;padding:10px;font-size:10px;color:var(--muted)}}.stat b{{display:block;color:var(--text);font-size:19px;margin-bottom:2px}}
+.stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}}.growth{{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}}.stat{{border:1px solid var(--line);border-radius:12px;padding:10px;font-size:10px;color:var(--muted)}}.stat b{{display:block;color:var(--text);font-size:19px;margin-bottom:2px}}
 .card{{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px 18px;min-height:390px;display:flex;flex-direction:column;justify-content:center}}.eyebrow{{color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.16em;margin-bottom:12px}}.name{{color:var(--muted);font-size:14px;margin-bottom:3px}}h1{{font-size:30px;line-height:1.1;margin:0 0 8px;overflow-wrap:anywhere}}.context{{color:var(--muted);margin:0 0 25px;font-size:12px;line-height:1.5}}
 .instagram{{display:block;text-align:center;text-decoration:none;background:var(--text);color:#050505;padding:17px;border-radius:12px;font-weight:900;font-size:15px;margin-bottom:10px}}.actions{{display:grid;grid-template-columns:2fr 1fr;gap:9px}}form{{margin:0}}button{{width:100%;border-radius:12px;padding:15px 8px;font:inherit;font-weight:900;cursor:pointer}}.handled{{background:var(--accent);border:1px solid var(--accent);color:#090909}}.skip{{background:transparent;border:1px solid #444;color:var(--muted)}}.hint{{font-size:10px;color:#666;line-height:1.5;text-align:center;margin:16px 8px 0}}.empty{{text-align:center;min-height:300px}}.empty p{{color:var(--muted)}}.check{{font-size:48px;color:var(--green);margin-bottom:10px}}
 </style></head><body><main>
 <div class='top'><div class='brand'>HUNTER</div><div class='remaining'><b>{remaining}</b>WAITING</div></div>
 <div class='stats'><div class='stat'><b>{new_today}</b>NEW TODAY</div><div class='stat'><b>{handled_today}</b>HANDLED</div><div class='stat'><b>{skipped_today}</b>SKIPPED</div></div>
+<div class='growth'><div class='stat'><b>{follower_display}</b>FOLLOWERS</div><div class='stat'><b>{website_visits:,}</b>WEBSITE VISITS</div></div>
 {card}
 </main></body></html>""", headers={"Cache-Control": "no-store"})
