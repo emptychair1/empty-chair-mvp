@@ -43,12 +43,13 @@ import v2_instagram_content  # noqa: F401,E402
 import v2_instagram_growth_brain  # noqa: F401,E402
 import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
+import v2_instagram_crt_autopilot  # noqa: F401,E402
 import v2_instagram_webhook_subscription  # noqa: F401,E402
 import v2_hunter_operator  # noqa: F401,E402
 import v2_hunter_operator_transaction_fix  # noqa: F401,E402
 import v2_hunter_operator_phone_auth  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-hunter-simple-queue-20260907"
+BUILD_ID = "bootstrap-instagram-crt-autopilot-20260907"
 
 
 @app.middleware("http")
