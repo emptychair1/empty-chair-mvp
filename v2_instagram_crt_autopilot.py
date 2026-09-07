@@ -39,11 +39,7 @@ POST_TABLE = """CREATE TABLE IF NOT EXISTS growth_crt_posts (
     UNIQUE(local_day, slot)
 )"""
 
-SLOTS = {
-    "morning": 9,
-    "afternoon": 14,
-    "evening": 19,
-}
+SLOTS = {"morning": 9, "afternoon": 14, "evening": 19}
 
 INTRO_MESSAGES = [
     "CANCELLATION -> OPENING\nOPENING -> FILLED\n\n7-DAY FREE TRIAL\nNO CARD REQUIRED",
@@ -137,30 +133,21 @@ def _caption(message: str) -> str:
     )
 
 
-def _intro_published_count() -> int:
-    row = core.one("SELECT COUNT(*) AS n FROM growth_crt_posts WHERE slot LIKE 'intro-%' AND status='PUBLISHED'") or {"n": 0}
-    return int(row.get("n") or 0)
-
-
-def _next_intro(day: str) -> dict | None:
-    # Finish any already-prepared intro first so retries never skip or duplicate a post.
-    pending = core.one(
-        "SELECT * FROM growth_crt_posts WHERE slot LIKE 'intro-%' AND status!='PUBLISHED' ORDER BY slot ASC LIMIT 1"
-    )
-    if pending:
-        return pending
-    index = _intro_published_count()
-    if index >= len(INTRO_MESSAGES):
-        return None
-    slot = f"intro-{index + 1:02d}"
-    message = INTRO_MESSAGES[index]
-    ornament = ORNAMENTS[index % len(ORNAMENTS)]
-    post_id = "crt_intro_" + hashlib.sha256(slot.encode()).hexdigest()[:16]
-    core.run(
-        "INSERT INTO growth_crt_posts(id,local_day,slot,message,ornament,caption,status,created_at) VALUES(?,?,?,?,?,?,?,?)",
-        (post_id, day, slot, message, ornament, _caption(message), "PREPARED", _now()),
-    )
-    return core.one("SELECT * FROM growth_crt_posts WHERE id=?", (post_id,))
+def _ensure_intro_posts(day: str) -> list[dict]:
+    posts: list[dict] = []
+    for index, message in enumerate(INTRO_MESSAGES, start=1):
+        slot = f"intro-{index:02d}"
+        existing = core.one("SELECT * FROM growth_crt_posts WHERE slot=? LIMIT 1", (slot,))
+        if not existing:
+            post_id = "crt_intro_" + hashlib.sha256(slot.encode()).hexdigest()[:16]
+            core.run(
+                "INSERT INTO growth_crt_posts(id,local_day,slot,message,ornament,caption,status,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                (post_id, day, slot, message, ORNAMENTS[(index - 1) % len(ORNAMENTS)], _caption(message), "PREPARED", _now()),
+            )
+            existing = core.one("SELECT * FROM growth_crt_posts WHERE id=?", (post_id,))
+        if existing and str(existing.get("status")) != "PUBLISHED":
+            posts.append(existing)
+    return posts
 
 
 def _ensure_post(day: str, slot: str) -> dict:
@@ -195,14 +182,9 @@ body:after{{content:'';position:absolute;inset:0;pointer-events:none;background:
 
 
 def _prepared_payload(post: dict, *, bootstrap: bool) -> dict:
-    if str(post.get("status")) == "PUBLISHED":
-        return {"ok": True, "due": True, "published": True, "slot": post["slot"], "id": post["id"], "bootstrap": bootstrap}
     return {
-        "ok": True,
-        "due": True,
-        "published": False,
-        "slot": post["slot"],
         "id": post["id"],
+        "slot": post["slot"],
         "bootstrap": bootstrap,
         "render_url": f"{BASE_URL}/instagram/autopilot/render/{post['id']}",
         "image_url": f"{BASE_URL}/instagram/autopilot/image/{post['id']}.jpg",
@@ -214,17 +196,25 @@ def prepare(request: Request):
     _auth(request)
     _, day = _local_day()
 
-    # Bootstrap the profile first. Until all six intro posts are live, every hourly
-    # autopilot run publishes the next intro post. Then the system automatically
-    # falls back to the normal 3-post/day schedule.
-    intro = _next_intro(day)
-    if intro:
-        return _prepared_payload(intro, bootstrap=True)
+    intros = _ensure_intro_posts(day)
+    if intros:
+        return {
+            "ok": True,
+            "due": True,
+            "published": False,
+            "bootstrap": True,
+            "batch": True,
+            "posts": [_prepared_payload(post, bootstrap=True) for post in intros],
+        }
 
     slot, day = _due_slot()
     if not slot:
-        return {"ok": True, "due": False, "day": day, "bootstrap": False}
-    return _prepared_payload(_ensure_post(day, slot), bootstrap=False)
+        return {"ok": True, "due": False, "day": day, "bootstrap": False, "batch": False}
+    post = _ensure_post(day, slot)
+    if str(post.get("status")) == "PUBLISHED":
+        return {"ok": True, "due": True, "published": True, "slot": slot, "id": post["id"], "bootstrap": False, "batch": False}
+    payload = _prepared_payload(post, bootstrap=False)
+    return {"ok": True, "due": True, "published": False, "bootstrap": False, "batch": False, **payload}
 
 
 @core.app.get("/instagram/autopilot/render/{post_id}", response_class=HTMLResponse)
@@ -289,4 +279,4 @@ def publish(post_id: str, request: Request):
 
 
 _init()
-print("Empty Chair CRT Instagram autopilot loaded // 6 intro posts then 3 feed posts/day", flush=True)
+print("Empty Chair CRT Instagram autopilot loaded // intro batch then 3 feed posts/day", flush=True)
