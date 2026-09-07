@@ -1,8 +1,11 @@
-"""Hunter Sprint 9 operator console for the production v2 app.
+"""Simple Hunter operator queue for the production v2 app.
 
-This extension ingests safe Hunter review snapshots, stores them in Empty Chair's database,
-preserves manual decisions across refreshes, and exposes an admin-only review console.
-Approval is internal state only; no outreach is sent from this module.
+Hunter's production UI is intentionally one job: hand the operator a fresh tattoo
+artist, open that artist's public Instagram profile, then record Handled or Skip.
+The richer Hunter machinery may continue running behind the scenes, but none of it is
+exposed in the operator experience.
+
+No follow action, DM, outreach, login automation, or private-data access happens here.
 """
 from __future__ import annotations
 
@@ -20,6 +23,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import v2_app as core
 from hunter.operator_console import DECISIONS, SCHEMA
 
+FRESH_BUCKET_SCHEMA = "empty-chair-hunter-fresh-contact-bucket-v1"
+SIMPLE_DECISIONS = {"HANDLED", "SKIPPED"}
 INGEST_TOKEN = os.getenv("HUNTER_OPERATOR_INGEST_TOKEN", "")
 ADMIN_EMAILS = {
     email.strip().lower()
@@ -105,10 +110,54 @@ def audit_id(account_id: str, actor: str, created_at: str) -> str:
     return "hoa_" + hashlib.sha256(raw).hexdigest()[:24]
 
 
+def _fresh_target(artist: dict) -> dict | None:
+    username = str(artist.get("username") or "").strip().lstrip("@").lower()
+    if not username:
+        return None
+    contact = artist.get("contact") if isinstance(artist.get("contact"), dict) else {}
+    return {
+        "account_id": f"ig:{username}",
+        "hunter_target_id": f"fresh:{username}",
+        "username": username,
+        "name": artist.get("name"),
+        "profile_url": artist.get("profile_url") or contact.get("instagram_url") or f"https://www.instagram.com/{username}/",
+        "market": artist.get("market"),
+        "activity_source": artist.get("activity_source"),
+        "activity_source_url": artist.get("activity_source_url"),
+        "event_start": artist.get("event_start"),
+        "event_end": artist.get("event_end"),
+        "fresh_activity": bool(artist.get("fresh_activity")),
+        "contact": contact,
+        "score": int(contact.get("contactability") or 40),
+        "score_state": "FRESH",
+        "queue_state": "READY",
+    }
+
+
+def _normalize_snapshot(snapshot: dict) -> tuple[list[dict], str | None, dict]:
+    schema = snapshot.get("schema")
+    if schema == FRESH_BUCKET_SCHEMA:
+        artists = snapshot.get("artists")
+        if not isinstance(artists, list):
+            raise ValueError(f"Expected {FRESH_BUCKET_SCHEMA} payload")
+        targets = []
+        for artist in artists:
+            if isinstance(artist, dict):
+                target = _fresh_target(artist)
+                if target:
+                    targets.append(target)
+        meta = {key: value for key, value in snapshot.items() if key != "artists"}
+        return targets, snapshot.get("generated_at"), meta
+    if schema == SCHEMA and isinstance(snapshot.get("targets"), list):
+        return list(snapshot["targets"]), snapshot.get("source_generated_at"), {
+            key: value for key, value in snapshot.items() if key != "targets"
+        }
+    raise ValueError(f"Expected {FRESH_BUCKET_SCHEMA} or {SCHEMA} payload")
+
+
 def ingest_snapshot(snapshot: dict) -> int:
-    if snapshot.get("schema") != SCHEMA or not isinstance(snapshot.get("targets"), list):
-        raise ValueError(f"Expected {SCHEMA} payload")
-    if len(snapshot["targets"]) > 5000:
+    targets, source_generated_at, meta = _normalize_snapshot(snapshot)
+    if len(targets) > 5000:
         raise ValueError("snapshot target limit exceeded")
 
     db = core.DB()
@@ -116,12 +165,18 @@ def ingest_snapshot(snapshot: dict) -> int:
         ensure_tables(db)
         ingested_at = now()
         count = 0
-        for target in snapshot["targets"]:
+        for target in targets:
             if not isinstance(target, dict):
                 continue
             account_id = target.get("account_id")
             if not isinstance(account_id, str) or not account_id:
                 continue
+            username = str(target.get("username") or "").strip().lstrip("@").lower()
+            if not username:
+                continue
+            profile_url = str(target.get("profile_url") or f"https://www.instagram.com/{username}/")
+            if not profile_url.startswith(("https://", "http://")):
+                profile_url = f"https://www.instagram.com/{username}/"
             db.execute(
                 """INSERT INTO hunter_operator_targets (
                     account_id,hunter_target_id,username,profile_url,score,score_state,queue_state,
@@ -140,20 +195,19 @@ def ingest_snapshot(snapshot: dict) -> int:
                 (
                     account_id,
                     target.get("hunter_target_id"),
-                    target.get("username"),
-                    target.get("profile_url"),
+                    username,
+                    profile_url,
                     int(target.get("score") or 0),
                     target.get("score_state"),
                     target.get("queue_state"),
                     "PENDING",
                     safe_json(target),
-                    snapshot.get("source_generated_at"),
+                    source_generated_at,
                     ingested_at,
                     ingested_at,
                 ),
             )
             count += 1
-        meta = {key: value for key, value in snapshot.items() if key != "targets"}
         db.execute(
             """INSERT INTO hunter_operator_meta(id,snapshot_json,updated_at) VALUES('latest',?,?)
                ON CONFLICT(id) DO UPDATE SET snapshot_json=excluded.snapshot_json,updated_at=excluded.updated_at""",
@@ -170,7 +224,8 @@ def ingest_snapshot(snapshot: dict) -> int:
 
 def set_decision(account_id: str, decision: str, actor: str, *, bulk: bool = False) -> bool:
     normalized = str(decision or "").upper()
-    if normalized not in DECISIONS or normalized == "PENDING":
+    allowed = set(DECISIONS) | SIMPLE_DECISIONS
+    if normalized not in allowed or normalized == "PENDING":
         raise ValueError("invalid operator decision")
     db = core.DB()
     try:
@@ -189,14 +244,8 @@ def set_decision(account_id: str, decision: str, actor: str, *, bulk: bool = Fal
                (id,account_id,action,actor,previous_decision,new_decision,created_at,detail_json)
                VALUES(?,?,?,?,?,?,?,?)""",
             (
-                audit_id(account_id, actor, created_at),
-                account_id,
-                "DECISION",
-                actor,
-                previous,
-                normalized,
-                created_at,
-                safe_json({"bulk": bulk}),
+                audit_id(account_id, actor, created_at), account_id, "DECISION", actor,
+                previous, normalized, created_at, safe_json({"bulk": bulk}),
             ),
         )
         db.commit()
@@ -221,7 +270,7 @@ async def operator_ingest(request: Request):
         raise HTTPException(400, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(400, "Invalid Hunter operator snapshot") from exc
-    return {"ok": True, "schema": SCHEMA, "target_count": count}
+    return {"ok": True, "schema": snapshot.get("schema"), "target_count": count}
 
 
 @core.app.post("/owner/hunter/{account_id}/decision")
@@ -239,25 +288,15 @@ async def operator_decision(request: Request, account_id: str):
 
 @core.app.post("/owner/hunter/bulk")
 async def operator_bulk(request: Request):
+    # Kept only for backwards-compatible POSTs. The simple UI never exposes bulk actions.
     artist = admin_artist(request)
     form = await request.form()
     account_ids = [str(value) for value in form.getlist("account_id") if str(value)]
     if len(account_ids) > 200:
         raise HTTPException(400, "Bulk review limit is 200")
-    changed = 0
-    try:
-        for account_id in account_ids:
-            if set_decision(account_id, str(form.get("decision") or ""), artist["email"], bulk=True):
-                changed += 1
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    return RedirectResponse(f"/owner/hunter?bulk={changed}", status_code=303)
-
-
-def location_text(value: object) -> str:
-    if not isinstance(value, dict):
-        return "Unknown"
-    return ", ".join(str(value.get(key)) for key in ("city", "region", "country") if value.get(key)) or "Unknown"
+    for account_id in account_ids:
+        set_decision(account_id, str(form.get("decision") or ""), artist["email"], bulk=True)
+    return RedirectResponse("/owner/hunter", status_code=303)
 
 
 def safe_link(value: object) -> str | None:
@@ -265,37 +304,20 @@ def safe_link(value: object) -> str | None:
     return url if url.startswith(("https://", "http://")) else None
 
 
-def card(item: dict) -> str:
-    account_id = str(item.get("account_id") or "")
-    username = esc(item.get("username") or account_id)
-    profile = safe_link(item.get("profile_url"))
-    profile_html = f"<a href='{esc(profile)}' target='_blank' rel='noopener noreferrer'>@{username}</a>" if profile else f"@{username}"
-    score = int(item.get("score") or 0)
-    state = esc(item.get("score_state") or item.get("queue_state") or "UNKNOWN")
-    decision = esc(item.get("decision") or "PENDING")
-    stage = esc(item.get("furthest_stage") or "—")
-    revenue = int(item.get("revenue_cents") or 0) / 100
-    rules = "".join(
-        f"<li><b>{esc(c.get('rule'))}</b> {int(c.get('points') or 0):+d}<small>{esc(c.get('evidence'))}</small></li>"
-        for c in item.get("components", []) if isinstance(c, dict)
-    ) or "<li>No scoring evidence recorded.</li>"
-    signals = "".join(
-        f"<div class='signal'><b>{esc(s.get('matched_phrase') or s.get('source') or 'signal')}</b><p>{esc(s.get('snippet') or s.get('title') or '')}</p>"
-        + (f"<a href='{esc(safe_link(s.get('source_url')))}' target='_blank' rel='noopener noreferrer'>source</a>" if safe_link(s.get("source_url")) else "")
-        + "</div>"
-        for s in item.get("signals", []) if isinstance(s, dict)
-    ) or "<div class='signal dim'>No source excerpt in this snapshot.</div>"
-    path_id = quote(account_id, safe="")
-    return f"""<article class='card'>
-      <label class='pick'><input type='checkbox' name='account_id' value='{esc(account_id)}' form='bulk-form'> select</label>
-      <div class='head'><div><div class='kicker'>{state} // {decision}</div><h2>{profile_html}</h2><div class='dim'>{esc(location_text(item.get('location')))}</div></div><div class='score'>{score}</div></div>
-      <div class='facts'><span>stage <b>{stage}</b></span><span>revenue <b>${revenue:,.2f}</b></span><span>priority <b>{esc(item.get('priority') or '—')}</b></span><span>activity <b>{esc(item.get('last_activity_at') or 'unknown')}</b></span></div>
-      <details><summary>WHY HUNTER RANKED THIS</summary><ul>{rules}</ul></details>
-      <details><summary>SOURCE EVIDENCE</summary>{signals}</details>
-      <details><summary>ACTION + ATTRIBUTION</summary><p class='dim'>queue={esc(item.get('queue_state'))} // last_action={esc(item.get('last_action_at') or '—')} // target={esc(item.get('hunter_target_id') or '—')} // reason={esc(item.get('reason') or '—')}</p></details>
-      <div class='actions'><form method='post' action='/owner/hunter/{path_id}/decision'><input type='hidden' name='decision' value='APPROVED'><button class='go'>APPROVE</button></form><form method='post' action='/owner/hunter/{path_id}/decision'><input type='hidden' name='decision' value='SUPPRESSED'><button>SUPPRESS</button></form><form method='post' action='/owner/hunter/{path_id}/decision'><input type='hidden' name='decision' value='BAD_FIT'><button>BAD FIT</button></form></div>
-      <small>Approval records operator intent only. It does not contact this artist.</small>
-    </article>"""
+def _display_target(row: dict) -> dict:
+    item = load_json(row.get("snapshot_json"), {})
+    if not isinstance(item, dict):
+        item = {}
+    item.setdefault("account_id", row.get("account_id"))
+    item.setdefault("username", row.get("username"))
+    item.setdefault("profile_url", row.get("profile_url"))
+    item.setdefault("score", row.get("score"))
+    item["decision"] = row.get("decision")
+    return item
+
+
+def _today_prefix() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 @core.app.get("/owner/hunter", response_class=HTMLResponse)
@@ -304,59 +326,81 @@ def operator_console(request: Request):
     db = core.DB()
     try:
         ensure_tables(db)
-        rows = [dict(r) for r in db.execute("SELECT * FROM hunter_operator_targets ORDER BY score DESC,last_ingested_at DESC").fetchall()]
-        meta_row_raw = db.execute("SELECT * FROM hunter_operator_meta WHERE id='latest'").fetchone()
-        meta_row = dict(meta_row_raw) if meta_row_raw else None
-        audits = [dict(r) for r in db.execute("SELECT * FROM hunter_operator_audit ORDER BY created_at DESC LIMIT 50").fetchall()]
+        pending_rows = [dict(r) for r in db.execute(
+            """SELECT * FROM hunter_operator_targets
+               WHERE decision='PENDING' AND username IS NOT NULL AND profile_url IS NOT NULL
+               ORDER BY first_ingested_at ASC, score DESC, username ASC"""
+        ).fetchall()]
+        today = _today_prefix()
+        new_today = int(db.execute(
+            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE first_ingested_at LIKE ?",
+            (today + "%",),
+        ).fetchone()["n"])
+        handled_today = int(db.execute(
+            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE decision='HANDLED' AND decided_at LIKE ?",
+            (today + "%",),
+        ).fetchone()["n"])
+        skipped_today = int(db.execute(
+            "SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE decision='SKIPPED' AND decided_at LIKE ?",
+            (today + "%",),
+        ).fetchone()["n"])
     finally:
         db.close()
 
-    targets = []
-    for row in rows:
-        item = load_json(row.get("snapshot_json"), {})
-        if not isinstance(item, dict):
-            item = {}
-        item["decision"] = row.get("decision")
-        targets.append(item)
+    remaining = len(pending_rows)
+    current = _display_target(pending_rows[0]) if pending_rows else None
 
-    state_filter = str(request.query_params.get("state") or "ALL").upper()
-    decision_filter = str(request.query_params.get("decision") or "ALL").upper()
-    sort = str(request.query_params.get("sort") or "score").lower()
-    query = str(request.query_params.get("q") or "").strip().lower()
+    if current:
+        account_id = str(current.get("account_id") or "")
+        username_raw = str(current.get("username") or "").strip().lstrip("@")
+        username = esc(username_raw)
+        name = esc(current.get("name") or "")
+        market = esc(current.get("market") or "")
+        source = esc(current.get("activity_source") or "")
+        profile = safe_link(current.get("profile_url")) or f"https://www.instagram.com/{username_raw}/"
+        path_id = quote(account_id, safe="")
+        identity = f"<div class='name'>{name}</div>" if name and name.lower() != username.lower() else ""
+        context_bits = [bit for bit in (market, source) if bit]
+        context = " · ".join(context_bits)
+        card = f"""
+        <section class='card'>
+          <div class='eyebrow'>NEXT ARTIST</div>
+          {identity}
+          <h1>@{username}</h1>
+          <p class='context'>{context or 'Fresh tattoo artist'}</p>
+          <a class='instagram' href='{esc(profile)}' target='_blank' rel='noopener noreferrer'>OPEN INSTAGRAM</a>
+          <div class='actions'>
+            <form method='post' action='/owner/hunter/{path_id}/decision'>
+              <input type='hidden' name='decision' value='HANDLED'>
+              <button class='handled'>HANDLED</button>
+            </form>
+            <form method='post' action='/owner/hunter/{path_id}/decision'>
+              <input type='hidden' name='decision' value='SKIPPED'>
+              <button class='skip'>SKIP</button>
+            </form>
+          </div>
+          <p class='hint'>Open the profile, follow or review it yourself, then tap Handled. Hunter never follows automatically.</p>
+        </section>"""
+    else:
+        card = """
+        <section class='card empty'>
+          <div class='check'>✓</div>
+          <h1>YOU'RE CAUGHT UP</h1>
+          <p>Hunter has no new artists waiting right now.</p>
+        </section>"""
 
-    def visible(item: dict) -> bool:
-        if state_filter != "ALL":
-            if state_filter == "PAID" and item.get("furthest_stage") != "PAID": return False
-            if state_filter != "PAID" and state_filter not in {str(item.get("score_state") or ""), str(item.get("queue_state") or "")}: return False
-        if decision_filter != "ALL" and decision_filter != str(item.get("decision") or "PENDING"): return False
-        if query:
-            haystack = f"{item.get('username','')} {location_text(item.get('location'))} {item.get('account_id','')}".lower()
-            if query not in haystack: return False
-        return True
-
-    targets = [item for item in targets if visible(item)]
-    if sort == "revenue": targets.sort(key=lambda x: (-int(x.get("revenue_cents") or 0), -int(x.get("score") or 0)))
-    elif sort == "recency": targets.sort(key=lambda x: str(x.get("last_activity_at") or ""), reverse=True)
-    else: targets.sort(key=lambda x: (-int(x.get("score") or 0), str(x.get("username") or "")))
-
-    meta = load_json(meta_row.get("snapshot_json"), {}) if meta_row else {}
-    warnings = meta.get("validation_warnings", []) if isinstance(meta, dict) else []
-    recommendations = meta.get("learning_recommendations", []) if isinstance(meta, dict) else []
-    notices = "".join(f"<div class='notice'><b>{esc(x.get('stage'))}</b> // {esc(x.get('code'))}</div>" for x in warnings if isinstance(x, dict))
-    notices += "".join(f"<div class='notice'><b>{esc(x.get('rule'))}</b> // {esc(x.get('current_weight'))} → {esc(x.get('recommended_weight'))} // HUMAN APPROVAL REQUIRED</div>" for x in recommendations if isinstance(x, dict))
-    cards = "".join(card(item) for item in targets) or "<div class='empty'>NO TARGETS MATCH THESE FILTERS.</div>"
-    audit_html = "".join(f"<tr><td>{esc(row.get('created_at'))}</td><td>{esc(row.get('account_id'))}</td><td>{esc(row.get('previous_decision'))} → {esc(row.get('new_decision'))}</td><td>{esc(row.get('actor'))}</td></tr>" for row in audits) or "<tr><td colspan='4'>NO DECISIONS YET.</td></tr>"
-    pending = sum(1 for row in rows if row.get("decision") == "PENDING")
-    approved = sum(1 for row in rows if row.get("decision") == "APPROVED")
-    revenue = int(meta.get("revenue_cents") or 0) / 100 if isinstance(meta, dict) else 0
-
-    options_state = "".join(f"<option {'selected' if state_filter == value else ''}>{value}</option>" for value in ("ALL","HOT","WARM","ACTIONED","PAID"))
-    options_decision = "".join(f"<option {'selected' if decision_filter == value else ''}>{value}</option>" for value in ("ALL","PENDING","APPROVED","SUPPRESSED","BAD_FIT"))
-    options_sort = "".join(f"<option value='{value}' {'selected' if sort == value else ''}>{value}</option>" for value in ("score","recency","revenue"))
-
-    return HTMLResponse(f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>HUNTER // OPERATOR</title><style>
-    :root{{--bg:#0B0905;--amber:#FFB000;--bright:#FFD36A;--dim:#805800;--off:#332300}}*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--amber);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}}main{{max-width:1180px;margin:auto;padding:24px}}a{{color:var(--bright)}}h1{{font-size:34px}}h2{{margin:4px 0}}.kicker{{font-size:11px;letter-spacing:.12em}}.dim,small{{color:var(--dim)}}.metrics{{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:18px 0}}.metric,.notice,.card,.empty{{border:1px solid var(--off);padding:14px}}.metric b{{display:block;color:var(--bright);font-size:24px}}.notice{{margin:7px 0}}.toolbar,.actions,.facts{{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}}select,input,button{{background:transparent;color:var(--bright);border:1px solid var(--dim);padding:10px;font:inherit}}button{{cursor:pointer}}button.go{{border-color:var(--amber)}}.card{{margin:12px 0;position:relative}}.head{{display:flex;justify-content:space-between}}.score{{font-size:40px;color:var(--bright)}}.pick{{position:absolute;right:14px;top:70px;font-size:11px}}details{{border-top:1px solid var(--off);padding:10px 0}}summary{{cursor:pointer}}li small{{display:block}}.signal{{border-left:2px solid var(--off);padding:7px 10px;margin:7px 0}}.signal p{{font-size:12px}}table{{width:100%;border-collapse:collapse;font-size:12px}}td,th{{text-align:left;padding:7px;border-bottom:1px solid var(--off)}}@media(max-width:760px){{.metrics{{grid-template-columns:repeat(2,1fr)}}.pick{{position:static}}}}
-    </style></head><body><main><div class='kicker'>EMPTY CHAIR // HUNTER // SPRINT 9</div><h1>OPERATOR CONSOLE</h1><p class='dim'>HUMAN REVIEW GATE. APPROVAL NEVER SENDS OUTREACH.</p><div class='metrics'><div class='metric'>TARGETS<b>{len(rows)}</b></div><div class='metric'>PENDING<b>{pending}</b></div><div class='metric'>APPROVED<b>{approved}</b></div><div class='metric'>PAID<b>{int(meta.get('paid_count') or 0) if isinstance(meta,dict) else 0}</b></div><div class='metric'>REVENUE<b>${revenue:,.0f}</b></div></div>{notices}
-    <form class='toolbar' method='get'><select name='state'>{options_state}</select><select name='decision'>{options_decision}</select><select name='sort'>{options_sort}</select><input name='q' value='{esc(request.query_params.get('q') or '')}' placeholder='artist or location'><button>FILTER</button></form>
-    <form id='bulk-form' class='toolbar' method='post' action='/owner/hunter/bulk'><select name='decision'><option value='APPROVED'>APPROVE SELECTED</option><option value='SUPPRESSED'>SUPPRESS SELECTED</option><option value='BAD_FIT'>MARK BAD FIT</option></select><button>APPLY</button><button type='button' onclick="document.querySelectorAll('.pick input').forEach(x=>x.checked=true)">SELECT VISIBLE</button></form>{cards}
-    <h2>AUDIT TRAIL</h2><table><tr><th>WHEN</th><th>TARGET</th><th>DECISION</th><th>OPERATOR</th></tr>{audit_html}</table><p class='dim'>LATEST SNAPSHOT // {esc(meta_row.get('updated_at') if meta_row else 'NOT INGESTED')}</p></main></body></html>""", headers={"Cache-Control":"no-store"})
+    return HTMLResponse(f"""<!doctype html>
+<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>
+<title>Hunter</title><style>
+:root{{--bg:#090909;--panel:#121212;--line:#292929;--text:#f4f1e8;--muted:#8d8a82;--accent:#ffb000;--green:#b7ff76}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100vh}}
+main{{width:min(100%,560px);margin:0 auto;padding:calc(22px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom))}}
+.top{{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px}}.brand{{font-size:18px;font-weight:900;letter-spacing:.08em}}.remaining{{text-align:right;color:var(--muted);font-size:11px}}.remaining b{{display:block;color:var(--text);font-size:24px}}
+.stats{{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}}.stat{{border:1px solid var(--line);border-radius:12px;padding:10px;font-size:10px;color:var(--muted)}}.stat b{{display:block;color:var(--text);font-size:19px;margin-bottom:2px}}
+.card{{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px 18px;min-height:390px;display:flex;flex-direction:column;justify-content:center}}.eyebrow{{color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.16em;margin-bottom:12px}}.name{{color:var(--muted);font-size:14px;margin-bottom:3px}}h1{{font-size:30px;line-height:1.1;margin:0 0 8px;overflow-wrap:anywhere}}.context{{color:var(--muted);margin:0 0 25px;font-size:12px;line-height:1.5}}
+.instagram{{display:block;text-align:center;text-decoration:none;background:var(--text);color:#050505;padding:17px;border-radius:12px;font-weight:900;font-size:15px;margin-bottom:10px}}.actions{{display:grid;grid-template-columns:2fr 1fr;gap:9px}}form{{margin:0}}button{{width:100%;border-radius:12px;padding:15px 8px;font:inherit;font-weight:900;cursor:pointer}}.handled{{background:var(--accent);border:1px solid var(--accent);color:#090909}}.skip{{background:transparent;border:1px solid #444;color:var(--muted)}}.hint{{font-size:10px;color:#666;line-height:1.5;text-align:center;margin:16px 8px 0}}.empty{{text-align:center;min-height:300px}}.empty p{{color:var(--muted)}}.check{{font-size:48px;color:var(--green);margin-bottom:10px}}
+</style></head><body><main>
+<div class='top'><div class='brand'>HUNTER</div><div class='remaining'><b>{remaining}</b>WAITING</div></div>
+<div class='stats'><div class='stat'><b>{new_today}</b>NEW TODAY</div><div class='stat'><b>{handled_today}</b>HANDLED</div><div class='stat'><b>{skipped_today}</b>SKIPPED</div></div>
+{card}
+</main></body></html>""", headers={"Cache-Control": "no-store"})
