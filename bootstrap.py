@@ -24,6 +24,7 @@ import v2_crt_ui  # noqa: F401,E402
 import v2_entitlement  # noqa: F401,E402
 import v2_subscription_billing  # noqa: F401,E402
 import v2_settings  # noqa: F401,E402
+import v2_founder_ig_reels  # noqa: F401,E402
 import v2_artist_payments  # noqa: F401,E402
 import v2_billing_autoadopt  # noqa: F401,E402
 import v2_paypal_sellers  # noqa: F401,E402
@@ -61,7 +62,7 @@ import v2_hunter_instagram_reply_graph_fix  # noqa: F401,E402
 import v2_hunter_instagram_reply_retry_fix  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-hunter-reply-retry-fix-20260907"
+BUILD_ID = "bootstrap-founder-ig-reels-20260907"
 
 
 @app.middleware("http")
