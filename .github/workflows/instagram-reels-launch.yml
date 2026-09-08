@@ -42,14 +42,13 @@ jobs:
           python -m pip install --quiet playwright
           python -m playwright install --with-deps chromium
 
-      - name: Render and upload unfinished Reels
+      - name: Render screen-only Reels
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
           python - <<'PY'
           import json, os, subprocess
           from pathlib import Path
-          from urllib.parse import urlparse
           from playwright.sync_api import sync_playwright
 
           data=json.load(open('launch.json'))
@@ -60,21 +59,23 @@ jobs:
           with sync_playwright() as p:
               browser=p.chromium.launch()
               for index,item in enumerate(items, start=1):
-                  if item.get('status') in ('RENDERED','PUBLISHED'):
-                      print(f"REEL {index}/16 // {item['slot']} // already rendered, skipping", flush=True)
+                  status=item.get('status')
+                  if status == 'PUBLISHED':
+                      print(f"REEL {index}/16 // {item['slot']} // published, skipping", flush=True)
+                      continue
+                  if index <= 6 and status == 'RENDERED':
+                      print(f"REEL {index}/16 // {item['slot']} // recovery reel already good, skipping", flush=True)
                       continue
 
-                  print(f"REEL {index}/16 // {item['slot']} // render", flush=True)
+                  print(f"REEL {index}/16 // {item['slot']} // screen-only rerender", flush=True)
                   work=Path(f"reel-{index:02d}")
                   work.mkdir(exist_ok=True)
                   urls=item['scene_urls']
+
                   for i,url in enumerate(urls):
                       page=browser.new_page(viewport={'width':1080,'height':1920},device_scale_factor=1)
                       page.goto(url,wait_until='networkidle',timeout=120000)
 
-                      # Product scenes use real Empty Chair screenshots. If Render's /static
-                      # route fails an image, swap only that failed image to the same repo asset
-                      # on raw.githubusercontent.com before capture.
                       page.evaluate("""(rawStatic) => {
                         for (const img of Array.from(document.images)) {
                           if (!img.complete || img.naturalWidth === 0) {
@@ -85,13 +86,25 @@ jobs:
                         }
                       }""", raw_static)
                       page.wait_for_function("""() => Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)""", timeout=120000)
-                      page.screenshot(path=str(work/f'scene-{i}.png'),full_page=False)
+
+                      if index >= 7:
+                          # Product Reels contain ONLY the real product/native screen.
+                          # No title cards, borders, captions, hooks, fake phone frames,
+                          # or decorative Empty Chair Reel chrome are baked into the video.
+                          img=page.locator('img').first
+                          img.screenshot(path=str(work/f'scene-{i}.png'))
+                      else:
+                          # Recovery Reels already render only actual app/native-app states.
+                          page.screenshot(path=str(work/f'scene-{i}.png'),full_page=False)
                       page.close()
 
                   inputs=[]; filters=[]
                   for i in range(len(urls)):
                       inputs += ['-loop','1','-t','3','-i',str(work/f'scene-{i}.png')]
-                      filters.append(f'[{i}:v]fps=30,format=yuv420p[v{i}]')
+                      filters.append(
+                          f'[{i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,'
+                          f'pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p[v{i}]'
+                      )
                   concat=''.join(f'[v{i}]' for i in range(len(urls)))+f'concat=n={len(urls)}:v=1:a=0[outv]'
                   mp4=work/'reel.mp4'
                   subprocess.run([
@@ -106,7 +119,7 @@ jobs:
                       '-H',f'Authorization: Bearer {token}',
                       '-H','Content-Type: video/mp4','--data-binary',f'@{mp4}'
                   ],check=True)
-                  print(f"rendered + uploaded // {item['slot']}", flush=True)
+                  print(f"screen-only rendered + uploaded // {item['slot']}", flush=True)
               browser.close()
           PY
 
