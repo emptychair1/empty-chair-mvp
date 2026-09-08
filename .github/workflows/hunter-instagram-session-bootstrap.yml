@@ -1,0 +1,59 @@
+name: Hunter Instagram Session Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HUNTER_IG_USERNAME: ${{ secrets.HUNTER_IG_USERNAME }}
+      HUNTER_IG_PASSWORD: ${{ secrets.HUNTER_IG_PASSWORD }}
+      HUNTER_IG_VERIFICATION_CODE: ${{ secrets.HUNTER_IG_VERIFICATION_CODE }}
+      HUNTER_IG_SESSION_OUT: hunter-instagram-session.json
+      HUNTER_IG_SESSION_KEY: ${{ secrets.HUNTER_IG_SESSION_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Hunter dependencies
+        run: pip install -r hunter/requirements.txt
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$HUNTER_IG_USERNAME" || { echo "Missing HUNTER_IG_USERNAME"; exit 1; }
+          test -n "$HUNTER_IG_PASSWORD" || { echo "Missing HUNTER_IG_PASSWORD"; exit 1; }
+          test -n "$HUNTER_IG_SESSION_KEY" || { echo "Missing HUNTER_IG_SESSION_KEY"; exit 1; }
+
+      - name: Create authenticated Instagram session
+        run: python hunter/bootstrap_instagram_session.py
+
+      - name: Encrypt session
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl enc -aes-256-cbc -salt -pbkdf2 \
+            -in hunter-instagram-session.json \
+            -out hunter-instagram-session.json.enc \
+            -pass env:HUNTER_IG_SESSION_KEY
+          rm -f hunter-instagram-session.json
+
+      - name: Upload encrypted session artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hunter-instagram-session
+          path: hunter-instagram-session.json.enc
+          if-no-files-found: error
+          retention-days: 30
