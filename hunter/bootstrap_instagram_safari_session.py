@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from selenium import webdriver
+from selenium.common.exceptions import InvalidSessionIdException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.safari.options import Options
 
@@ -88,6 +89,45 @@ def _submit_login(driver, pass_field) -> None:
     print(f"Safari login submit method: {submitted}")
 
 
+def _capture_authenticated_cookies(driver, timeout: int = 120):
+    """Poll while SafariDriver is alive and return cookies as soon as login lands."""
+    deadline = time.time() + timeout
+    last_url = ""
+    verification_notice_printed = False
+
+    while time.time() < deadline:
+        try:
+            current_url = driver.current_url
+            cookies = driver.get_cookies()
+        except InvalidSessionIdException as exc:
+            raise SystemExit(
+                "Safari automation session ended before Hunter could save the authenticated cookies"
+            ) from exc
+        except WebDriverException:
+            time.sleep(0.5)
+            continue
+
+        if current_url != last_url:
+            print(f"Instagram page: {current_url}")
+            last_url = current_url
+
+        cookie_names = {cookie.get("name") for cookie in cookies}
+        if "sessionid" in cookie_names:
+            return current_url, cookies
+
+        lowered = current_url.lower()
+        if any(token in lowered for token in ("challenge", "checkpoint", "two_factor", "login_activity")):
+            if not verification_notice_printed:
+                print("Instagram is requesting legitimate verification. Complete it in Safari; Hunter will keep watching for the authenticated session.")
+                verification_notice_printed = True
+
+        time.sleep(0.5)
+
+    raise SystemExit(
+        "Timed out waiting for Instagram to create an authenticated session. Leave Safari on the verification/login result and report what it shows."
+    )
+
+
 def main() -> int:
     username = os.environ.get("HUNTER_IG_USERNAME", "").strip()
     password = os.environ.get("HUNTER_IG_PASSWORD", "")
@@ -130,14 +170,11 @@ def main() -> int:
         _submit_login(driver, pass_field)
 
         print("Safari submitted the Instagram login using local environment credentials.")
-        print("Complete any legitimate Instagram verification/approval if prompted.")
-        input("When you can see your Instagram home feed, return here and press ENTER... ")
+        print("Hunter will save the session automatically as soon as Instagram authenticates it.")
+        print("If Instagram requests verification, complete only that legitimate verification in Safari.")
 
-        cookies = driver.get_cookies()
-        if not cookies:
-            raise SystemExit("No Safari session cookies found. Make sure Instagram is logged in before pressing ENTER.")
+        current_url, cookies = _capture_authenticated_cookies(driver)
 
-        current_url = driver.current_url
         payload = {
             "schema": "empty-chair-hunter-safari-session-v1",
             "origin": "https://www.instagram.com",
@@ -153,7 +190,10 @@ def main() -> int:
         print("Session contents are sensitive. Do not commit or paste this file into chat.")
         return 0
     finally:
-        driver.quit()
+        try:
+            driver.quit()
+        except WebDriverException:
+            pass
 
 
 if __name__ == "__main__":
