@@ -1,4 +1,4 @@
-"""Runtime-safe Hunter outreach pipeline beside the Watchtower lead command center."""
+"""Runtime-safe Hunter routing: Watchtower, New Artists, and Outreach are distinct."""
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -22,6 +22,12 @@ CREATE_TABLE = f"""CREATE TABLE IF NOT EXISTS {TABLE} (
 )"""
 STAGES = ("ENGAGE", "DM_READY", "WAITING_REPLY", "PAIN", "INTERESTED", "TRIAL_SENT", "ACTIVATED", "CLOSED")
 ACTIONS = outreach.ACTIONS
+
+NAV_CSS = """
+<style>
+.hunter-section-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:0 0 22px}.hunter-section-nav a{border:1px solid var(--off);padding:10px 5px;text-align:center;text-decoration:none;color:var(--dim);font-size:9px;letter-spacing:.05em;white-space:nowrap}.hunter-section-nav a.active{border-color:var(--amber);color:var(--bright);box-shadow:0 0 14px rgba(255,176,0,.09)}
+</style>
+"""
 
 
 def ensure_runtime_outreach(db: core.DB) -> None:
@@ -50,6 +56,16 @@ def counts(db: core.DB) -> dict[str, int]:
 def dm_today(db: core.DB) -> int:
     row = db.execute(f"SELECT COUNT(*) AS n FROM {TABLE} WHERE dm_sent_at LIKE ?", (hunter._today_prefix()+"%",)).fetchone()
     return int(dict(row).get("n") or 0) if row else 0
+
+
+def pending_new_count() -> int:
+    db = core.DB()
+    try:
+        hunter.ensure_tables(db)
+        row = db.execute("SELECT COUNT(*) AS n FROM hunter_operator_targets WHERE decision='PENDING'").fetchone()
+        return int(dict(row).get("n") or 0) if row else 0
+    finally:
+        db.close()
 
 
 def target_for_stage(db: core.DB, stage: str):
@@ -93,27 +109,83 @@ def set_stage(account_id: str, action: str) -> None:
     finally: db.close()
 
 
-# Final route ownership: /owner/hunter is the Watchtower lead bucket; outreach is separate.
+def section_nav(active: str, pending_new: int | None = None) -> str:
+    pending = pending_new_count() if pending_new is None else pending_new
+    def item(key: str, href: str, label: str) -> str:
+        cls = "active" if active == key else ""
+        return f"<a class='{cls}' href='{href}'>{label}</a>"
+    return (
+        NAV_CSS + "<div class='hunter-section-nav'>" +
+        item("watchtower", "/owner/hunter/watchtower", "WATCHTOWER") +
+        item("new", "/owner/hunter/new-artists", f"NEW ARTISTS ({pending:,})") +
+        item("outreach", "/owner/hunter/outreach", "OUTREACH") +
+        "</div>"
+    )
+
+
+def decorate_page(response: HTMLResponse, active: str, pending_new: int | None = None) -> HTMLResponse:
+    try:
+        doc = response.body.decode("utf-8")
+        nav = section_nav(active, pending_new)
+        marker = "</header>"
+        doc = doc.replace(marker, marker + nav, 1) if marker in doc else nav + doc
+        return HTMLResponse(doc, status_code=response.status_code, headers={"Cache-Control":"no-store"})
+    except Exception:
+        return response
+
+
+# Final route ownership. These are deliberately three different product surfaces.
 for route in list(core.app.router.routes):
     path = getattr(route,"path",None); methods = getattr(route,"methods",set()) or set()
-    if path in {"/owner/hunter","/owner/hunter/outreach","/owner/hunter/discover","/owner/hunter/discovery","/owner/hunter/new","/owner/hunter/new-artists"} and "GET" in methods:
+    if path in {"/owner/hunter","/owner/hunter/watchtower","/owner/hunter/outreach","/owner/hunter/discover","/owner/hunter/discovery","/owner/hunter/new","/owner/hunter/new-artists"} and "GET" in methods:
         core.app.router.routes.remove(route)
-    elif path == "/owner/hunter/outreach/{account_id}" and "POST" in methods:
+    elif path in {"/owner/hunter/outreach/{account_id}", "/owner/hunter/{account_id}/decision", "/owner/hunter/bulk"} and "POST" in methods:
         core.app.router.routes.remove(route)
 
 
 @core.app.get("/owner/hunter", response_class=HTMLResponse)
-def hunter_leads_runtime(request: Request):
-    return lead_ui.hunter_command_center(request)
+@core.app.get("/owner/hunter/watchtower", response_class=HTMLResponse)
+def hunter_watchtower_runtime(request: Request):
+    response = lead_ui.hunter_command_center(request)
+    return decorate_page(response, "watchtower")
+
+
+@core.app.get("/owner/hunter/new-artists", response_class=HTMLResponse)
+def hunter_new_artists_runtime(request: Request):
+    hunter.admin_artist(request)
+    response = hunter.operator_console(request)
+    return decorate_page(response, "new")
 
 
 @core.app.get("/owner/hunter/discover")
 @core.app.get("/owner/hunter/discovery")
 @core.app.get("/owner/hunter/new")
-@core.app.get("/owner/hunter/new-artists")
 def hunter_discovery_compat(request: Request):
     hunter.admin_artist(request)
-    return RedirectResponse("/owner/hunter", status_code=303)
+    return RedirectResponse("/owner/hunter/new-artists", status_code=303)
+
+
+@core.app.post("/owner/hunter/{account_id}/decision")
+async def hunter_new_artist_decision_runtime(request: Request, account_id: str):
+    artist = hunter.admin_artist(request)
+    form = await request.form()
+    try:
+        changed = hunter.set_decision(account_id, str(form.get("decision") or ""), artist["email"])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not changed: raise HTTPException(404, "Target not found")
+    return RedirectResponse("/owner/hunter/new-artists", status_code=303)
+
+
+@core.app.post("/owner/hunter/bulk")
+async def hunter_new_artist_bulk_runtime(request: Request):
+    artist = hunter.admin_artist(request)
+    form = await request.form()
+    account_ids = [str(value) for value in form.getlist("account_id") if str(value)]
+    if len(account_ids) > 200: raise HTTPException(400, "Bulk review limit is 200")
+    for account_id in account_ids:
+        hunter.set_decision(account_id, str(form.get("decision") or ""), artist["email"], bulk=True)
+    return RedirectResponse("/owner/hunter/new-artists", status_code=303)
 
 
 @core.app.post("/owner/hunter/outreach/{account_id}")
@@ -134,10 +206,7 @@ def hunter_outreach_runtime(request: Request):
         stage, target = next_action(db)
     finally: db.close()
     body = f"""
-      <div class='pipeline-nav'>
-        <a href='/owner/hunter'>NEW ARTISTS ({pending_new:,})</a>
-        <a class='active' href='/owner/hunter/outreach'>OUTREACH</a>
-      </div>
+      {section_nav('outreach', pending_new)}
       <p class='dim' style='margin:0 0 5px'>FOUNDER // ACQUISITION</p>
       <h1 style='margin-top:0'>HUNTER OUTREACH</h1>
       <div class='pipeline-grid'>
@@ -155,4 +224,4 @@ def hunter_outreach_runtime(request: Request):
     return core.page("Hunter Outreach", body, script=outreach.PIPELINE_SCRIPT, head=outreach.PIPELINE_CSS)
 
 
-print("Hunter route repair loaded // lead command center + outreach", flush=True)
+print("Hunter route repair loaded // Watchtower + New Artists + Outreach", flush=True)
