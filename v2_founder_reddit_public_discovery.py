@@ -1,30 +1,31 @@
-"""Credential-free public Reddit discovery for Founder Reddit Copilot."""
+"""Fast credential-free public Reddit discovery for Founder Reddit Copilot."""
 from __future__ import annotations
 
 import html as html_lib
 import re
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote_plus, unquote, urlparse, parse_qs
 from urllib.request import Request, urlopen
 
 import v2_founder_reddit as radar
 
-UA = "EmptyChairFounderRadar/2.1 (+https://tryemptychair.com)"
-QUERIES = (
+UA = "EmptyChairFounderRadar/2.2 (+https://tryemptychair.com)"
+RSS_TERMS = ("cancellation", "no show", "last minute", "booking", "appointment", "deposit", "opening")
+RSS_SUBS = ("TattooArtists", "tattooing", "tattoo")
+WEB_QUERIES = (
     'site:reddit.com/r/TattooArtists cancellation tattoo artist',
     'site:reddit.com/r/TattooArtists "last minute" tattoo opening',
     'site:reddit.com/r/TattooArtists "no show" tattoo artist',
     'site:reddit.com/r/TattooArtists booking deposit tattoo artist',
     'site:reddit.com/r/tattooing cancellation booking tattoo artist',
 )
-RSS_TERMS = ("cancellation", "no show", "last minute", "booking", "appointment", "deposit", "opening")
-RSS_SUBS = ("TattooArtists", "tattooing", "tattoo")
 
 
-def _get(url: str) -> str:
+def _get(url: str, timeout: float = 2.0) -> str:
     req = Request(url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
-    with urlopen(req, timeout=6) as r:
+    with urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", "ignore")
 
 
@@ -43,40 +44,47 @@ def _reddit_url(raw: str) -> str:
     return raw if raw.startswith("http") else "https://www.reddit.com" + raw
 
 
-def _rss_posts() -> list[dict]:
+def _rss_one(subreddit: str, term: str) -> list[dict]:
+    url = f"https://www.reddit.com/r/{subreddit}/search.rss?q={quote_plus(term)}&restrict_sr=on&sort=new&t=year"
+    root = ET.fromstring(_get(url))
     posts = []
-    for subreddit in RSS_SUBS:
-        for term in RSS_TERMS:
-            url = f"https://www.reddit.com/r/{subreddit}/search.rss?q={quote_plus(term)}&restrict_sr=on&sort=new&t=year"
+    for entry in root.findall("{*}entry"):
+        title = _clean(entry.findtext("{*}title") or "")
+        body = _clean(entry.findtext("{*}content") or entry.findtext("{*}summary") or "")
+        link = ""
+        for node in entry.findall("{*}link"):
+            href = node.attrib.get("href", "")
+            if "/comments/" in href:
+                link = href
+                break
+        if not link:
+            continue
+        parts = [p for p in urlparse(link).path.split("/") if p]
+        pid = parts[3] if len(parts) > 3 and parts[2] == "comments" else str(abs(hash(link)))
+        posts.append({
+            "id": pid,
+            "title": title,
+            "selftext": body,
+            "subreddit_name_prefixed": "r/" + subreddit,
+            "permalink": urlparse(link).path,
+            "url": link,
+            "num_comments": 0,
+            "created_utc": time.time() - 3 * 86400,
+            "ec_public_discovery": True,
+        })
+    return posts
+
+
+def _rss_posts() -> list[dict]:
+    jobs = [(sub, term) for sub in RSS_SUBS for term in RSS_TERMS]
+    posts: list[dict] = []
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {pool.submit(_rss_one, sub, term): (sub, term) for sub, term in jobs}
+        for future in as_completed(futures):
             try:
-                root = ET.fromstring(_get(url))
-            except Exception as exc:
-                print(f"Founder Reddit RSS failed // {subreddit}/{term}: {exc}", flush=True)
-                continue
-            for entry in root.findall("{*}entry"):
-                title = _clean(entry.findtext("{*}title") or "")
-                body = _clean(entry.findtext("{*}content") or entry.findtext("{*}summary") or "")
-                link = ""
-                for node in entry.findall("{*}link"):
-                    href = node.attrib.get("href", "")
-                    if "/comments/" in href:
-                        link = href
-                        break
-                if not link:
-                    continue
-                parts = [p for p in urlparse(link).path.split("/") if p]
-                pid = parts[3] if len(parts) > 3 and parts[2] == "comments" else str(abs(hash(link)))
-                posts.append({
-                    "id": pid,
-                    "title": title,
-                    "selftext": body,
-                    "subreddit_name_prefixed": "r/" + subreddit,
-                    "permalink": urlparse(link).path,
-                    "url": link,
-                    "num_comments": 0,
-                    "created_utc": time.time() - 3 * 86400,
-                    "ec_public_discovery": True,
-                })
+                posts.extend(future.result())
+            except Exception:
+                pass
     return posts
 
 
@@ -138,36 +146,32 @@ def _rank(posts: list[dict]) -> tuple[list[dict], bool]:
     return [p for p in ranked if int(p.get("ec_score") or 0) >= 25][:15], bool(seen)
 
 
+def _web_posts() -> list[dict]:
+    hits: list[dict] = []
+    jobs = [(engine, query) for query in WEB_QUERIES for engine in (_bing, _google)]
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = [pool.submit(engine, query) for engine, query in jobs]
+        for future in as_completed(futures):
+            try:
+                hits.extend(_normalize(x) for x in future.result())
+            except Exception:
+                pass
+    return hits
+
+
 def public_opportunities() -> tuple[list[dict], bool]:
-    rss = _rss_posts()
-    ranked, live = _rank(rss)
+    ranked, live = _rank(_rss_posts())
     if ranked:
         return ranked, live
-    hits = []
-    for query in QUERIES:
-        for engine in (_bing, _google):
-            try:
-                batch = engine(query)
-                if batch:
-                    hits.extend(_normalize(x) for x in batch)
-                    break
-            except Exception as exc:
-                print(f"Founder Reddit public discovery failed // {engine.__name__}: {exc}", flush=True)
-    return _rank(hits)
-
-
-_original = radar._opportunities
+    return _rank(_web_posts())
 
 
 def _combined_opportunities():
-    try:
-        posts, live = _original()
-        if posts:
-            return posts, live
-    except Exception as exc:
-        print(f"Founder Reddit primary discovery failed: {exc}", flush=True)
+    # Do not call the old sequential Reddit JSON path here. When Reddit blocks
+    # anonymous server traffic it can stall this page for tens of seconds.
+    # Public discovery is concurrent and bounded so the Founder page opens fast.
     return public_opportunities()
 
 
 radar._opportunities = _combined_opportunities
-print("Founder Reddit public discovery loaded // Reddit RSS + web fallback", flush=True)
+print("Founder Reddit public discovery loaded // fast concurrent RSS + web fallback", flush=True)
