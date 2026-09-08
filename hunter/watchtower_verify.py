@@ -11,6 +11,8 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 
 import hunter.watchtower_service as service
+from hunter.watchtower_broadcast_patch import install as install_broadcast_patch
+install_broadcast_patch(service)
 import hunter.watchtower_render as render
 from hunter.watchtower_render import app
 
