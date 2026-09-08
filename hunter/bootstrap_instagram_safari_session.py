@@ -1,10 +1,11 @@
 """Create a reusable Hunter Instagram browser session with Safari WebDriver.
 
-This helper opens a normal visible Safari window. The operator completes login and
-any Instagram verification manually. The script then exports cookies and basic
-session metadata to a local JSON file for later Hunter browser collectors.
+This helper opens a visible Safari automation window. Credentials are read from
+local environment variables and entered into Instagram without being printed.
+Any Instagram verification or approval remains manual. The resulting cookies
+are saved locally for later Hunter browser collectors.
 
-It does not automate credentials, bypass checkpoints, or print cookie values.
+It does not bypass checkpoints or print credential/session values.
 """
 from __future__ import annotations
 
@@ -13,19 +14,38 @@ import os
 from pathlib import Path
 
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.safari.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 
 OUT = Path(os.environ.get("HUNTER_IG_SAFARI_SESSION_OUT", "hunter-instagram-safari-session.json"))
 
 
 def main() -> int:
+    username = os.environ.get("HUNTER_IG_USERNAME", "").strip()
+    password = os.environ.get("HUNTER_IG_PASSWORD", "")
+    if not username or not password:
+        raise SystemExit("Missing HUNTER_IG_USERNAME or HUNTER_IG_PASSWORD in this Terminal session")
+
     options = Options()
     driver = webdriver.Safari(options=options)
     try:
-        driver.get("https://www.instagram.com/")
-        print("Safari opened Instagram.")
-        print("Log in manually and complete any Instagram verification.")
+        driver.get("https://www.instagram.com/accounts/login/")
+        wait = WebDriverWait(driver, 30)
+
+        user_field = wait.until(EC.presence_of_element_located((By.NAME, "username")))
+        pass_field = wait.until(EC.presence_of_element_located((By.NAME, "password")))
+        user_field.clear()
+        user_field.send_keys(username)
+        pass_field.send_keys(password)
+
+        login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
+        login_button.click()
+
+        print("Safari submitted the Instagram login using local environment credentials.")
+        print("Complete any legitimate Instagram verification/approval if prompted.")
         input("When you can see your Instagram home feed, return here and press ENTER... ")
 
         cookies = driver.get_cookies()
