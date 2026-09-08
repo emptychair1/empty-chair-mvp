@@ -3,3 +3,4 @@ beautifulsoup4>=4.12,<5
 lxml>=5,<7
 playwright>=1.48,<2
 pytest>=8,<9
+instagrapi[curl]>=2.5,<3
