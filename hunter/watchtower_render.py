@@ -95,6 +95,17 @@ def bootstrap_form() -> HTMLResponse:
     return _page()
 
 
+def _first_visible(page, selectors: list[str]):
+    for selector in selectors:
+        try:
+            locator = page.locator(selector)
+            if locator.count() and locator.first.is_visible(timeout=1500):
+                return locator.first
+        except Exception:
+            continue
+    return None
+
+
 def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
     try:
         BOOTSTRAP_STATE.parent.mkdir(parents=True, exist_ok=True)
@@ -103,9 +114,43 @@ def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
             context = browser.new_context(viewport={"width": 1280, "height": 900})
             page = context.new_page()
             page.goto("https://www.instagram.com/accounts/login/", wait_until="domcontentloaded", timeout=30000)
-            page.locator("input[name='username']").fill(username, timeout=10000)
-            page.locator("input[name='password']").fill(password, timeout=10000)
-            page.locator("button[type='submit']").click(timeout=10000)
+            page.wait_for_timeout(2500)
+
+            user_field = _first_visible(page, [
+                "input[name='username']",
+                "input[autocomplete='username']",
+                "input[type='text']",
+                "input[aria-label*='username' i]",
+                "input[aria-label*='phone' i]",
+            ])
+            pass_field = _first_visible(page, [
+                "input[name='password']",
+                "input[autocomplete='current-password']",
+                "input[type='password']",
+            ])
+
+            if not user_field or not pass_field:
+                try:
+                    body = page.locator("body").inner_text(timeout=5000).strip().replace("\n", " | ")[:500]
+                except Exception:
+                    body = ""
+                current = page.url
+                browser.close()
+                return (f"Instagram did not render a standard login form. Page: {current}. Visible page text: {body or '[none]'}. This usually means Instagram served an interstitial, consent screen, or blocked login page to the Render browser.", False)
+
+            user_field.fill(username, timeout=10000)
+            pass_field.fill(password, timeout=10000)
+
+            submit = _first_visible(page, [
+                "button[type='submit']",
+                "button:has-text('Log in')",
+                "div[role='button']:has-text('Log in')",
+            ])
+            if not submit:
+                browser.close()
+                return ("Instagram rendered the login fields but no usable Log in button. The page layout has changed or an interstitial is blocking submission.", False)
+
+            submit.click(timeout=10000)
             page.wait_for_timeout(6000)
 
             cookies = context.cookies("https://www.instagram.com")
@@ -120,12 +165,13 @@ def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
                 text = page.locator("body").inner_text(timeout=5000).lower()
             except Exception:
                 pass
+            current = page.url
             browser.close()
 
             challenge_words = ("check your notifications", "security code", "enter code", "confirm it's you", "challenge", "approve")
             if any(word in text for word in challenge_words):
                 return ("Instagram requires account approval or verification. Approve the login in the Instagram app, then submit this form again. Hunter will not bypass the verification step.", False)
-            return ("Instagram did not establish a session. Check the credentials and Instagram app for a login approval prompt, then try again.", False)
+            return (f"Instagram did not establish a session. Current page: {current}. Check the Instagram app for a login approval prompt, then try again.", False)
     except Exception as exc:
         return (f"Bootstrap failed: {exc.__class__.__name__}: {str(exc)[:700]}", False)
 
