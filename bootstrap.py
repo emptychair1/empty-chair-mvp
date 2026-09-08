@@ -1,77 +1,72 @@
-"""Empty Chair 2.0 production bootstrap.
-
-Render imports only the headless 2.0 application and focused 2.0 extensions. Legacy 1.x
-modules remain in the repository for history/rollback and are never imported in production.
-"""
+"""Empty Chair 2.0 production bootstrap."""
 import secrets
 import uuid
-
 from fastapi.responses import JSONResponse, RedirectResponse
-
 import v2_app as core
 from v2_app import app
-import v2_db_namespace  # noqa: F401,E402
-import v2_sms  # noqa: F401,E402
-import v2_sms_only  # noqa: F401,E402
-import v2_timezone  # noqa: F401,E402
-import v2_offer_delivery  # noqa: F401,E402
-import v2_auth  # noqa: F401,E402
-import v2_apple_calendar_web  # noqa: F401,E402
-import v2_phone_safe  # noqa: F401,E402
-import v2_client_sources  # noqa: F401,E402
-import v2_winner_link  # noqa: F401,E402
-import v2_crt_ui  # noqa: F401,E402
-import v2_entitlement  # noqa: F401,E402
-import v2_subscription_billing  # noqa: F401,E402
-import v2_settings  # noqa: F401,E402
-import v2_founder_ig_reels  # noqa: F401,E402
-import v2_instagram_stories  # noqa: F401,E402
-import v2_founder_reddit  # noqa: F401,E402
-import v2_founder_reddit_oauth  # noqa: F401,E402
-import v2_reddit_devvit_bridge  # noqa: F401,E402
-import v2_artist_payments  # noqa: F401,E402
-import v2_billing_autoadopt  # noqa: F401,E402
-import v2_paypal_sellers  # noqa: F401,E402
-import v2_payment_settings_ui  # noqa: F401,E402
-import v2_pwa  # noqa: F401,E402
-import v2_native_calendar  # noqa: F401,E402
-import v2_native_auth  # noqa: F401,E402
-import v2_production_hardening  # noqa: F401,E402
-import v2_payment_failure_hardening  # noqa: F401,E402
-import v2_final_hardening  # noqa: F401,E402
-import v2_paid_finalize_recovery  # noqa: F401,E402
-import v2_native_finalize_bridge  # noqa: F401,E402
-import v2_instagram_growth as ig_growth  # noqa: F401,E402
-import v2_instagram_api_fix  # noqa: F401,E402
-import v2_instagram_growth_attribution  # noqa: F401,E402
-import v2_instagram_content  # noqa: F401,E402
-import v2_instagram_growth_brain  # noqa: F401,E402
-import v2_instagram_growth_report  # noqa: F401,E402
-import v2_instagram_publisher  # noqa: F401,E402
-import v2_instagram_crt_autopilot  # noqa: F401,E402
-import v2_instagram_reels_engine  # noqa: F401,E402
-import v2_instagram_reels_test  # noqa: F401,E402
-import v2_instagram_reels_launch  # noqa: F401,E402
-import v2_instagram_reels_app_screens  # noqa: F401,E402
-import v2_instagram_reels_cleanup_fix  # noqa: F401,E402
-import v2_instagram_webhook_subscription  # noqa: F401,E402
-import v2_hunter_operator  # noqa: F401,E402
-import v2_hunter_operator_transaction_fix  # noqa: F401,E402
-import v2_hunter_operator_phone_auth  # noqa: F401,E402
-import v2_hunter_crt_ui  # noqa: F401,E402
-import v2_hunter_auto_engage  # noqa: F401,E402
-import v2_hunter_auto_engage_cap  # noqa: F401,E402
-import v2_hunter_outreach  # noqa: F401,E402
-import v2_hunter_outreach_primary  # noqa: F401,E402
-import v2_hunter_outreach_runtime_fix  # noqa: F401,E402
-import v2_hunter_dm_variety  # noqa: F401,E402
-import v2_hunter_reply_opportunity  # noqa: F401,E402
-import v2_hunter_instagram_reply_sync  # noqa: F401,E402
-import v2_hunter_instagram_reply_graph_fix  # noqa: F401,E402
-import v2_hunter_instagram_reply_retry_fix  # noqa: F401,E402
-import v2_native_hunter  # noqa: F401,E402
+import v2_db_namespace
+import v2_sms
+import v2_sms_only
+import v2_timezone
+import v2_offer_delivery
+import v2_auth
+import v2_apple_calendar_web
+import v2_phone_safe
+import v2_client_sources
+import v2_winner_link
+import v2_crt_ui
+import v2_entitlement
+import v2_subscription_billing
+import v2_settings
+import v2_founder_ig_reels
+import v2_instagram_stories
+import v2_founder_reddit
+import v2_founder_reddit_oauth
+import v2_reddit_devvit_bridge
+import v2_founder_reddit_public_discovery
+import v2_artist_payments
+import v2_billing_autoadopt
+import v2_paypal_sellers
+import v2_payment_settings_ui
+import v2_pwa
+import v2_native_calendar
+import v2_native_auth
+import v2_production_hardening
+import v2_payment_failure_hardening
+import v2_final_hardening
+import v2_paid_finalize_recovery
+import v2_native_finalize_bridge
+import v2_instagram_growth as ig_growth
+import v2_instagram_api_fix
+import v2_instagram_growth_attribution
+import v2_instagram_content
+import v2_instagram_growth_brain
+import v2_instagram_growth_report
+import v2_instagram_publisher
+import v2_instagram_crt_autopilot
+import v2_instagram_reels_engine
+import v2_instagram_reels_test
+import v2_instagram_reels_launch
+import v2_instagram_reels_app_screens
+import v2_instagram_reels_cleanup_fix
+import v2_instagram_webhook_subscription
+import v2_hunter_operator
+import v2_hunter_operator_transaction_fix
+import v2_hunter_operator_phone_auth
+import v2_hunter_crt_ui
+import v2_hunter_auto_engage
+import v2_hunter_auto_engage_cap
+import v2_hunter_outreach
+import v2_hunter_outreach_primary
+import v2_hunter_outreach_runtime_fix
+import v2_hunter_dm_variety
+import v2_hunter_reply_opportunity
+import v2_hunter_instagram_reply_sync
+import v2_hunter_instagram_reply_graph_fix
+import v2_hunter_instagram_reply_retry_fix
+import v2_native_hunter
 
-BUILD_ID = "bootstrap-founder-reddit-devvit-20260908"
+BUILD_ID = "bootstrap-founder-reddit-public-discovery-20260908"
 
 @app.middleware("http")
 async def bootstrap_entrypoints(request, call_next):
