@@ -24,6 +24,7 @@ concurrency:
 
 # This is intentionally separate from instagram-organic.yml. Reel failures cannot
 # cancel, block, or mutate the proven CRT feed-post job.
+# Test trigger: canonical 10-scene recovery story.
 jobs:
   reels:
     runs-on: ubuntu-latest
