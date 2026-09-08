@@ -5,6 +5,7 @@ import html
 import json
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
@@ -78,7 +79,7 @@ small{{display:block;color:#888;margin-top:18px;line-height:1.45}}
 <label>Instagram password</label><input type='password' name='password' autocomplete='current-password' required>
 <button type='submit'>Authenticate virtual browser</button>
 </form>
-<small>The control token is the WATCHTOWER_API_TOKEN stored in Render. Instagram credentials are used only for this login attempt and are not written to the repo or returned by the API. If Instagram asks you to approve a new login, approve it in the Instagram app and submit this form again.</small>
+<small>The control token is the WATCHTOWER_API_TOKEN stored in Render. Instagram credentials are used only for this login attempt and are not written to the repo or returned by the API. If Instagram asks you to approve a new login, approve it once in the Instagram app. Keep this bootstrap page open; the virtual browser will remain alive while it waits for approval.</small>
 </main></body></html>"""
     return HTMLResponse(body, headers={"Cache-Control": "no-store"})
 
@@ -89,7 +90,7 @@ def bootstrap_form() -> HTMLResponse:
         return _page("The Watchtower browser is already authenticated.", True)
     state = _bootstrap_status.get("state")
     if state == "running":
-        return _page("Login attempt is running in the virtual browser. This page will refresh automatically.", None, refresh=True)
+        return _page(str(_bootstrap_status.get("message") or "Login attempt is running in the virtual browser. This page will refresh automatically."), None, refresh=True)
     if state in {"finished", "failed"}:
         return _page(str(_bootstrap_status.get("message") or ""), _bootstrap_status.get("ok"))
     return _page()
@@ -104,6 +105,32 @@ def _first_visible(page, selectors: list[str]):
         except Exception:
             continue
     return None
+
+
+def _has_session(context) -> bool:
+    try:
+        cookies = context.cookies("https://www.instagram.com")
+        return any(cookie.get("name") == "sessionid" for cookie in cookies)
+    except Exception:
+        return False
+
+
+def _wait_for_instagram_approval(page, context, seconds: int = 90) -> tuple[bool, str]:
+    deadline = time.monotonic() + seconds
+    _bootstrap_status.update({
+        "state": "running",
+        "message": "Instagram approval is required. Approve the login once in the Instagram app. Do not submit this form again; Hunter is keeping the virtual browser alive and waiting for the approval.",
+        "ok": None,
+    })
+    while time.monotonic() < deadline:
+        if _has_session(context):
+            context.storage_state(path=str(BOOTSTRAP_STATE))
+            return True, "Instagram approval succeeded. Session state is ready for the Watchtower worker."
+        try:
+            page.wait_for_timeout(2000)
+        except Exception:
+            time.sleep(2)
+    return False, "Instagram approval did not complete within 90 seconds. No session was created. Do not keep retrying; open /diagnostics and send me the bootstrap status instead."
 
 
 def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
@@ -153,9 +180,7 @@ def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
             submit.click(timeout=10000)
             page.wait_for_timeout(6000)
 
-            cookies = context.cookies("https://www.instagram.com")
-            authed = any(cookie.get("name") == "sessionid" for cookie in cookies)
-            if authed:
+            if _has_session(context):
                 context.storage_state(path=str(BOOTSTRAP_STATE))
                 browser.close()
                 return ("Instagram login succeeded. Session state is ready for the Watchtower worker. Open /diagnostics in a few seconds.", True)
@@ -166,12 +191,25 @@ def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
             except Exception:
                 pass
             current = page.url
-            browser.close()
 
-            challenge_words = ("check your notifications", "security code", "enter code", "confirm it's you", "challenge", "approve")
-            if any(word in text for word in challenge_words):
-                return ("Instagram requires account approval or verification. Approve the login in the Instagram app, then submit this form again. Hunter will not bypass the verification step.", False)
-            return (f"Instagram did not establish a session. Current page: {current}. Check the Instagram app for a login approval prompt, then try again.", False)
+            challenge_words = (
+                "check your notifications",
+                "security code",
+                "enter code",
+                "confirm it's you",
+                "challenge",
+                "approve",
+                "trying to log in",
+                "is this you",
+            )
+            challenge = any(word in text for word in challenge_words) or "/challenge/" in current.lower() or "/auth_platform/" in current.lower()
+            if challenge:
+                ok, message = _wait_for_instagram_approval(page, context, seconds=90)
+                browser.close()
+                return message, ok
+
+            browser.close()
+            return (f"Instagram did not establish a session. Current page: {current}. Open /diagnostics and send me the bootstrap status; do not repeatedly retry the login.", False)
     except Exception as exc:
         return (f"Bootstrap failed: {exc.__class__.__name__}: {str(exc)[:700]}", False)
 
@@ -198,8 +236,8 @@ async def bootstrap_login(request: Request) -> HTMLResponse:
     if not username or not password:
         return _page("Instagram username and password are required.", False)
     if not _bootstrap_lock.acquire(blocking=False):
-        return _page("A login attempt is already running. This page will refresh automatically.", None, refresh=True)
+        return _page("A login attempt is already running. Keep this page open; it will refresh automatically.", None, refresh=True)
 
-    _bootstrap_status.update({"state": "running", "message": "Login attempt started.", "ok": None})
+    _bootstrap_status.update({"state": "running", "message": "Login attempt started. If Instagram asks for approval, approve it once in the app; this browser will stay alive for up to 90 seconds.", "ok": None})
     threading.Thread(target=_bootstrap_runner, args=(username, password), name="watchtower-bootstrap", daemon=True).start()
-    return _page("Login attempt started in the virtual browser. This page will refresh automatically.", None, refresh=True)
+    return _page("Login attempt started. If Instagram asks for approval, approve it once in the app; this browser will stay alive for up to 90 seconds.", None, refresh=True)
