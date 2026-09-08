@@ -31,6 +31,70 @@ def _real_channel_url(value: str) -> bool:
     return len(slug) >= 4
 
 
+def _walk(value):
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _walk(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _walk(child)
+
+
+def _metadata_channels(payload, service):
+    channels = []
+    seen = set()
+    for node in _walk(payload):
+        if not isinstance(node, dict):
+            continue
+        title = str(node.get("title") or node.get("name") or node.get("channel_name") or "").strip()
+        href = str(node.get("invite_link") or node.get("invite_url") or node.get("link") or "").strip()
+        thread_id = str(node.get("thread_id") or node.get("thread_v2_id") or node.get("thread_igid") or "").strip()
+        looks_channel = bool(title and any(k in node for k in ("thread_id", "thread_v2_id", "thread_igid", "invite_link", "number_of_members", "member_count", "subscriber_count")))
+        if href and not _real_channel_url(href):
+            href = ""
+        if not href and not looks_channel:
+            continue
+        marker = thread_id or href or title.lower()
+        if not marker or marker in seen:
+            continue
+        seen.add(marker)
+        score, matches = service._broadcast_score(title or "Broadcast channel")
+        member_count = node.get("member_count") or node.get("subscriber_count") or node.get("participant_count") or node.get("number_of_members")
+        try:
+            member_count = int(member_count) if member_count is not None else None
+        except Exception:
+            member_count = None
+        channels.append({
+            "title": (title or "Broadcast channel")[:240],
+            "href": href[:1000],
+            "thread_id": thread_id[:200],
+            "member_count": member_count,
+            "intent_score": score,
+            "recovery_matches": matches,
+            "recovery_signal": bool(matches),
+        })
+    return channels
+
+
+def _result(service, username, channels, detection_path):
+    all_matches = sorted({m for c in channels for m in c.get("recovery_matches", [])})
+    recovery_count = sum(1 for c in channels if c.get("recovery_signal"))
+    return {
+        "schema": service.SCHEMA,
+        "username": username,
+        "collector": "instagram_broadcast_channel",
+        "status": "recovery_broadcast_channel_found" if recovery_count else "broadcast_channel_found",
+        "intent_score": max((int(c.get("intent_score") or 0) for c in channels), default=0),
+        "matches": all_matches,
+        "channels": channels[:20],
+        "channel_count": len(channels),
+        "recovery_channel_count": recovery_count,
+        "observed_at": service.utcnow(),
+        "detection_path": detection_path,
+    }
+
+
 def install(service) -> None:
     original = service.probe_broadcast_channel
 
@@ -96,33 +160,43 @@ def install(service) -> None:
                 "recovery_signal": bool(visible_matches),
             })
 
+        if channels:
+            return _result(service, username, channels, "authenticated_dom_hardened")
+
+        # Profile DOM often omits broadcast-channel cards. Ask Instagram's own web
+        # profile transport from inside the already-authenticated browser session,
+        # so cookies and browser identity stay identical to normal web navigation.
+        try:
+            payload = page.evaluate(
+                """async (username) => {
+                    const url = '/api/v1/users/web_profile_info/?username=' + encodeURIComponent(username);
+                    const response = await fetch(url, {
+                        credentials: 'include',
+                        headers: {'x-ig-app-id': '936619743392459', 'accept': 'application/json'}
+                    });
+                    let body = null;
+                    try { body = await response.json(); } catch (_) {}
+                    return {status: response.status, body};
+                }""",
+                username,
+            )
+            metadata = _metadata_channels((payload or {}).get("body") or {}, service)
+            if metadata:
+                return _result(service, username, metadata, "authenticated_web_profile_info")
+            result["metadata_http_status"] = (payload or {}).get("status")
+        except Exception as exc:
+            result["metadata_error"] = f"{exc.__class__.__name__}: {exc}"[:500]
+
         text_lower = (visible or "").lower()
-        if not channels and "broadcast channel" in text_lower and visible_matches:
-            channels.append({
+        if "broadcast channel" in text_lower and visible_matches:
+            return _result(service, username, [{
                 "title": "Broadcast channel", "href": "",
                 "intent_score": visible_score,
                 "recovery_matches": visible_matches,
                 "recovery_signal": True,
-            })
+            }], "authenticated_visible_text")
 
-        if not channels:
-            result["page_text_sample"] = visible[:500]
-            return result
-
-        all_matches = sorted({m for c in channels for m in c.get("recovery_matches", [])})
-        recovery_count = sum(1 for c in channels if c.get("recovery_signal"))
-        return {
-            "schema": service.SCHEMA,
-            "username": username,
-            "collector": "instagram_broadcast_channel",
-            "status": "recovery_broadcast_channel_found" if recovery_count else "broadcast_channel_found",
-            "intent_score": max((int(c.get("intent_score") or 0) for c in channels), default=0),
-            "matches": all_matches,
-            "channels": channels[:20],
-            "channel_count": len(channels),
-            "recovery_channel_count": recovery_count,
-            "observed_at": service.utcnow(),
-            "detection_path": "authenticated_dom_hardened",
-        }
+        result["page_text_sample"] = visible[:500]
+        return result
 
     service.probe_broadcast_channel = hardened
