@@ -25,6 +25,7 @@ import v2_entitlement  # noqa: F401,E402
 import v2_subscription_billing  # noqa: F401,E402
 import v2_settings  # noqa: F401,E402
 import v2_founder_ig_reels  # noqa: F401,E402
+import v2_instagram_stories  # noqa: F401,E402
 import v2_artist_payments  # noqa: F401,E402
 import v2_billing_autoadopt  # noqa: F401,E402
 import v2_paypal_sellers  # noqa: F401,E402
@@ -67,37 +68,20 @@ import v2_hunter_instagram_reply_graph_fix  # noqa: F401,E402
 import v2_hunter_instagram_reply_retry_fix  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-ig-reels-generated-screens-20260908"
-
+BUILD_ID = "bootstrap-ig-stories-director-20260908"
 
 @app.middleware("http")
 async def bootstrap_entrypoints(request, call_next):
-    path = request.url.path.rstrip("/") or "/"
-    if path == "/__ec_build":
-        return JSONResponse({"build": BUILD_ID, "instagram_bio": True})
-    if path == "/ig":
-        token = secrets.token_urlsafe(18)
+    path=request.url.path.rstrip("/") or "/"
+    if path=="/__ec_build": return JSONResponse({"build":BUILD_ID,"instagram_bio":True})
+    if path=="/ig":
+        token=secrets.token_urlsafe(18)
         try:
-            lead_id = str(uuid.uuid4())
-            created = ig_growth.now()
-            core.run(
-                "INSERT INTO growth_instagram_leads(id,ig_user_id,username,comment_id,media_id,keyword,token,status,created_at,clicked_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                (lead_id, "organic", "", f"organic:{uuid.uuid4()}", "", "bio", token, "CLICKED", created, created),
-            )
-            ig_growth.log(lead_id, "instagram.organic_clicked", {"source": "bio"})
-        except Exception as exc:
-            print(f"IG bio attribution write failed: {exc}", flush=True)
-        response = RedirectResponse("/", status_code=303)
-        response.set_cookie(
-            "ec_growth",
-            token,
-            max_age=60 * 60 * 24 * 14,
-            httponly=True,
-            secure=core.BASE_URL.startswith("https://"),
-            samesite="lax",
-        )
-        return response
+            lead_id=str(uuid.uuid4()); created=ig_growth.now()
+            core.run("INSERT INTO growth_instagram_leads(id,ig_user_id,username,comment_id,media_id,keyword,token,status,created_at,clicked_at) VALUES(?,?,?,?,?,?,?,?,?,?)",(lead_id,"organic","",f"organic:{uuid.uuid4()}","","bio",token,"CLICKED",created,created))
+            ig_growth.log(lead_id,"instagram.organic_clicked",{"source":"bio"})
+        except Exception as exc: print(f"IG bio attribution write failed: {exc}",flush=True)
+        response=RedirectResponse("/",status_code=303); response.set_cookie("ec_growth",token,max_age=60*60*24*14,httponly=True,secure=core.BASE_URL.startswith("https://"),samesite="lax"); return response
     return await call_next(request)
-
 
 print(f"Empty Chair 2.0 bootstrap loaded // {BUILD_ID}")
