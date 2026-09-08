@@ -1,13 +1,13 @@
 """Founder-only Instagram Reels preview page for Empty Chair scenario content."""
 from __future__ import annotations
 
-import html
 import os
 
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 import v2_app as core
+import v2_settings as settings
 from hunter.operator_auth import is_admin_identity, parse_phones
 
 ADMIN_EMAILS = {
@@ -123,4 +123,37 @@ def founder_ig_reels(request: Request):
     return core.page("IG Reels", body, head=REELS_CSS)
 
 
-print("Founder IG Reels preview loaded // scenario 01", flush=True)
+# Patch the founder settings page after v2_settings has registered it. This keeps
+# the normal settings UI untouched for customers and only inserts the founder Reel link.
+_original_settings_home = settings.settings_home
+for route in list(core.app.router.routes):
+    if getattr(route, "path", None) == "/settings" and "GET" in (getattr(route, "methods", set()) or set()):
+        core.app.router.routes.remove(route)
+
+
+@core.app.get("/settings", response_class=HTMLResponse)
+def settings_home_with_reels(request: Request):
+    response = _original_settings_home(request)
+    artist = core.current_artist(request)
+    if not artist or not is_admin_identity(
+        artist,
+        admin_emails=ADMIN_EMAILS,
+        admin_phones=ADMIN_PHONES,
+    ):
+        return response
+    body = response.body.decode("utf-8")
+    reel_row = (
+        '<a class="settings-row" href="/owner/ig-reels">'
+        '<span>IG REELS<small>scenario previews // reels content</small></span>'
+        '<span>›</span></a>'
+    )
+    marker = '<a class="settings-row" href="/owner/hunter">'
+    if reel_row not in body:
+        if marker in body:
+            body = body.replace(marker, reel_row + marker, 1)
+        else:
+            body = body.replace('<div class="settings-list">', '<div class="settings-list">' + reel_row, 1)
+    return HTMLResponse(content=body, status_code=response.status_code, headers=dict(response.headers))
+
+
+print("Founder IG Reels preview loaded // scenario 01 // settings nav enabled", flush=True)
