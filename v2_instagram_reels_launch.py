@@ -61,7 +61,7 @@ PRODUCT_LIBRARY = [
         "family": "MATCHING",
         "title": "Build the bench",
         "hook": "A LAST-MINUTE OPENING IS USELESS WITHOUT PEOPLE READY TO TAKE IT.",
-        "assets": ["customers.png", "customer-intelligence.jpg", "artists.png", "openings-recovery.png", "operations.png"],
+        "assets": ["customers.png", "customer-intelligence.png", "artists.png", "openings-recovery.png", "operations.png"],
         "lines": ["YOUR CUSTOMER BENCH", "PREFERENCES + HISTORY", "MATCHED TO THE RIGHT ARTIST", "BEST MATCH GETS THE OFFER", "RECOVERY MOVES FORWARD"],
     },
     {
@@ -69,7 +69,7 @@ PRODUCT_LIBRARY = [
         "family": "MATCHING",
         "title": "Why Empty Chair does not blast everyone",
         "hook": "DON'T BLAST EVERY CLIENT. FIND THE RIGHT ONE.",
-        "assets": ["customers.png", "customer-intelligence.jpg", "openings-recovery.png", "operations.png", "calendar.png"],
+        "assets": ["customers.png", "customer-intelligence.png", "openings-recovery.png", "operations.png", "calendar.png"],
         "lines": ["THE BENCH IS ALREADY THERE", "FIT MATTERS", "ONE OPENING. BEST MATCH FIRST.", "NEXT MATCH ONLY IF NEEDED", "THE CHAIR GETS FILLED"],
     },
     {
@@ -146,10 +146,11 @@ def _product_html(item: dict, scene: int) -> str:
     family = html.escape(item["family"])
     title = html.escape(item["title"])
     hook = html.escape(item["hook"])
+    asset_url = html.escape(f"{reels.BASE_URL}/static/{asset}", quote=True)
     return f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <style>
 *{{box-sizing:border-box}}html,body{{margin:0;width:1080px;height:1920px;overflow:hidden;background:#0B0905}}body{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}}.screen{{width:1080px;height:1920px;position:relative;background:#0B0905;color:#FFD36A;overflow:hidden}}.shot{{position:absolute;left:70px;right:70px;top:325px;height:1070px;border:2px solid #5f4100;background:#171108;overflow:hidden;box-shadow:0 0 60px rgba(255,176,0,.11)}}.shot img{{width:100%;height:100%;object-fit:contain;background:#0B0905}}.eyebrow{{position:absolute;top:95px;left:70px;right:70px;color:#805800;font-size:24px;letter-spacing:.18em}}h1{{position:absolute;top:145px;left:70px;right:70px;margin:0;font-size:54px;line-height:1.08;font-weight:500}}.line{{position:absolute;left:70px;right:70px;bottom:285px;border-top:2px solid #5f4100;padding-top:38px;font-size:48px;line-height:1.13;color:#FFD36A}}.hook{{position:absolute;left:70px;right:70px;bottom:130px;color:#FFB000;font-size:24px;line-height:1.35}}.brand{{position:absolute;right:70px;top:90px;color:#FFB000;font-size:20px}}
-</style></head><body><main class='screen'><div class='eyebrow'>{family} // EMPTY CHAIR</div><div class='brand'>2.0</div><h1>{title}</h1><div class='shot'><img src='/static/{asset}' alt='Real Empty Chair product screen'></div><div class='line'>{line}</div><div class='hook'>{hook}</div></main></body></html>"""
+</style></head><body><main class='screen'><div class='eyebrow'>{family} // EMPTY CHAIR</div><div class='brand'>2.0</div><h1>{title}</h1><div class='shot'><img src='{asset_url}' alt='Real Empty Chair product screen'></div><div class='line'>{line}</div><div class='hook'>{hook}</div></main></body></html>"""
 
 
 def _items() -> list[dict]:
