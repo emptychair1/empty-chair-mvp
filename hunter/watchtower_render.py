@@ -1,10 +1,10 @@
 """Render entrypoint for Hunter Watchtower with safe diagnostics and one-time Instagram bootstrap."""
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import os
-import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
@@ -21,7 +21,6 @@ _original_authenticated = service.authenticated
 
 
 def _install_bootstrap_state(context) -> None:
-    """Import a freshly authenticated storage state into the long-running worker context."""
     if not BOOTSTRAP_STATE.exists():
         return
     try:
@@ -29,7 +28,6 @@ def _install_bootstrap_state(context) -> None:
         cookies = payload.get("cookies") or []
         if cookies:
             context.add_cookies(cookies)
-        # Keep the file so a same-instance process restart can restore it again.
     except Exception as exc:
         _worker_state["last_error"] = f"bootstrap state import: {exc.__class__.__name__}: {exc}"
 
@@ -39,7 +37,6 @@ def authenticated_with_bootstrap(page, context) -> bool:
     return _original_authenticated(page, context)
 
 
-# worker_loop resolves this module attribute at runtime, so patch before FastAPI startup runs.
 service.authenticated = authenticated_with_bootstrap
 
 
@@ -89,20 +86,8 @@ def bootstrap_form() -> HTMLResponse:
     return _page()
 
 
-@app.post("/bootstrap", response_class=HTMLResponse)
-async def bootstrap_login(request: Request) -> HTMLResponse:
-    raw = (await request.body()).decode("utf-8", errors="replace")
-    form = parse_qs(raw, keep_blank_values=True)
-    token = (form.get("token") or [""])[0]
-    username = (form.get("username") or [""])[0].strip()
-    password = (form.get("password") or [""])[0]
-
-    expected = os.getenv("WATCHTOWER_API_TOKEN", "").strip()
-    if not expected or token != expected:
-        return _page("Invalid Watchtower control token.", False)
-    if not username or not password:
-        return _page("Instagram username and password are required.", False)
-
+def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
+    """Run Playwright Sync API outside FastAPI's asyncio event-loop thread."""
     try:
         BOOTSTRAP_STATE.parent.mkdir(parents=True, exist_ok=True)
         with sync_playwright() as p:
@@ -120,8 +105,7 @@ async def bootstrap_login(request: Request) -> HTMLResponse:
             if authed:
                 context.storage_state(path=str(BOOTSTRAP_STATE))
                 browser.close()
-                # The long-running worker imports the state on its next auth check/job.
-                return _page("Instagram login succeeded. Session state is ready for the Watchtower worker. Open /diagnostics in a few seconds.", True)
+                return ("Instagram login succeeded. Session state is ready for the Watchtower worker. Open /diagnostics in a few seconds.", True)
 
             text = ""
             try:
@@ -132,7 +116,25 @@ async def bootstrap_login(request: Request) -> HTMLResponse:
 
             challenge_words = ("check your notifications", "security code", "enter code", "confirm it's you", "challenge", "approve")
             if any(word in text for word in challenge_words):
-                return _page("Instagram requires account approval or verification. Approve the login in the Instagram app, then submit this form again. Hunter will not bypass the verification step.", False)
-            return _page("Instagram did not establish a session. Check the credentials and Instagram app for a login approval prompt, then try again.", False)
+                return ("Instagram requires account approval or verification. Approve the login in the Instagram app, then submit this form again. Hunter will not bypass the verification step.", False)
+            return ("Instagram did not establish a session. Check the credentials and Instagram app for a login approval prompt, then try again.", False)
     except Exception as exc:
-        return _page(f"Bootstrap failed: {exc.__class__.__name__}: {str(exc)[:700]}", False)
+        return (f"Bootstrap failed: {exc.__class__.__name__}: {str(exc)[:700]}", False)
+
+
+@app.post("/bootstrap", response_class=HTMLResponse)
+async def bootstrap_login(request: Request) -> HTMLResponse:
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    form = parse_qs(raw, keep_blank_values=True)
+    token = (form.get("token") or [""])[0]
+    username = (form.get("username") or [""])[0].strip()
+    password = (form.get("password") or [""])[0]
+
+    expected = os.getenv("WATCHTOWER_API_TOKEN", "").strip()
+    if not expected or token != expected:
+        return _page("Invalid Watchtower control token.", False)
+    if not username or not password:
+        return _page("Instagram username and password are required.", False)
+
+    message, ok = await asyncio.to_thread(_bootstrap_sync, username, password)
+    return _page(message, ok)
