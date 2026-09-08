@@ -22,8 +22,8 @@ import v2_app as core
 INGEST_TOKEN = os.getenv("HUNTER_OPERATOR_INGEST_TOKEN", "")
 BASE_URL = os.getenv("EMPTY_CHAIR_BASE_URL", "https://app.tryemptychair.com").rstrip("/")
 EASTERN = ZoneInfo("America/New_York")
+SCENE_COUNT = 10
 
-# Exactly two Reels/day. GitHub may poll hourly; only these local hours become due.
 REEL_SLOTS = {"morning": 10, "evening": 18}
 
 REEL_TABLE = """CREATE TABLE IF NOT EXISTS growth_ig_reels (
@@ -40,16 +40,13 @@ REEL_TABLE = """CREATE TABLE IF NOT EXISTS growth_ig_reels (
     UNIQUE(local_day, slot)
 )"""
 
-# Scenario values change, but every message below is rendered from the same successful
-# production recovery path that Empty Chair actually sends: artist OPEN -> client OPEN
-# -> deposit/booking -> artist FILLED + client YOURS.
 SCENARIOS = [
-    {"kind":"same_day","artist":"Mara","client":"Jess","day":"TUE","time":"3:00 PM","duration":"3 hr","matches":12,"lead":"2 hours","deposit":80,"value":450,"hook":"3 PM JUST CANCELED."},
-    {"kind":"tomorrow","artist":"Nico","client":"Sam","day":"WED","time":"11:30 AM","duration":"4 hr","matches":9,"lead":"tomorrow","deposit":100,"value":600,"hook":"TOMORROW'S APPOINTMENT DISAPPEARED."},
-    {"kind":"evening","artist":"Rae","client":"Taylor","day":"THU","time":"6:00 PM","duration":"2 hr","matches":7,"lead":"4 hours","deposit":75,"value":350,"hook":"A 6 PM CANCELLATION JUST OPENED UP."},
-    {"kind":"weekend","artist":"Alex","client":"Jordan","day":"SAT","time":"1:00 PM","duration":"5 hr","matches":15,"lead":"Saturday","deposit":120,"value":700,"hook":"SATURDAY OPENED UP."},
-    {"kind":"short_notice","artist":"June","client":"Casey","day":"FRI","time":"4:30 PM","duration":"2 hr","matches":5,"lead":"90 minutes","deposit":60,"value":300,"hook":"90 MINUTES BEFORE THE APPOINTMENT."},
-    {"kind":"high_value","artist":"Morgan","client":"Drew","day":"SUN","time":"12:00 PM","duration":"6 hr","matches":11,"lead":"tomorrow","deposit":150,"value":900,"hook":"A $900 SESSION CANCELED."},
+    {"kind":"same_day","artist":"Mara","old_client":"Avery","client":"Jess","day":"TUE","time":"3:00 PM","duration":"3 hr","matches":12,"lead":"2 hours","deposit":80,"value":450,"hook":"3 PM JUST CANCELED."},
+    {"kind":"tomorrow","artist":"Nico","old_client":"Morgan","client":"Sam","day":"WED","time":"11:30 AM","duration":"4 hr","matches":9,"lead":"tomorrow","deposit":100,"value":600,"hook":"TOMORROW'S APPOINTMENT DISAPPEARED."},
+    {"kind":"evening","artist":"Rae","old_client":"Jamie","client":"Taylor","day":"THU","time":"6:00 PM","duration":"2 hr","matches":7,"lead":"4 hours","deposit":75,"value":350,"hook":"A 6 PM CANCELLATION JUST OPENED UP."},
+    {"kind":"weekend","artist":"Alex","old_client":"Chris","client":"Jordan","day":"SAT","time":"1:00 PM","duration":"5 hr","matches":15,"lead":"Saturday","deposit":120,"value":700,"hook":"SATURDAY OPENED UP."},
+    {"kind":"short_notice","artist":"June","old_client":"Riley","client":"Casey","day":"FRI","time":"4:30 PM","duration":"2 hr","matches":5,"lead":"90 minutes","deposit":60,"value":300,"hook":"90 MINUTES BEFORE THE APPOINTMENT."},
+    {"kind":"high_value","artist":"Morgan","old_client":"Blake","client":"Drew","day":"SUN","time":"12:00 PM","duration":"6 hr","matches":11,"lead":"tomorrow","deposit":150,"value":900,"hook":"A $900 SESSION CANCELED."},
 ]
 
 
@@ -93,8 +90,8 @@ def _scenario(day: str, slot: str) -> dict:
 
 def _caption(s: dict) -> str:
     return (
-        f"{s['hook']} This is the actual Empty Chair text flow: the artist gets the cancellation alert, "
-        "the next client gets the opening, the deposit lands, and both sides get confirmation.\n\n"
+        f"{s['hook']} Watch the whole Empty Chair recovery: the calendar slot disappears, the bench goes to work, "
+        "the next client gets the real offer, the deposit lands, and the appointment returns to the calendar.\n\n"
         "7 DAYS FREE // LINK IN BIO\n\n#tattooartist #tattooshop #tattoocancellation #booksopen #emptychair"
     )
 
@@ -141,9 +138,71 @@ def _sms_screen(audience: str, message: str, note: str) -> str:
     return _scene_shell(f"{audience} text from Empty Chair", body, css)
 
 
+def _calendar_screen(s: dict, *, canceled: bool = False, recovered: bool = False) -> str:
+    person = s.get("client") if recovered else s.get("old_client")
+    title = "Recovered tattoo" if recovered else "Tattoo appointment"
+    state = "RECOVERED" if recovered else ("CANCELED" if canceled else "BOOKED")
+    event_class = "event recovered" if recovered else ("event canceled" if canceled else "event")
+    body = f"""
+    <div class='statusbar'><span>9:41</span><span>●●● 5G&nbsp;&nbsp;100%</span></div>
+    <div class='top'><span class='red'>‹ Calendars</span><b>{html.escape(str(s.get('day','TUE')))}</b><span class='red'>＋</span></div>
+    <div class='date'><div class='weekday'>{html.escape(str(s.get('day','TUE')))}</div><div class='num'>18</div></div>
+    <div class='timeline'>
+      <div class='hour'><span>11 AM</span></div><div class='hour'><span>12 PM</span></div><div class='hour'><span>1 PM</span></div><div class='hour'><span>2 PM</span></div>
+      <div class='{event_class}'><b>{html.escape(str(person))} // {html.escape(title)}</b><span>{html.escape(str(s.get('time')))} · {html.escape(str(s.get('duration')))}</span><span>{_money(int(s.get('value',450)))}</span><strong>{state}</strong></div>
+      <div class='hour'><span>4 PM</span></div><div class='hour'><span>5 PM</span></div><div class='hour'><span>6 PM</span></div>
+    </div>
+    <div class='note'>{'THE SLOT IS BACK ON THE CALENDAR' if recovered else ('THE ORIGINAL APPOINTMENT IS DELETED' if canceled else 'THE ORIGINAL APPOINTMENT EXISTS')}</div>
+    """
+    css = """
+    .screen{background:#fff;color:#111}.statusbar{height:66px;padding:24px 38px 0;display:flex;justify-content:space-between;font-size:22px;font-weight:600}.top{height:110px;padding:28px 34px;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;border-bottom:1px solid #ddd;font-size:28px}.top b{text-align:center}.top span:last-child{text-align:right}.red{color:#ff3b30}.date{text-align:center;padding:38px 0 22px}.weekday{font-size:23px;color:#ff3b30;font-weight:700}.num{font-size:64px;font-weight:300}.timeline{position:relative;padding:0 28px}.hour{height:180px;border-top:1px solid #ddd;color:#8e8e93;font-size:21px;padding-top:10px}.event{position:absolute;top:565px;left:145px;right:40px;height:170px;background:#ffd7d3;border-left:8px solid #ff3b30;border-radius:8px;padding:20px 24px;display:flex;flex-direction:column;gap:9px;font-size:25px}.event strong{font-size:18px;color:#ff3b30;letter-spacing:.12em}.event.canceled{opacity:.28;text-decoration:line-through;background:#eee;border-left-color:#aaa}.event.recovered{background:#d9ecff;border-left-color:#0a84ff;text-decoration:none;opacity:1}.event.recovered strong{color:#0a84ff}.note{position:absolute;bottom:70px;left:0;right:0;text-align:center;font:700 19px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;color:#8e8e93}
+    """
+    return _scene_shell("Calendar recovery", body, css)
+
+
+def _offer_screen(s: dict) -> str:
+    body = f"""
+    <header><span>EMPTY CHAIR</span><span>2.0</span></header>
+    <div class='center'><h1>{html.escape(str(s.get('artist','Mara')).upper())}<br>HAS AN OPENING.</h1><div class='space'></div>
+    <p class='big'>{html.escape(_when(s))}</p><p>{html.escape(str(s.get('duration','3 hr')))}</p><p>{_money(int(s.get('value',450)))}</p>
+    <div class='space'></div><p class='dim'>DEPOSIT</p><p class='big'>{_money(int(s.get('deposit',80)))}</p>
+    <div class='button'>TAKE THE CHAIR</div></div>
+    """
+    css = """
+    .screen{background:#0B0905;color:#FFB000;padding:70px 55px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}header{display:flex;justify-content:space-between;border-bottom:1px solid #332300;padding-bottom:20px;font-size:20px;letter-spacing:.08em}.center{text-align:center;padding-top:210px}h1{font-size:54px;font-weight:400;line-height:1.2;color:#FFD36A}.big{font-size:66px;color:#FFD36A;margin:20px 0}.dim{color:#805800;font-size:23px;letter-spacing:.15em}.space{height:55px}.center>p{font-size:34px}.button{margin-top:80px;border:2px solid #FFB000;padding:28px 18px;color:#FFD36A;font-size:30px}
+    """
+    return _scene_shell("Actual Empty Chair offer", body, css)
+
+
+def _payment_screen(s: dict) -> str:
+    body = f"""
+    <header><span>EMPTY CHAIR</span><span>2.0</span></header>
+    <div class='center'><h1>LOCK IT IN.</h1><p class='amount'>{_money(int(s.get('deposit',80)))}</p><p class='dim'>applied to your tattoo.</p></div>
+    <div class='stack'><div class='cash'>Cash App Pay</div><div class='card'>CARD</div><div class='venmo'>VENMO</div></div>
+    <div class='note'>ONLY PAYMENT METHODS THE ARTIST HAS CONFIGURED ARE SHOWN</div>
+    """
+    css = """
+    .screen{background:#0B0905;color:#FFB000;padding:70px 55px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}header{display:flex;justify-content:space-between;border-bottom:1px solid #332300;padding-bottom:20px;font-size:20px;letter-spacing:.08em}.center{text-align:center;padding-top:210px}h1{font-size:58px;font-weight:400;color:#FFD36A}.amount{font-size:108px;color:#FFD36A;margin:65px 0 20px}.dim{color:#805800;font-size:24px}.stack{display:grid;gap:28px;margin-top:150px}.stack div{border:2px solid #FFB000;padding:30px;text-align:center;font-size:30px;color:#FFD36A}.note{position:absolute;bottom:80px;left:60px;right:60px;text-align:center;font-size:18px;color:#805800;letter-spacing:.08em;line-height:1.5}
+    """
+    return _scene_shell("Payment options", body, css)
+
+
+def _square_screen(s: dict) -> str:
+    deposit = _money(int(s.get('deposit',80)))
+    body = f"""
+    <div class='sqtop'><div class='logo'>■</div><b>Square</b><span>•••</span></div>
+    <div class='balance'><span>Available balance</span><strong>{deposit}</strong></div>
+    <div class='activity'><h2>Activity</h2><div class='row'><div><b>Empty Chair deposit</b><span>{html.escape(str(s.get('client','Jess')))} · {html.escape(str(s.get('time','3:00 PM')))}</span></div><strong>+{deposit}</strong></div></div>
+    <div class='settled'>Payment completed</div>
+    <div class='note'>THE DEPOSIT LANDS IN THE ARTIST'S SQUARE ACCOUNT</div>
+    """
+    css = """
+    .screen{background:#f7f7f7;color:#222;padding:0 42px}.sqtop{height:130px;display:grid;grid-template-columns:70px 1fr 70px;align-items:center;border-bottom:1px solid #ddd;font-size:30px}.sqtop span{text-align:right}.logo{width:42px;height:42px;border:5px solid #111;display:grid;place-items:center;font-size:12px}.balance{margin-top:95px;background:white;border-radius:22px;padding:42px;display:flex;flex-direction:column;gap:20px;box-shadow:0 2px 12px rgba(0,0,0,.08)}.balance span{font-size:25px;color:#666}.balance strong{font-size:86px}.activity{margin-top:60px}.activity h2{font-size:32px}.row{margin-top:20px;background:white;border-radius:18px;padding:32px;display:flex;justify-content:space-between;align-items:center}.row div{display:flex;flex-direction:column;gap:10px}.row b{font-size:28px}.row span{font-size:22px;color:#777}.row>strong{font-size:30px;color:#1d7f3f}.settled{margin-top:45px;text-align:center;font-size:24px;color:#1d7f3f}.note{position:absolute;bottom:85px;left:45px;right:45px;text-align:center;font:700 19px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:#777}
+    """
+    return _scene_shell("Square deposit", body, css)
+
+
 def _render_scene(s: dict, scene: int) -> str:
-    # These are the actual SMS templates used by the successful production recovery path.
-    # We intentionally do not invent client replies: clients claim through the TAKE THE CHAIR link.
     when = _when(s)
     value = _money(int(s.get("value", 450)))
     deposit = _money(int(s.get("deposit", 80)))
@@ -153,16 +212,22 @@ def _render_scene(s: dict, scene: int) -> str:
     duration = str(s.get("duration", "3 hr"))
 
     if scene == 0:
+        return _calendar_screen(s, canceled=False, recovered=False)
+
+    if scene == 1:
+        return _calendar_screen(s, canceled=True, recovered=False)
+
+    if scene == 2:
         message = (
             "EMPTY CHAIR // OPEN\n\n"
             f"{when} canceled.\n\n"
             f"{value} AT RISK\n\n"
-            f"{matches} matches ready.\n\n"
-            "working..."
+            f"bench........{matches} ready [✓]\n"
+            "working................[✓]"
         )
-        return _sms_screen("ARTIST PHONE // CANCELLATION DETECTED", message, "THIS IS WHAT THE ARTIST ACTUALLY GETS")
+        return _sms_screen("ARTIST PHONE // CANCELLATION DETECTED", message, "THE ARTIST KNOWS WHAT IS AT RISK AND THAT EMPTY CHAIR IS WORKING IT")
 
-    if scene == 1:
+    if scene == 3:
         message = (
             "EMPTY CHAIR // OPEN\n\n"
             f"{artist} has an opening.\n\n"
@@ -176,25 +241,21 @@ def _render_scene(s: dict, scene: int) -> str:
             f"held for {core.OFFER_MINUTES} min.\n\n"
             "Reply STOP to opt out."
         )
-        return _sms_screen("CLIENT PHONE // TOP MATCH", message, "THE CLIENT CLAIMS THROUGH THE LINK — NO FAKE TEXT REPLY")
+        return _sms_screen("CLIENT PHONE // TOP MATCH", message, "THE CLIENT GETS THE REAL EMPTY CHAIR OFFER TEXT")
 
-    if scene == 2:
-        body = f"""
-        <div class='brand'>EMPTY CHAIR</div>
-        <div class='eyebrow'>CLIENT CLAIMS + PAYS DEPOSIT</div>
-        <div class='ascii'>+----------------------+<br>|&nbsp;&nbsp;&nbsp;TAKE THE CHAIR&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|<br>+----------------------+</div>
-        <div class='pay'>{deposit}</div>
-        <div class='copy'>Deposit is paid through the real Empty Chair claim flow.<br>No text reply is required.</div>
-        <div class='arrow'>↓</div>
-        <div class='copy bright'>EMPTY CHAIR BOOKS THE SLOT<br>AND SENDS BOTH CONFIRMATIONS.</div>
-        """
-        return _scene_shell(
-            "Claim and deposit",
-            body,
-            ".screen{background:#0B0905;color:#FFB000;padding:110px 78px;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.brand{font-size:27px;letter-spacing:.25em;text-align:left}.eyebrow{margin-top:240px;font-size:26px;letter-spacing:.08em;color:#805800}.ascii{margin-top:70px;font-size:38px;line-height:1.38;color:#FFD36A}.pay{font-size:104px;font-weight:700;color:#FFD36A;margin-top:75px}.copy{font-size:28px;line-height:1.55;margin-top:38px}.arrow{font-size:68px;margin:70px 0 30px}.bright{color:#FFD36A}"
-        )
+    if scene == 4:
+        return _offer_screen(s)
 
-    if scene == 3:
+    if scene == 5:
+        return _payment_screen(s)
+
+    if scene == 6:
+        return _square_screen(s)
+
+    if scene == 7:
+        return _calendar_screen(s, canceled=False, recovered=True)
+
+    if scene == 8:
         message = (
             "EMPTY CHAIR // FILLED ✓\n\n"
             f"{client} took {when}.\n\n"
@@ -202,7 +263,7 @@ def _render_scene(s: dict, scene: int) -> str:
             "calendar.................[✓]\n\n"
             f"{value} SAVED"
         )
-        return _sms_screen("ARTIST PHONE // RECOVERY COMPLETE", message, "THE ARTIST GETS THE RECEIPT")
+        return _sms_screen("ARTIST PHONE // RECOVERY COMPLETE", message, "THE ARTIST GETS THE RECOVERY RECEIPT")
 
     message = (
         "EMPTY CHAIR // YOURS\n\n"
@@ -227,16 +288,22 @@ def prepare_reel(request: Request):
     reel = _ensure(day, slot)
     if str(reel.get("status")) == "PUBLISHED":
         return {"ok": True, "due": True, "published": True, "id": reel["id"], "slot": slot}
-    return {"ok": True, "due": True, "published": False, "id": reel["id"], "slot": slot,
-            "scene_urls": [f"{BASE_URL}/instagram/reels/render/{reel['id']}/{n}" for n in range(5)],
-            "upload_url": f"{BASE_URL}/internal/instagram/reels/video/{reel['id']}",
-            "video_url": f"{BASE_URL}/instagram/reels/video/{reel['id']}.mp4"}
+    return {
+        "ok": True,
+        "due": True,
+        "published": False,
+        "id": reel["id"],
+        "slot": slot,
+        "scene_urls": [f"{BASE_URL}/instagram/reels/render/{reel['id']}/{n}" for n in range(SCENE_COUNT)],
+        "upload_url": f"{BASE_URL}/internal/instagram/reels/video/{reel['id']}",
+        "video_url": f"{BASE_URL}/instagram/reels/video/{reel['id']}.mp4",
+    }
 
 
 @core.app.get("/instagram/reels/render/{reel_id}/{scene}", response_class=HTMLResponse)
 def render_reel_scene(reel_id: str, scene: int):
     reel = core.one("SELECT * FROM growth_ig_reels WHERE id=?", (reel_id,))
-    if not reel or scene < 0 or scene > 4:
+    if not reel or scene < 0 or scene >= SCENE_COUNT:
         raise HTTPException(404, "Not found")
     return HTMLResponse(_render_scene(json.loads(str(reel["scenario_json"])), scene))
 
@@ -259,8 +326,8 @@ def reel_video(reel_id: str):
     reel = core.one("SELECT video_bytes FROM growth_ig_reels WHERE id=?", (reel_id,))
     if not reel or not reel.get("video_bytes"):
         raise HTTPException(404, "Not found")
-    return Response(content=bytes(reel["video_bytes"]), media_type="video/mp4", headers={"Cache-Control":"public,max-age=86400"})
+    return Response(content=bytes(reel["video_bytes"]), media_type="video/mp4", headers={"Cache-Control": "public,max-age=86400"})
 
 
 _init()
-print("Instagram Reels engine loaded // exact production SMS exchange // 1080x1920 // 2/day", flush=True)
+print("Instagram Reels engine loaded // isolated lane // 1080x1920 // 10-scene recovery story // 2/day", flush=True)
