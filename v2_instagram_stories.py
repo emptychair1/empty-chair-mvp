@@ -16,10 +16,47 @@ def _founder(request):
     if not artist or not is_admin_identity(artist,admin_emails=ADMIN_EMAILS,admin_phones=ADMIN_PHONES): raise HTTPException(404,"Not found")
     return artist
 
+def _u(photo_id):
+    return f"https://unsplash.com/photos/{photo_id}/download?force=true&w=1080"
+
+# Curated free Unsplash tattoo-world photos. One is chosen deterministically per day.
 BACKGROUNDS=[
- {"label":"TATTOO STUDIO","url":"https://images.unsplash.com/photo-1568515045052-f9a854d70bfd?auto=format&fit=crop&w=1080&h=1920&q=85"},
- {"label":"TATTOO WORKSPACE","url":"https://images.unsplash.com/photo-1590246814883-57c511e91b28?auto=format&fit=crop&w=1080&h=1920&q=85"},
- {"label":"TATTOO ARTIST","url":"https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?auto=format&fit=crop&w=1080&h=1920&q=85"},
+ {"label":"TATTOO STUDIO","url":_u("r0C25hBhGvM")},
+ {"label":"TATTOO SHOP","url":_u("0dMd2QfUIrs")},
+ {"label":"TATTOO CONVENTION","url":_u("cPFHDyenqFQ")},
+ {"label":"TATTOO ARTIST","url":_u("YEFLUNRgFK0")},
+ {"label":"TATTOO MACHINE","url":_u("O4S3Mm6oBBc")},
+ {"label":"TATTOO SHOP","url":_u("e8ktWSqUpO4")},
+ {"label":"TATTOO ARTIST","url":_u("P2jPnFPeVGY")},
+ {"label":"TATTOO ARTIST","url":_u("w8xrXW1xxJw")},
+ {"label":"TATTOO ARTIST","url":_u("jHFfsfJmlWM")},
+ {"label":"TATTOO SHOP","url":_u("7Nsm8sZxc8Y")},
+ {"label":"TATTOO STOREFRONT","url":_u("KY0XlZRO2dg")},
+ {"label":"TATTOO SHOP","url":_u("cWkWkqStMBY")},
+ {"label":"TATTOO STUDIO","url":_u("9COlBDwihI4")},
+ {"label":"TATTOO ARTIST","url":_u("DvUano9E0sQ")},
+ {"label":"TATTOO ARTIST","url":_u("jJGOIb-CuiE")},
+ {"label":"TATTOO ARTIST","url":_u("ptFoxxlk3Vs")},
+ {"label":"TATTOO MACHINE","url":_u("jNVIeG9p2_s")},
+ {"label":"TATTOO ARTIST","url":_u("iM9e8a-aYfI")},
+ {"label":"TATTOO ARTIST","url":_u("YiNKfuQIo7g")},
+ {"label":"TATTOO ARTIST","url":_u("0StXL5FICOY")},
+ {"label":"TATTOO ARTIST","url":_u("g00RGRhQGr8")},
+ {"label":"TATTOO ARTIST","url":_u("QPP5b_25Huk")},
+ {"label":"TATTOO ARTIST","url":_u("jMu1GsCPiNs")},
+ {"label":"TATTOO ARTIST","url":_u("Mji-BK-8O4s")},
+ {"label":"TATTOO ARTIST","url":_u("8qsDPPLHPdc")},
+ {"label":"TATTOO ARTIST","url":_u("gwTkGGWW2bM")},
+ {"label":"TATTOO ARTIST","url":_u("yZLs53JgRBE")},
+ {"label":"TATTOO STUDIO","url":_u("Xkdyu1IOBb4")},
+ {"label":"TATTOO ARTIST","url":_u("y24ho4UwQrk")},
+ {"label":"TATTOO ARTIST","url":_u("ygH1MTZ2pHs")},
+ {"label":"TATTOO ARTIST","url":_u("yo3aAag3874")},
+ {"label":"TATTOO ARTIST","url":_u("2yzJwITCTZU")},
+ {"label":"TATTOO STUDIO","url":_u("b-o1HFS1_Wg")},
+ {"label":"TATTOO ARTIST","url":_u("n4kHuY-2va0")},
+ {"label":"TATTOO ARTIST","url":_u("lchEZnnLF6A")},
+ {"label":"TATTOO CONVENTION","url":_u("3njLpffq9Bc")},
 ]
 FAMILIES=[
  {"name":"CANCELLATION PAIN","frames":[("Tattoo artists — did somebody cancel on you this week?","POLL","YEP","SOMEHOW NO"),("What was that appointment worth?","POLL","$200–400","$400+"),("That's the whole job. Recover the chair.","LINK","TRY IT FREE","")]},
@@ -46,6 +83,6 @@ def founder_ig_stories(request:Request):
     for n,(copy,kind,a,b) in enumerate(plan["frames"],1):
         sticker_preview="" if kind=="NONE" else f'<div class="mock-sticker">{html.escape(a)}{(" &nbsp; | &nbsp; "+html.escape(b)) if b else ""}</div>'
         cards.append(f'''<section class="story-card"><div class="story-num">STORY {n} OF {len(plan['frames'])}</div><div class="mock"><img src="{bg_url}" alt="story background"><div class="mock-copy">{html.escape(copy)}</div>{sticker_preview}</div><div class="steps"><div class="step"><b>1.</b> Open Instagram → tap + → Story.</div><div class="step"><b>2.</b> Tap <b>OPEN BACKGROUND PHOTO</b> above, then on iPhone press and hold the photo → Save to Photos.</div><div class="step"><b>3.</b> Tap Aa and type exactly:<div class="copybox">{html.escape(copy)}</div></div><div class="step"><b>4.</b> {html.escape(_sticker_instruction(kind,a,b))}</div><div class="step"><b>5.</b> Tap Your Story to post.</div></div></section>''')
-    body=f'''<div class="story-wrap"><div class="story-head"><div><p class="dim" style="margin:0 0 5px">FOUNDER // CONTENT</p><h1>IG STORIES</h1></div><div class="story-note">{day}<br>{html.escape(plan['name'])}</div></div><div class="intro"><strong>DO THIS IN ORDER.</strong><br>You do not need to design anything. Each card below shows roughly what the finished Story should look like and tells you exactly what to tap.</div><section class="bg-card"><img class="bg-photo" src="{bg_url}" alt="Today's stock tattoo background"><div class="bg-meta">TODAY'S BACKGROUND // {html.escape(bg['label'])}</div><div class="bg-actions"><a class="bg-btn" href="{bg_url}" target="_blank" rel="noopener">OPEN BACKGROUND PHOTO</a><a class="bg-btn" href="{bg_url}" download="empty-chair-story-{day}.jpg">DOWNLOAD PHOTO</a></div></section>{''.join(cards)}<div class="guard">Stories disappear after 24 hours unless you save them to a Highlight. The mockups are placement guides only; polls, questions, sliders and links must be added with Instagram's real native stickers.</div></div>'''
+    body=f'''<div class="story-wrap"><div class="story-head"><div><p class="dim" style="margin:0 0 5px">FOUNDER // CONTENT</p><h1>IG STORIES</h1></div><div class="story-note">{day}<br>{html.escape(plan['name'])}</div></div><div class="intro"><strong>DO THIS IN ORDER.</strong><br>You do not need to design anything. Each card below shows roughly what the finished Story should look like and tells you exactly what to tap.</div><section class="bg-card"><img class="bg-photo" src="{bg_url}" alt="Today's stock tattoo background"><div class="bg-meta">TODAY'S BACKGROUND // {html.escape(bg['label'])} // {len(BACKGROUNDS)}-PHOTO ROTATION</div><div class="bg-actions"><a class="bg-btn" href="{bg_url}" target="_blank" rel="noopener">OPEN BACKGROUND PHOTO</a><a class="bg-btn" href="{bg_url}" download="empty-chair-story-{day}.jpg">DOWNLOAD PHOTO</a></div></section>{''.join(cards)}<div class="guard">Stories disappear after 24 hours unless you save them to a Highlight. The mockups are placement guides only; polls, questions, sliders and links must be added with Instagram's real native stickers.</div></div>'''
     return core.page("IG Stories",body,head=CSS)
-print("Instagram Story Director loaded // posting guide + direct background access",flush=True)
+print(f"Instagram Story Director loaded // posting guide + {len(BACKGROUNDS)} backgrounds",flush=True)
