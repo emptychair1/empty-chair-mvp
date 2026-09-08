@@ -1,0 +1,39 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "empty-chair-radar",
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "permissions": {
+    "reddit": {
+      "enable": true
+    },
+    "http": {
+      "enable": true,
+      "domains": ["app.tryemptychair.com"]
+    }
+  },
+  "settings": {
+    "global": {
+      "emptyChairToken": {
+        "type": "string",
+        "label": "Empty Chair ingest token",
+        "isSecret": true,
+        "helpText": "Shared server-side token used only to send Reddit search results to Empty Chair."
+      }
+    }
+  },
+  "scheduler": {
+    "tasks": {
+      "scan-reddit": {
+        "endpoint": "/internal/scheduler/scan-reddit",
+        "cron": "*/30 * * * *"
+      }
+    }
+  },
+  "scripts": {
+    "build": "npm run build",
+    "dev": "npm run build -- --watch"
+  }
+}
