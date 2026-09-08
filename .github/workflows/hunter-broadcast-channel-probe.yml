@@ -7,6 +7,10 @@ on:
         description: "Instagram usernames separated by spaces or commas"
         required: true
         type: string
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/hunter-broadcast-channel-probe.yml"
 
 permissions:
   contents: read
@@ -30,7 +34,7 @@ jobs:
 
       - name: Probe Instagram public profile channel metadata
         env:
-          RAW_USERNAMES: ${{ inputs.usernames }}
+          RAW_USERNAMES: ${{ github.event.inputs.usernames || 'nickbriggstattoos' }}
         run: |
           python - <<'PY'
           import os, re, subprocess, sys
