@@ -1,6 +1,8 @@
-"""Founder-only Instagram Reels preview page for Empty Chair scenario content."""
+"""Founder-only Instagram Reels library for Empty Chair generated content."""
 from __future__ import annotations
 
+import html
+import json
 import os
 
 from fastapi import HTTPException, Request
@@ -31,18 +33,7 @@ def _founder(request: Request):
 
 REELS_CSS = """
 <style>
-.reels-wrap{max-width:760px;margin:0 auto}
-.reels-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px}
-.reels-head h1{margin:0}.reels-badge{font-size:11px;color:var(--dim);text-align:right}
-.reel-phone{border:1px solid var(--off);border-radius:28px;padding:14px;background:#080703;box-shadow:0 0 34px rgba(255,176,0,.08)}
-.reel-screen{border:1px solid rgba(255,176,0,.16);border-radius:20px;overflow:hidden;background:#0b0905}
-.reel-top{display:flex;justify-content:space-between;padding:12px 15px;border-bottom:1px solid rgba(255,176,0,.12);font-size:11px;color:var(--dim)}
-.scene{padding:18px 16px;border-bottom:1px solid rgba(255,176,0,.12)}
-.scene:last-child{border-bottom:0}.scene-n{font-size:10px;color:var(--dim);letter-spacing:.16em;margin-bottom:8px}.scene h2{margin:0 0 9px;font-size:22px;color:var(--bright)}
-.scene p{margin:0;color:var(--dim);font-size:12px;line-height:1.55}.danger{border:1px solid rgba(255,92,52,.65);padding:14px;border-radius:12px}.danger h2{color:#ff6a45}
-.status-card{border:1px solid var(--off);border-radius:12px;padding:14px;margin-top:10px}.row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid rgba(255,176,0,.12)}.row:first-child{border-top:0}.row strong{color:var(--bright)}
-.sms{display:flex;flex-direction:column;gap:10px;margin-top:12px}.bubble{max-width:82%;padding:11px 12px;border:1px solid rgba(255,176,0,.28);border-radius:12px;font-size:12px;line-height:1.45}.bubble.out{align-self:flex-start}.bubble.in{align-self:flex-end;color:var(--bright);border-color:var(--off)}
-.money{font-size:34px;color:var(--bright);letter-spacing:.04em;margin-top:8px}.cta{display:block;text-align:center;border:1px solid var(--off);border-radius:12px;padding:15px;margin-top:16px;color:var(--bright);font-size:18px;text-decoration:none}.tiny{text-align:center;color:var(--dim);font-size:10px;margin-top:8px}.caption{margin-top:18px;padding:16px;border:1px solid rgba(255,176,0,.15);border-radius:14px}.caption h3{margin:0 0 8px;color:var(--bright);font-size:13px}.caption p{margin:0;color:var(--dim);font-size:12px;line-height:1.6}
+.reels-wrap{max-width:760px;margin:0 auto}.reels-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px}.reels-head h1{margin:0}.reels-badge{font-size:11px;color:var(--dim);text-align:right}.reel-list{display:grid;gap:24px}.reel-card{border:1px solid var(--off);padding:14px}.reel-meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;font-size:11px;color:var(--dim)}.reel-title{color:var(--bright);font-size:15px}.reel-video{display:block;width:100%;max-height:72svh;background:#000;border:1px solid rgba(255,176,0,.18)}.reel-caption{white-space:pre-wrap;color:var(--dim);font-size:11px;line-height:1.5;margin:12px 0 0}.empty{border:1px dashed var(--off);padding:28px 16px;text-align:center;color:var(--dim)}
 </style>
 """
 
@@ -50,74 +41,52 @@ REELS_CSS = """
 @core.app.get("/owner/ig-reels", response_class=HTMLResponse)
 def founder_ig_reels(request: Request):
     _founder(request)
-    body = """
+    try:
+        reels = core.all_rows(
+            "SELECT id,local_day,slot,scenario_json,caption,status,created_at,published_at "
+            "FROM growth_ig_reels ORDER BY created_at DESC LIMIT 20"
+        )
+    except Exception:
+        reels = []
+
+    cards = []
+    for reel in reels:
+        try:
+            scenario = json.loads(str(reel.get("scenario_json") or "{}"))
+        except Exception:
+            scenario = {}
+        hook = html.escape(str(scenario.get("hook") or "Generated Reel"))
+        status = html.escape(str(reel.get("status") or "PREPARED").upper())
+        day = html.escape(str(reel.get("local_day") or ""))
+        slot = html.escape(str(reel.get("slot") or ""))
+        rid = html.escape(str(reel["id"]), quote=True)
+        caption = html.escape(str(reel.get("caption") or ""))
+        video = ""
+        if str(reel.get("status") or "").upper() in {"RENDERED", "PUBLISHED"}:
+            video = (
+                f'<video class="reel-video" controls playsinline preload="metadata" '
+                f'src="/instagram/reels/video/{rid}.mp4"></video>'
+            )
+        else:
+            video = '<div class="empty">VIDEO NOT RENDERED YET</div>'
+        cards.append(
+            f'''<article class="reel-card">
+              <div class="reel-meta"><span>{day} // {slot}</span><span>{status}</span></div>
+              <div class="reel-title">{hook}</div>
+              <div class="space"></div>
+              {video}
+              <p class="reel-caption">{caption}</p>
+            </article>'''
+        )
+
+    library = "".join(cards) if cards else '<div class="empty">NO GENERATED REELS YET</div>'
+    body = f"""
     <div class='reels-wrap'>
       <div class='reels-head'>
         <div><p class='dim' style='margin:0 0 5px'>FOUNDER // CONTENT</p><h1>IG REELS</h1></div>
-        <div class='reels-badge'>SCENARIO 01<br>RECOVERY + DEPOSIT</div>
+        <div class='reels-badge'>LATEST 20<br>GENERATED REELS</div>
       </div>
-
-      <div class='reel-phone'>
-        <div class='reel-screen'>
-          <div class='reel-top'><span>EMPTY CHAIR</span><span>9:41</span></div>
-
-          <section class='scene'>
-            <div class='scene-n'>01 // CANCELLATION</div>
-            <div class='danger'>
-              <h2>TUE 3:00 PM // APPOINTMENT CANCELLED</h2>
-              <p>Client cancelled 2 hours before the appointment. This spot is now open.</p>
-            </div>
-          </section>
-
-          <section class='scene'>
-            <div class='scene-n'>02 // RECOVERY</div>
-            <h2>RECOVERY STARTED</h2>
-            <p>&gt; CHECKING AVAILABILITY<br>&gt; FILTERING CLIENTS<br>&gt; RANKING BY FIT<br>&gt; PREPARING OUTREACH</p>
-          </section>
-
-          <section class='scene'>
-            <div class='scene-n'>03 // TOP MATCHES</div>
-            <div class='status-card'>
-              <div class='row'><strong>01 // MAYA</strong><span>92% MATCH</span></div>
-              <div class='row'><span>02 // JORDAN</span><span>87% MATCH</span></div>
-              <div class='row'><span>03 // ALEX</span><span>79% MATCH</span></div>
-            </div>
-          </section>
-
-          <section class='scene'>
-            <div class='scene-n'>04 // SMS</div>
-            <h2>OUTREACH</h2>
-            <div class='sms'>
-              <div class='bubble out'>Opening today at 3:00 PM. Want it?</div>
-              <div class='bubble in'>YES — I CAN TAKE IT ✓</div>
-            </div>
-          </section>
-
-          <section class='scene'>
-            <div class='scene-n'>05 // PAYMENT</div>
-            <h2>DEPOSIT RECEIVED</h2>
-            <div class='money'>$80 PAID</div>
-            <p>DEPOSIT CONFIRMED // TUE 3:00 PM</p>
-          </section>
-
-          <section class='scene'>
-            <div class='scene-n'>06 // FILLED</div>
-            <h2>CHAIR FILLED ✓</h2>
-            <div class='status-card'>
-              <div class='row'><strong>SLOT RECOVERED</strong><span>CLIENT CONFIRMED</span></div>
-              <div class='row'><span>REVENUE PROTECTED</span><span>BUSINESS KEEPS MOVING</span></div>
-            </div>
-            <p style='margin-top:14px;text-align:center'>ONE RECOVERED SPOT CAN PAY FOR EMPTY CHAIR.</p>
-            <a class='cta' href='/'>7-DAY FREE TRIAL →</a>
-            <div class='tiny'>NO CARD REQUIRED</div>
-          </section>
-        </div>
-      </div>
-
-      <div class='caption'>
-        <h3>CAPTION</h3>
-        <p>What a recovered cancellation can look like inside Empty Chair. A last-minute opening gets matched, claimed, and secured with a deposit — without adding another workflow to your day.</p>
-      </div>
+      <div class='reel-list'>{library}</div>
     </div>
     """
     return core.page("IG Reels", body, head=REELS_CSS)
@@ -144,7 +113,7 @@ def settings_home_with_reels(request: Request):
     body = response.body.decode("utf-8")
     reel_row = (
         '<a class="settings-row" href="/owner/ig-reels">'
-        '<span>IG REELS<small>scenario previews // reels content</small></span>'
+        '<span>IG REELS<small>generated videos // preview library</small></span>'
         '<span>›</span></a>'
     )
     marker = '<a class="settings-row" href="/owner/hunter">'
@@ -156,4 +125,4 @@ def settings_home_with_reels(request: Request):
     return HTMLResponse(content=body, status_code=response.status_code, headers=dict(response.headers))
 
 
-print("Founder IG Reels preview loaded // scenario 01 // settings nav enabled", flush=True)
+print("Founder IG Reels library loaded // generated video previews // settings nav enabled", flush=True)
