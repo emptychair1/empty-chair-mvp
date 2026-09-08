@@ -1,42 +1,31 @@
 """Detect public Instagram broadcast-channel metadata for Hunter qualification.
 
-This module intentionally treats Instagram's public web-profile payload as an
-opportunistic signal, not a guaranteed API contract. Failures are returned as
-structured results so Hunter can degrade safely when Instagram rate-limits or
-changes the response shape.
+Instagram's web-profile JSON endpoint can rate-limit datacenter IPs. Hunter
+therefore tries the documented public page as a second, low-rate fallback and
+extracts only channel metadata already present in the returned HTML/JSON.
 """
 from __future__ import annotations
 
 import argparse
+import html as html_lib
 import json
 import re
 from dataclasses import asdict, dataclass
 from typing import Any, Iterable
 
 import httpx
+from bs4 import BeautifulSoup
 
 WEB_PROFILE_URL = "https://www.instagram.com/api/v1/users/web_profile_info/"
+PROFILE_URL = "https://www.instagram.com/{username}/"
 IG_APP_ID = "936619743392459"
 
 RECOVERY_TERMS = (
-    "cancellation",
-    "cancellations",
-    "cancelled",
-    "canceled",
-    "last minute",
-    "last-minute",
-    "opening",
-    "openings",
-    "availability",
-    "available",
-    "waitlist",
-    "wait list",
-    "open spot",
-    "open spots",
-    "appointment",
-    "appointments",
-    "same day",
-    "same-day",
+    "cancellation", "cancellations", "cancelled", "canceled",
+    "last minute", "last-minute", "opening", "openings",
+    "availability", "available", "waitlist", "wait list",
+    "open spot", "open spots", "appointment", "appointments",
+    "same day", "same-day",
 )
 
 
@@ -82,7 +71,6 @@ def _walk(value: Any) -> Iterable[dict]:
 
 
 def _channel_container(user: dict) -> Any:
-    # Instagram has used more than one wrapper shape for pinned channel data.
     for key in ("pinned_channels_info", "broadcast_channel", "broadcast_channels"):
         if key in user and user[key]:
             return user[key]
@@ -93,24 +81,9 @@ def _candidate_channel_dicts(container: Any) -> list[dict]:
     found: list[dict] = []
     seen: set[tuple[str, str]] = set()
     for node in _walk(container):
-        title = str(
-            node.get("title")
-            or node.get("name")
-            or node.get("channel_name")
-            or ""
-        ).strip()
-        invite = str(
-            node.get("invite_link")
-            or node.get("invite_url")
-            or node.get("link")
-            or ""
-        ).strip()
-        thread_id = str(
-            node.get("thread_id")
-            or node.get("id")
-            or node.get("thread_v2_id")
-            or ""
-        ).strip()
+        title = str(node.get("title") or node.get("name") or node.get("channel_name") or "").strip()
+        invite = str(node.get("invite_link") or node.get("invite_url") or node.get("link") or "").strip()
+        thread_id = str(node.get("thread_id") or node.get("id") or node.get("thread_v2_id") or "").strip()
         if not title and not invite:
             continue
         marker = (thread_id, title.lower())
@@ -132,30 +105,11 @@ def _classify(node: dict, fallback_creator: str) -> Channel:
     title = str(node.get("title") or node.get("name") or node.get("channel_name") or "").strip()
     invite = str(node.get("invite_link") or node.get("invite_url") or node.get("link") or "").strip() or None
     thread_id = str(node.get("thread_id") or node.get("id") or node.get("thread_v2_id") or "").strip() or None
-    creator = str(
-        node.get("creator_username")
-        or node.get("username")
-        or (node.get("creator") or {}).get("username")
-        or fallback_creator
-    ).strip() or None
-    member_count = _int_or_none(
-        node.get("member_count")
-        or node.get("subscriber_count")
-        or node.get("participant_count")
-        or node.get("members_count")
-    )
-    haystack = " ".join(
-        str(x or "")
-        for x in (
-            title,
-            node.get("description"),
-            node.get("subtitle"),
-        )
-    ).lower()
+    creator = str(node.get("creator_username") or node.get("username") or (node.get("creator") or {}).get("username") or fallback_creator).strip() or None
+    member_count = _int_or_none(node.get("member_count") or node.get("subscriber_count") or node.get("participant_count") or node.get("members_count"))
+    haystack = " ".join(str(x or "") for x in (title, node.get("description"), node.get("subtitle"))).lower()
     matches = sorted({term for term in RECOVERY_TERMS if term in haystack})
     recovery = bool(matches)
-    # Channel existence itself is useful; explicit cancellation/openings language
-    # makes it a top-priority Hunter qualification signal.
     score = 15
     if recovery:
         score = 50
@@ -163,16 +117,17 @@ def _classify(node: dict, fallback_creator: str) -> Channel:
             score = 60
         elif any(term in matches for term in ("last minute", "last-minute", "opening", "openings", "open spot", "open spots")):
             score = 55
-    return Channel(
-        title=title or "Broadcast channel",
-        invite_link=invite,
-        thread_id=thread_id,
-        member_count=member_count,
-        creator_username=creator,
-        recovery_matches=matches,
-        recovery_signal=recovery,
-        intent_score=score,
-    )
+    return Channel(title=title or "Broadcast channel", invite_link=invite, thread_id=thread_id,
+                   member_count=member_count, creator_username=creator, recovery_matches=matches,
+                   recovery_signal=recovery, intent_score=score)
+
+
+def _result(username: str, channels: list[Channel], status: str = "channels_found") -> ProbeResult:
+    recovery_count = sum(1 for c in channels if c.recovery_signal)
+    return ProbeResult(username=username, ok=True, status=status if channels else "no_channels",
+                       channels=channels, channel_count=len(channels),
+                       recovery_channel_count=recovery_count,
+                       best_intent_score=max((c.intent_score for c in channels), default=0))
 
 
 def parse_profile_payload(username: str, payload: dict) -> ProbeResult:
@@ -184,39 +139,96 @@ def parse_profile_payload(username: str, payload: dict) -> ProbeResult:
     if not container:
         return ProbeResult(username, True, "no_channels", [])
     channels = [_classify(node, username) for node in _candidate_channel_dicts(container)]
-    recovery_count = sum(1 for c in channels if c.recovery_signal)
-    best = max((c.intent_score for c in channels), default=0)
-    return ProbeResult(
-        username=username,
-        ok=True,
-        status="channels_found" if channels else "no_channels",
-        channels=channels,
-        channel_count=len(channels),
-        recovery_channel_count=recovery_count,
-        best_intent_score=best,
-    )
+    return _result(username, channels)
+
+
+def parse_profile_html(username: str, text: str) -> ProbeResult:
+    """Extract channel metadata from JSON/script data embedded in a public profile page."""
+    username = _clean_username(username)
+    decoded = html_lib.unescape(text or "")
+    soup = BeautifulSoup(decoded, "html.parser")
+    nodes: list[dict] = []
+
+    for script in soup.find_all("script"):
+        raw = script.string or script.get_text() or ""
+        raw = raw.strip()
+        if not raw or ("channel" not in raw.lower() and "pinned_channels" not in raw.lower()):
+            continue
+        try:
+            obj = json.loads(raw)
+        except Exception:
+            continue
+        for item in _walk(obj):
+            for key in ("pinned_channels_info", "broadcast_channel", "broadcast_channels"):
+                if item.get(key):
+                    nodes.extend(_candidate_channel_dicts(item[key]))
+
+    # Some Instagram pages serialize data into non-JSON script strings. Parse the
+    # small public fields directly as a final fallback without bypassing access controls.
+    if not nodes:
+        title_pat = re.compile(r'\\?"(?:title|channel_name)\\?"\s*:\s*\\?"([^"\\]+)')
+        invite_pat = re.compile(r'https:\\?/\\?/(?:www\\?\.)?instagram\\?\.com\\?/channel\\?/[^"\\\\< ]+', re.I)
+        titles = [m.group(1).replace("\\u0026", "&") for m in title_pat.finditer(decoded)]
+        links = [m.group(0).replace("\\/", "/") for m in invite_pat.finditer(decoded)]
+        for i, title in enumerate(titles):
+            nodes.append({"title": title, "invite_link": links[i] if i < len(links) else None})
+        if not titles:
+            for link in links:
+                nodes.append({"title": "Broadcast channel", "invite_link": link})
+
+    channels = [_classify(node, username) for node in _candidate_channel_dicts(nodes)]
+    return _result(username, channels, status="channels_found_html")
+
+
+def _headers(username: str) -> dict[str, str]:
+    return {
+        "x-ig-app-id": IG_APP_ID,
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+        "accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        "referer": f"https://www.instagram.com/{username}/",
+    }
 
 
 def probe(username: str, *, timeout: float = 8.0, client: httpx.Client | None = None) -> ProbeResult:
     username = _clean_username(username)
-    headers = {
-        "x-ig-app-id": IG_APP_ID,
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
-        "accept": "*/*",
-        "referer": f"https://www.instagram.com/{username}/",
-    }
     own_client = client is None
     client = client or httpx.Client(timeout=timeout, follow_redirects=True)
+    headers = _headers(username)
     try:
         response = client.get(WEB_PROFILE_URL, params={"username": username}, headers=headers)
-        if response.status_code == 429:
-            return ProbeResult(username, False, "rate_limited", [], error="Instagram returned HTTP 429")
-        if response.status_code in (401, 403):
-            return ProbeResult(username, False, "blocked", [], error=f"Instagram returned HTTP {response.status_code}")
-        if response.status_code == 404:
+        if response.status_code == 200:
+            try:
+                parsed = parse_profile_payload(username, response.json())
+                if parsed.ok and parsed.channel_count:
+                    return parsed
+            except (ValueError, json.JSONDecodeError):
+                pass
+        elif response.status_code == 404:
             return ProbeResult(username, False, "not_found", [], error="profile not found")
+
+        # Public-page fallback. This is deliberately one additional request only.
+        page = client.get(PROFILE_URL.format(username=username), params={"hl": "en"}, headers=headers)
+        if page.status_code == 200:
+            parsed_html = parse_profile_html(username, page.text)
+            if parsed_html.channel_count:
+                return parsed_html
+            # If the JSON endpoint was usable, preserve its clean no-channel result.
+            if response.status_code == 200:
+                try:
+                    return parse_profile_payload(username, response.json())
+                except Exception:
+                    pass
+            return parsed_html
+
+        codes = {response.status_code, page.status_code}
+        if 429 in codes:
+            return ProbeResult(username, False, "rate_limited", [], error=f"Instagram returned HTTP {response.status_code}/{page.status_code}")
+        if codes & {401, 403}:
+            return ProbeResult(username, False, "blocked", [], error=f"Instagram returned HTTP {response.status_code}/{page.status_code}")
+        page.raise_for_status()
         response.raise_for_status()
-        return parse_profile_payload(username, response.json())
+        return ProbeResult(username, False, "no_profile_data", [], error="Instagram returned no usable channel metadata")
     except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
         return ProbeResult(username, False, "error", [], error=f"{type(exc).__name__}: {exc}")
     finally:
@@ -225,8 +237,7 @@ def probe(username: str, *, timeout: float = 8.0, client: httpx.Client | None = 
 
 
 def result_dict(result: ProbeResult) -> dict:
-    data = asdict(result)
-    return data
+    return asdict(result)
 
 
 def main() -> int:
@@ -235,14 +246,10 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=8.0)
     parser.add_argument("--out")
     args = parser.parse_args()
-
     results = [result_dict(probe(name, timeout=args.timeout)) for name in args.usernames]
-    payload = {
-        "schema": "empty-chair-hunter-broadcast-probe-v1",
-        "count": len(results),
-        "recovery_signal_count": sum(1 for r in results if r.get("recovery_channel_count", 0) > 0),
-        "results": results,
-    }
+    payload = {"schema": "empty-chair-hunter-broadcast-probe-v1", "count": len(results),
+               "recovery_signal_count": sum(1 for r in results if r.get("recovery_channel_count", 0) > 0),
+               "results": results}
     text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
     if args.out:
         from pathlib import Path
