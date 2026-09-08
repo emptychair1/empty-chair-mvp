@@ -56,11 +56,12 @@ def settings_home_with_reels(request: Request):
     content_rows=(
         '<a class="settings-row" href="/owner/ig-reels"><span>IG REELS<small>generated videos // preview library</small></span><span>›</span></a>'
         '<a class="settings-row" href="/owner/ig-stories"><span>IG STORIES<small>daily story director // native interactions</small></span><span>›</span></a>'
+        '<a class="settings-row" href="/owner/reddit"><span>REDDIT<small>live question radar // research opportunities</small></span><span>›</span></a>'
     )
     marker='<a class="settings-row" href="/owner/hunter">'
-    if '/owner/ig-stories' not in body:
+    if '/owner/reddit' not in body:
         if marker in body: body=body.replace(marker,content_rows+marker,1)
         else: body=body.replace('<div class="settings-list">','<div class="settings-list">'+content_rows,1)
     return HTMLResponse(content=body,status_code=response.status_code,headers=dict(response.headers))
 
-print("Founder IG Reels library loaded // Reels + Stories founder nav enabled",flush=True)
+print("Founder IG Reels library loaded // Reels + Stories + Reddit founder nav enabled",flush=True)
