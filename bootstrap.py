@@ -46,6 +46,7 @@ import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
 import v2_instagram_crt_autopilot  # noqa: F401,E402
 import v2_instagram_reels_engine  # noqa: F401,E402
+import v2_instagram_reels_test  # noqa: F401,E402
 import v2_instagram_webhook_subscription  # noqa: F401,E402
 import v2_hunter_operator  # noqa: F401,E402
 import v2_hunter_operator_transaction_fix  # noqa: F401,E402
@@ -63,7 +64,7 @@ import v2_hunter_instagram_reply_graph_fix  # noqa: F401,E402
 import v2_hunter_instagram_reply_retry_fix  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-ig-reels-engine-20260907"
+BUILD_ID = "bootstrap-ig-reels-test-now-20260907"
 
 
 @app.middleware("http")
