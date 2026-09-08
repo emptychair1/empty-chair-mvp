@@ -1,0 +1,84 @@
+name: Instagram Reels Launch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/instagram-reels-launch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instagram-reels-launch
+  cancel-in-progress: false
+
+jobs:
+  launch-one:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Prepare launch library
+        env:
+          AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if curl --fail-with-body --silent --show-error --max-time 120 \
+              -X POST https://app.tryemptychair.com/internal/instagram/reels/launch/prepare \
+              -H "Authorization: Bearer $AUTOPILOT_TOKEN" -o launch.json; then
+              if [ "$(jq -r '.count // 0' launch.json)" = "16" ]; then break; fi
+            fi
+            sleep 15
+          done
+          jq '.items | map(select(.status != "PUBLISHED")) | .[0]' launch.json > reel.json
+          test "$(jq -r '.id // empty' reel.json)" != ""
+          cat reel.json
+
+      - name: Install renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          python -m pip install --quiet playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Render and upload Reel
+        env:
+          AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from playwright.sync_api import sync_playwright
+          item=json.load(open('reel.json'))
+          urls=item['scene_urls']
+          with sync_playwright() as p:
+              browser=p.chromium.launch()
+              for i,url in enumerate(urls):
+                  page=browser.new_page(viewport={'width':1080,'height':1920},device_scale_factor=1)
+                  page.goto(url,wait_until='networkidle',timeout=120000)
+                  page.screenshot(path=f'scene-{i}.png',full_page=False)
+                  page.close()
+              browser.close()
+          inputs=[]; filters=[]
+          for i in range(len(urls)):
+              inputs += ['-loop','1','-t','3','-i',f'scene-{i}.png']
+              filters.append(f'[{i}:v]fps=30,format=yuv420p[v{i}]')
+          concat=''.join(f'[v{i}]' for i in range(len(urls)))+f'concat=n={len(urls)}:v=1:a=0[outv]'
+          subprocess.run(['ffmpeg','-loglevel','error','-y',*inputs,'-filter_complex',';'.join(filters+[concat]),'-map','[outv]','-c:v','libx264','-preset','veryfast','-pix_fmt','yuv420p','-movflags','+faststart','reel.mp4'],check=True)
+          token=os.environ['AUTOPILOT_TOKEN']
+          subprocess.run(['curl','--fail-with-body','--silent','--show-error','--max-time','300','-X','POST',item['upload_url'],'-H',f'Authorization: Bearer {token}','-H','Content-Type: video/mp4','--data-binary','@reel.mp4'],check=True)
+          PY
+
+      - name: Publish Reel live to Instagram
+        env:
+          AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+        run: |
+          set -euo pipefail
+          PUBLISH_URL=$(jq -r '.publish_url' reel.json)
+          curl --fail-with-body --silent --show-error --max-time 300 \
+            -X POST "$PUBLISH_URL" \
+            -H "Authorization: Bearer $AUTOPILOT_TOKEN" \
+            -o publish.json
+          cat publish.json
+          test "$(jq -r '.published // false' publish.json)" = "true"
