@@ -13,3 +13,23 @@ services:
         - ".github/**"
         - "tests/**"
         - requirements-dev.txt
+
+  - type: web
+    name: empty-chair-hunter-watchtower
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./hunter/Dockerfile.watchtower
+    dockerContext: .
+    dockerCommand: /bin/sh -c 'uvicorn hunter.watchtower_service:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1'
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: WATCHTOWER_API_TOKEN
+        sync: false
+      - key: WATCHTOWER_HEADLESS
+        value: "true"
+      - key: WATCHTOWER_DATA_DIR
+        value: /tmp/watchtower
+      - key: WATCHTOWER_PROFILE_DIR
+        value: /tmp/watchtower/chromium-profile
