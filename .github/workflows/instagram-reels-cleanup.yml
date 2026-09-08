@@ -1,0 +1,39 @@
+name: Instagram Reels Cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/instagram-reels-cleanup.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete obsolete Reel rows and MP4s
+        env:
+          AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 20); do
+            HTTP_CODE=$(curl --silent --show-error --max-time 60 \
+              -X POST https://app.tryemptychair.com/internal/instagram/reels/cleanup-obsolete \
+              -H "Authorization: Bearer $AUTOPILOT_TOKEN" \
+              -o cleanup.json \
+              -w '%{http_code}' || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              cat cleanup.json
+              test "$(jq -r '.ok // false' cleanup.json)" = "true"
+              exit 0
+            fi
+            echo "cleanup endpoint not ready yet // HTTP $HTTP_CODE // attempt $attempt"
+            cat cleanup.json || true
+            sleep 15
+          done
+          echo "cleanup endpoint never became ready"
+          exit 1
