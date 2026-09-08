@@ -1,7 +1,7 @@
 """Authenticated Safari Story probe for Hunter.
 
 Loads the local Safari session created by bootstrap_instagram_safari_session.py,
-opens Instagram Story pages read-only, and classifies visible Story text for
+opens Instagram Story pages read-only, and classifies rendered Story text for
 recovery intent. Session/cookie values are never printed.
 
 This collector does not post, message, follow, like, or bypass verification.
@@ -19,7 +19,6 @@ from typing import Any
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
-from selenium.webdriver.common.by import By
 from selenium.webdriver.safari.options import Options
 
 from story_watch import classify_recovery
@@ -47,7 +46,6 @@ def _selenium_cookie(cookie: dict[str, Any]) -> dict[str, Any]:
             cleaned["expiry"] = int(cleaned["expiry"])
         except (TypeError, ValueError):
             cleaned.pop("expiry", None)
-    # Older SafariDriver versions can reject SameSite values they do not recognize.
     if cleaned.get("sameSite") not in ("Strict", "Lax", "None"):
         cleaned.pop("sameSite", None)
     return cleaned
@@ -64,7 +62,6 @@ def _install_session(driver, payload: dict[str, Any]) -> int:
             driver.add_cookie(cleaned)
             installed += 1
         except WebDriverException:
-            # Retry without optional compatibility-sensitive attributes.
             minimal = {k: cleaned[k] for k in ("name", "value", "path", "domain", "secure") if k in cleaned}
             try:
                 driver.add_cookie(minimal)
@@ -77,8 +74,34 @@ def _install_session(driver, payload: dict[str, Any]) -> int:
 
 
 def _visible_text(driver) -> str:
+    """Return rendered human-facing text while excluding scripts/bootstrap payloads."""
+    script = r"""
+const badTags = new Set(['SCRIPT','STYLE','NOSCRIPT','TEMPLATE','SVG','PATH']);
+const lines = [];
+const seen = new Set();
+const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+let node;
+while ((node = walker.nextNode())) {
+  const parent = node.parentElement;
+  if (!parent || badTags.has(parent.tagName)) continue;
+  const style = window.getComputedStyle(parent);
+  if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue;
+  const rect = parent.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) continue;
+  let text = (node.nodeValue || '').replace(/\s+/g, ' ').trim();
+  if (!text || text.length > 500) continue;
+  if (text.startsWith('{"require"') || text.startsWith('{"__bbox"') || text.startsWith('{"define"')) continue;
+  if ((text.startsWith('{') || text.startsWith('[')) && text.includes('"gkxData"')) continue;
+  if (!seen.has(text)) {
+    seen.add(text);
+    lines.push(text);
+  }
+  if (lines.length >= 250) break;
+}
+return lines.join('\n');
+"""
     try:
-        return driver.find_element(By.TAG_NAME, "body").text.strip()
+        return str(driver.execute_script(script) or "").strip()
     except WebDriverException:
         return ""
 
@@ -116,8 +139,6 @@ def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dic
         text = _visible_text(driver)
         lowered_url = current_url.lower()
 
-        # Instagram may redirect profiles with no currently viewable Story back to
-        # the profile/feed. Treat that as UNKNOWN, never "no recovery pain".
         if f"/stories/{clean}/" not in lowered_url:
             return {
                 "username": clean,
@@ -127,6 +148,18 @@ def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dic
                 "intent_score": 0,
                 "matches": [],
                 "visible_text": text[:1000],
+                "error": None,
+            }
+
+        if not text:
+            return {
+                "username": clean,
+                "ok": True,
+                "status": "unknown_story_text_unreadable",
+                "current_url": current_url,
+                "intent_score": 0,
+                "matches": [],
+                "visible_text": "",
                 "error": None,
             }
 
