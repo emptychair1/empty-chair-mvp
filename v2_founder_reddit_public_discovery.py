@@ -1,20 +1,16 @@
-"""Credential-free public Reddit discovery for Founder Reddit Copilot.
-
-Uses public web-search result pages (Google/Bing HTML) to discover Reddit threads,
-then normalizes them into the existing copilot shape. No Reddit developer account,
-OAuth, Devvit deployment, or autoposting is required.
-"""
+"""Credential-free public Reddit discovery for Founder Reddit Copilot."""
 from __future__ import annotations
 
 import html as html_lib
 import re
 import time
+import xml.etree.ElementTree as ET
 from urllib.parse import quote_plus, unquote, urlparse, parse_qs
 from urllib.request import Request, urlopen
 
 import v2_founder_reddit as radar
 
-UA = "Mozilla/5.0 (compatible; EmptyChairFounderRadar/2.0; +https://tryemptychair.com)"
+UA = "EmptyChairFounderRadar/2.1 (+https://tryemptychair.com)"
 QUERIES = (
     'site:reddit.com/r/TattooArtists cancellation tattoo artist',
     'site:reddit.com/r/TattooArtists "last minute" tattoo opening',
@@ -22,6 +18,8 @@ QUERIES = (
     'site:reddit.com/r/TattooArtists booking deposit tattoo artist',
     'site:reddit.com/r/tattooing cancellation booking tattoo artist',
 )
+RSS_TERMS = ("cancellation", "no show", "last minute", "booking", "appointment", "deposit", "opening")
+RSS_SUBS = ("TattooArtists", "tattooing", "tattoo")
 
 
 def _get(url: str) -> str:
@@ -38,12 +36,48 @@ def _clean(s: str) -> str:
 def _reddit_url(raw: str) -> str:
     raw = html_lib.unescape(raw)
     if raw.startswith("/url?"):
-        q = parse_qs(urlparse(raw).query).get("q", [""])[0]
-        raw = unquote(q)
+        raw = unquote(parse_qs(urlparse(raw).query).get("q", [""])[0])
     if "reddit.com/r/" not in raw or "/comments/" not in raw:
         return ""
     raw = raw.split("&")[0]
     return raw if raw.startswith("http") else "https://www.reddit.com" + raw
+
+
+def _rss_posts() -> list[dict]:
+    posts = []
+    for subreddit in RSS_SUBS:
+        for term in RSS_TERMS:
+            url = f"https://www.reddit.com/r/{subreddit}/search.rss?q={quote_plus(term)}&restrict_sr=on&sort=new&t=year"
+            try:
+                root = ET.fromstring(_get(url))
+            except Exception as exc:
+                print(f"Founder Reddit RSS failed // {subreddit}/{term}: {exc}", flush=True)
+                continue
+            for entry in root.findall("{*}entry"):
+                title = _clean(entry.findtext("{*}title") or "")
+                body = _clean(entry.findtext("{*}content") or entry.findtext("{*}summary") or "")
+                link = ""
+                for node in entry.findall("{*}link"):
+                    href = node.attrib.get("href", "")
+                    if "/comments/" in href:
+                        link = href
+                        break
+                if not link:
+                    continue
+                parts = [p for p in urlparse(link).path.split("/") if p]
+                pid = parts[3] if len(parts) > 3 and parts[2] == "comments" else str(abs(hash(link)))
+                posts.append({
+                    "id": pid,
+                    "title": title,
+                    "selftext": body,
+                    "subreddit_name_prefixed": "r/" + subreddit,
+                    "permalink": urlparse(link).path,
+                    "url": link,
+                    "num_comments": 0,
+                    "created_utc": time.time() - 3 * 86400,
+                    "ec_public_discovery": True,
+                })
+    return posts
 
 
 def _google(query: str) -> list[dict]:
@@ -54,9 +88,8 @@ def _google(query: str) -> list[dict]:
         if not url:
             continue
         title = _clean(body)
-        if not title or title.lower() in {"reddit", "translate this result"}:
-            continue
-        out.append({"url": url, "title": title})
+        if title and title.lower() not in {"reddit", "translate this result"}:
+            out.append({"url": url, "title": title})
     return out
 
 
@@ -84,55 +117,57 @@ def _normalize(hit: dict) -> dict:
         "permalink": parsed.path,
         "url": url,
         "num_comments": 0,
-        # Search engines prioritize indexed public pages; keep age neutral rather than inventing it.
-        "created_utc": time.time() - 46 * 86400,
+        "created_utc": time.time() - 30 * 86400,
         "ec_public_discovery": True,
     }
 
 
-def public_opportunities() -> tuple[list[dict], bool]:
+def _rank(posts: list[dict]) -> tuple[list[dict], bool]:
     seen = {}
-    any_search = False
+    for post in posts:
+        score, _label, angle = radar._score(post)
+        score = min(100, score + 10)
+        post["ec_score"] = score
+        post["ec_label"] = "HIGH" if score >= 60 else "MEDIUM" if score >= 35 else "LOW"
+        post["ec_angle"] = angle
+        reply, mode = radar._suggest_reply(post)
+        post["ec_reply"] = reply
+        post["ec_reply_mode"] = mode
+        seen[str(post.get("id") or post.get("url"))] = post
+    ranked = sorted(seen.values(), key=lambda p: int(p.get("ec_score") or 0), reverse=True)
+    return [p for p in ranked if int(p.get("ec_score") or 0) >= 25][:15], bool(seen)
+
+
+def public_opportunities() -> tuple[list[dict], bool]:
+    rss = _rss_posts()
+    ranked, live = _rank(rss)
+    if ranked:
+        return ranked, live
+    hits = []
     for query in QUERIES:
-        hits = []
-        for engine in (_google, _bing):
+        for engine in (_bing, _google):
             try:
-                hits = engine(query)
-                any_search = True
-                if hits:
+                batch = engine(query)
+                if batch:
+                    hits.extend(_normalize(x) for x in batch)
                     break
             except Exception as exc:
                 print(f"Founder Reddit public discovery failed // {engine.__name__}: {exc}", flush=True)
-        for hit in hits:
-            post = _normalize(hit)
-            score, label, angle = radar._score(post)
-            # Search discovery itself is a relevance signal, but never fabricate recency/comments.
-            score = min(100, score + 20)
-            post["ec_score"] = score
-            post["ec_label"] = "HIGH" if score >= 60 else "MEDIUM" if score >= 35 else "LOW"
-            post["ec_angle"] = angle
-            reply, mode = radar._suggest_reply(post)
-            post["ec_reply"] = reply
-            post["ec_reply_mode"] = mode
-            seen[post["id"]] = post
-    ranked = sorted(seen.values(), key=lambda p: int(p.get("ec_score") or 0), reverse=True)
-    return [p for p in ranked if int(p.get("ec_score") or 0) >= 25][:15], any_search
+    return _rank(hits)
 
 
 _original = radar._opportunities
 
 
 def _combined_opportunities():
-    # First use any official/cached/anonymous Reddit path already available.
     try:
         posts, live = _original()
         if posts:
             return posts, live
     except Exception as exc:
         print(f"Founder Reddit primary discovery failed: {exc}", flush=True)
-    # Then use credential-free public web discovery. User never has to search manually.
     return public_opportunities()
 
 
 radar._opportunities = _combined_opportunities
-print("Founder Reddit public discovery loaded // no Reddit credentials required", flush=True)
+print("Founder Reddit public discovery loaded // Reddit RSS + web fallback", flush=True)
