@@ -1,10 +1,10 @@
 """Render entrypoint for Hunter Watchtower with safe diagnostics and one-time Instagram bootstrap."""
 from __future__ import annotations
 
-import asyncio
 import html
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
@@ -18,6 +18,8 @@ from hunter.watchtower_service import SCHEMA, _worker_state, app
 
 BOOTSTRAP_STATE = Path(os.getenv("WATCHTOWER_BOOTSTRAP_STATE", "/data/instagram-bootstrap-state.json"))
 _original_authenticated = service.authenticated
+_bootstrap_lock = threading.Lock()
+_bootstrap_status: dict[str, Any] = {"state": "idle", "message": "", "ok": None}
 
 
 def _install_bootstrap_state(context) -> None:
@@ -49,14 +51,16 @@ def diagnostics() -> dict[str, Any]:
         "last_heartbeat": _worker_state.get("last_heartbeat"),
         "last_error": _worker_state.get("last_error"),
         "bootstrap_state_ready": BOOTSTRAP_STATE.exists(),
+        "bootstrap": dict(_bootstrap_status),
     }
 
 
-def _page(message: str = "", ok: bool | None = None) -> HTMLResponse:
+def _page(message: str = "", ok: bool | None = None, refresh: bool = False) -> HTMLResponse:
     tone = "#53d769" if ok else "#ffb020" if ok is False else "#ddd"
     safe_message = html.escape(message)
+    refresh_tag = "<meta http-equiv='refresh' content='4'>" if refresh else ""
     body = f"""<!doctype html>
-<html><head><meta name='viewport' content='width=device-width,initial-scale=1'>
+<html><head><meta name='viewport' content='width=device-width,initial-scale=1'>{refresh_tag}
 <title>Hunter Watchtower Bootstrap</title>
 <style>
 body{{background:#0b0b0c;color:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:0;padding:28px}}
@@ -83,21 +87,25 @@ small{{display:block;color:#888;margin-top:18px;line-height:1.45}}
 def bootstrap_form() -> HTMLResponse:
     if _worker_state.get("authenticated"):
         return _page("The Watchtower browser is already authenticated.", True)
+    state = _bootstrap_status.get("state")
+    if state == "running":
+        return _page("Login attempt is running in the virtual browser. This page will refresh automatically.", None, refresh=True)
+    if state in {"finished", "failed"}:
+        return _page(str(_bootstrap_status.get("message") or ""), _bootstrap_status.get("ok"))
     return _page()
 
 
 def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
-    """Run Playwright Sync API outside FastAPI's asyncio event-loop thread."""
     try:
         BOOTSTRAP_STATE.parent.mkdir(parents=True, exist_ok=True)
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
             context = browser.new_context(viewport={"width": 1280, "height": 900})
             page = context.new_page()
-            page.goto("https://www.instagram.com/accounts/login/", wait_until="domcontentloaded", timeout=45000)
-            page.locator("input[name='username']").fill(username, timeout=15000)
-            page.locator("input[name='password']").fill(password, timeout=15000)
-            page.locator("button[type='submit']").click(timeout=15000)
+            page.goto("https://www.instagram.com/accounts/login/", wait_until="domcontentloaded", timeout=30000)
+            page.locator("input[name='username']").fill(username, timeout=10000)
+            page.locator("input[name='password']").fill(password, timeout=10000)
+            page.locator("button[type='submit']").click(timeout=10000)
             page.wait_for_timeout(6000)
 
             cookies = context.cookies("https://www.instagram.com")
@@ -122,6 +130,14 @@ def _bootstrap_sync(username: str, password: str) -> tuple[str, bool]:
         return (f"Bootstrap failed: {exc.__class__.__name__}: {str(exc)[:700]}", False)
 
 
+def _bootstrap_runner(username: str, password: str) -> None:
+    try:
+        message, ok = _bootstrap_sync(username, password)
+        _bootstrap_status.update({"state": "finished" if ok else "failed", "message": message, "ok": ok})
+    finally:
+        _bootstrap_lock.release()
+
+
 @app.post("/bootstrap", response_class=HTMLResponse)
 async def bootstrap_login(request: Request) -> HTMLResponse:
     raw = (await request.body()).decode("utf-8", errors="replace")
@@ -135,6 +151,9 @@ async def bootstrap_login(request: Request) -> HTMLResponse:
         return _page("Invalid Watchtower control token.", False)
     if not username or not password:
         return _page("Instagram username and password are required.", False)
+    if not _bootstrap_lock.acquire(blocking=False):
+        return _page("A login attempt is already running. This page will refresh automatically.", None, refresh=True)
 
-    message, ok = await asyncio.to_thread(_bootstrap_sync, username, password)
-    return _page(message, ok)
+    _bootstrap_status.update({"state": "running", "message": "Login attempt started.", "ok": None})
+    threading.Thread(target=_bootstrap_runner, args=(username, password), name="watchtower-bootstrap", daemon=True).start()
+    return _page("Login attempt started in the virtual browser. This page will refresh automatically.", None, refresh=True)
