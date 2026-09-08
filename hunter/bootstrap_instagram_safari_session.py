@@ -23,6 +23,27 @@ from selenium.webdriver.support import expected_conditions as EC
 OUT = Path(os.environ.get("HUNTER_IG_SAFARI_SESSION_OUT", "hunter-instagram-safari-session.json"))
 
 
+def _set_input_value(driver, element, value: str) -> None:
+    """Set a controlled React-style input value and dispatch normal events."""
+    driver.execute_script(
+        """
+        const el = arguments[0];
+        const value = arguments[1];
+        const proto = Object.getPrototypeOf(el);
+        const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (desc && desc.set) {
+            desc.set.call(el, value);
+        } else {
+            el.value = value;
+        }
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        """,
+        element,
+        value,
+    )
+
+
 def main() -> int:
     username = os.environ.get("HUNTER_IG_USERNAME", "").strip()
     password = os.environ.get("HUNTER_IG_PASSWORD", "")
@@ -37,12 +58,12 @@ def main() -> int:
 
         user_field = wait.until(EC.presence_of_element_located((By.NAME, "username")))
         pass_field = wait.until(EC.presence_of_element_located((By.NAME, "password")))
-        user_field.clear()
-        user_field.send_keys(username)
-        pass_field.send_keys(password)
+
+        _set_input_value(driver, user_field, username)
+        _set_input_value(driver, pass_field, password)
 
         login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
-        login_button.click()
+        driver.execute_script("arguments[0].click();", login_button)
 
         print("Safari submitted the Instagram login using local environment credentials.")
         print("Complete any legitimate Instagram verification/approval if prompted.")
