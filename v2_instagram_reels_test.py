@@ -40,10 +40,13 @@ def prepare_test_reel(request: Request):
         "test": True,
         "id": reel_id,
         "slot": slot,
-        "scene_urls": [f"{reels.BASE_URL}/instagram/reels/render/{reel_id}/{n}" for n in range(5)],
+        "scene_urls": [
+            f"{reels.BASE_URL}/instagram/reels/render/{reel_id}/{n}"
+            for n in range(reels.SCENE_COUNT)
+        ],
         "upload_url": f"{reels.BASE_URL}/internal/instagram/reels/video/{reel_id}",
         "video_url": f"{reels.BASE_URL}/instagram/reels/video/{reel_id}.mp4",
     }
 
 
-print("Instagram Reels test-now endpoint loaded // publish disabled", flush=True)
+print("Instagram Reels test-now endpoint loaded // canonical recovery story // publish disabled", flush=True)
