@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs
 
 from fastapi import Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from playwright.sync_api import sync_playwright
 
 import hunter.watchtower_service as service
@@ -65,21 +65,56 @@ def _page(message: str = "", ok: bool | None = None, refresh: bool = False) -> H
 <title>Hunter Watchtower Bootstrap</title>
 <style>
 body{{background:#0b0b0c;color:#f4f4f4;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:0;padding:28px}}
-main{{max-width:540px;margin:0 auto}}h1{{font-size:30px;margin:0 0 8px}}p{{line-height:1.45;color:#bbb}}
+main{{max-width:540px;margin:0 auto}}h1{{font-size:30px;margin:0 0 8px}}h2{{font-size:21px;margin:28px 0 8px}}p{{line-height:1.45;color:#bbb}}
 label{{display:block;margin:18px 0 6px;font-weight:700}}input{{width:100%;box-sizing:border-box;padding:14px;border:1px solid #444;border-radius:10px;background:#161618;color:white;font-size:16px}}
 button{{width:100%;margin-top:22px;padding:15px;border:0;border-radius:10px;background:#8b5cf6;color:white;font-size:17px;font-weight:800}}
+.secondary{{background:#222;border:1px solid #555}}.panel{{margin-top:24px;padding-top:4px;border-top:1px solid #333}}
 .msg{{margin:18px 0;padding:14px;border:1px solid {tone};border-radius:10px;color:{tone};white-space:pre-wrap}}
+#importResult{{margin-top:14px;white-space:pre-wrap;color:#bbb}}
 small{{display:block;color:#888;margin-top:18px;line-height:1.45}}
 </style></head><body><main>
 <h1>Hunter Watchtower</h1><p>One-time Instagram authentication for the virtual Chromium worker.</p>
 {f"<div class='msg'>{safe_message}</div>" if message else ""}
+<div class='panel'>
+<h2>Import existing authenticated session</h2>
+<p>Use the Safari session JSON created by Hunter. The file is sent directly from this browser to your Render service over HTTPS. Its cookie values are never displayed by this page or written to GitHub.</p>
+<label>Watchtower control token</label><input type='password' id='importToken' autocomplete='off'>
+<label>Safari session JSON</label><input type='file' id='sessionFile' accept='.json,application/json'>
+<button type='button' class='secondary' onclick='importSession()'>Import existing session</button>
+<div id='importResult'></div>
+</div>
+<div class='panel'>
+<h2>Fresh login</h2>
 <form method='post' action='/bootstrap'>
 <label>Watchtower control token</label><input type='password' name='token' autocomplete='off' required>
 <label>Instagram username</label><input type='text' name='username' autocapitalize='none' autocomplete='username' required>
 <label>Instagram password</label><input type='password' name='password' autocomplete='current-password' required>
 <button type='submit'>Authenticate virtual browser</button>
 </form>
-<small>The control token is the WATCHTOWER_API_TOKEN stored in Render. Instagram credentials are used only for this login attempt and are not written to the repo or returned by the API. If Instagram asks you to approve a new login, approve it once in the Instagram app. Keep this bootstrap page open; the virtual browser will remain alive while it waits for approval.</small>
+</div>
+<small>The existing-session import is preferred when Instagram's new-device approval flow hangs. Hunter does not bypass account verification.</small>
+<script>
+async function importSession(){{
+  const out=document.getElementById('importResult');
+  const token=document.getElementById('importToken').value;
+  const input=document.getElementById('sessionFile');
+  if(!token){{out.textContent='Enter the Watchtower control token.';return;}}
+  if(!input.files.length){{out.textContent='Choose the Safari session JSON file.';return;}}
+  out.textContent='Importing session…';
+  try{{
+    const text=await input.files[0].text();
+    const session=JSON.parse(text);
+    const response=await fetch('/bootstrap/import-session',{{
+      method:'POST',
+      headers:{{'Content-Type':'application/json','Cache-Control':'no-store'}},
+      body:JSON.stringify({{token,session}})
+    }});
+    const data=await response.json();
+    out.textContent=data.message || (data.ok ? 'Session imported.' : 'Import failed.');
+    if(data.ok) setTimeout(()=>window.location='/diagnostics',1200);
+  }}catch(err){{out.textContent='Import failed: '+err.message;}}
+}}
+</script>
 </main></body></html>"""
     return HTMLResponse(body, headers={"Cache-Control": "no-store"})
 
@@ -94,6 +129,89 @@ def bootstrap_form() -> HTMLResponse:
     if state in {"finished", "failed"}:
         return _page(str(_bootstrap_status.get("message") or ""), _bootstrap_status.get("ok"))
     return _page()
+
+
+def _valid_imported_cookies(session: Any) -> list[dict[str, Any]]:
+    if not isinstance(session, dict):
+        raise ValueError("session file must contain a JSON object")
+    cookies = session.get("cookies")
+    if not isinstance(cookies, list) or not cookies:
+        raise ValueError("session file does not contain cookies")
+
+    cleaned: list[dict[str, Any]] = []
+    for raw in cookies:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "")
+        value = str(raw.get("value") or "")
+        domain = str(raw.get("domain") or "")
+        path = str(raw.get("path") or "/")
+        if not name or not value or not domain:
+            continue
+        normalized_domain = domain.lstrip(".").lower()
+        if normalized_domain != "instagram.com" and not normalized_domain.endswith(".instagram.com"):
+            continue
+        cookie: dict[str, Any] = {
+            "name": name,
+            "value": value,
+            "domain": domain,
+            "path": path,
+            "secure": bool(raw.get("secure", True)),
+            "httpOnly": bool(raw.get("httpOnly", False)),
+        }
+        same_site = raw.get("sameSite")
+        if same_site in {"Strict", "Lax", "None"}:
+            cookie["sameSite"] = same_site
+        expiry = raw.get("expiry")
+        if isinstance(expiry, (int, float)) and expiry > 0:
+            cookie["expires"] = float(expiry)
+        cleaned.append(cookie)
+
+    if not any(cookie.get("name") == "sessionid" for cookie in cleaned):
+        raise ValueError("session file does not contain an Instagram sessionid cookie")
+    return cleaned
+
+
+@app.post("/bootstrap/import-session")
+async def import_existing_session(request: Request) -> JSONResponse:
+    try:
+        raw = await request.body()
+        if len(raw) > 512_000:
+            return JSONResponse({"ok": False, "message": "Session file is too large."}, status_code=413)
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return JSONResponse({"ok": False, "message": "Invalid JSON request."}, status_code=400)
+
+    token = str(payload.get("token") or "") if isinstance(payload, dict) else ""
+    expected = os.getenv("WATCHTOWER_API_TOKEN", "").strip()
+    if not expected or token != expected:
+        return JSONResponse({"ok": False, "message": "Invalid Watchtower control token."}, status_code=401)
+
+    try:
+        cookies = _valid_imported_cookies(payload.get("session"))
+        BOOTSTRAP_STATE.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = BOOTSTRAP_STATE.with_suffix(".tmp")
+        temp_path.write_text(json.dumps({"cookies": cookies, "origins": []}), encoding="utf-8")
+        try:
+            os.chmod(temp_path, 0o600)
+        except OSError:
+            pass
+        temp_path.replace(BOOTSTRAP_STATE)
+        _bootstrap_status.update({
+            "state": "finished",
+            "message": "Existing Instagram session imported. Watchtower will use it on the next authenticated request.",
+            "ok": True,
+        })
+        _worker_state["last_error"] = None
+        return JSONResponse({
+            "ok": True,
+            "message": "Existing Instagram session imported. Open diagnostics; authentication will be verified by the Watchtower browser on its next Instagram request.",
+        }, headers={"Cache-Control": "no-store"})
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
+    except Exception as exc:
+        _worker_state["last_error"] = f"session import: {exc.__class__.__name__}: {exc}"
+        return JSONResponse({"ok": False, "message": "Watchtower could not store the imported session."}, status_code=500)
 
 
 def _first_visible(page, selectors: list[str]):
