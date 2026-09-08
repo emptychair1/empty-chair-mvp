@@ -54,6 +54,44 @@ def _find_first(driver, selectors: list[tuple[str, str]], timeout: int = 30):
     return None
 
 
+def _submit_login(driver, login_button, pass_field) -> None:
+    """Submit Instagram login with Safari-compatible fallbacks."""
+    submitted = driver.execute_script(
+        """
+        const button = arguments[0];
+        const pass = arguments[1];
+        const form = button.form || pass.form || button.closest('form') || pass.closest('form');
+
+        try {
+            button.click();
+            return 'button.click';
+        } catch (e) {}
+
+        if (form && typeof form.requestSubmit === 'function') {
+            try {
+                form.requestSubmit(button);
+                return 'form.requestSubmit';
+            } catch (e) {}
+        }
+
+        if (form) {
+            try {
+                form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+                form.submit();
+                return 'form.submit';
+            } catch (e) {}
+        }
+
+        return null;
+        """,
+        login_button,
+        pass_field,
+    )
+    if not submitted:
+        raise SystemExit("Instagram login fields were filled, but Safari could not submit the login form")
+    print(f"Safari login submit method: {submitted}")
+
+
 def main() -> int:
     username = os.environ.get("HUNTER_IG_USERNAME", "").strip()
     password = os.environ.get("HUNTER_IG_PASSWORD", "")
@@ -105,7 +143,7 @@ def main() -> int:
         if login_button is None:
             raise SystemExit("Instagram login fields were found, but the Log in button was not detected")
 
-        driver.execute_script("arguments[0].click();", login_button)
+        _submit_login(driver, login_button, pass_field)
 
         print("Safari submitted the Instagram login using local environment credentials.")
         print("Complete any legitimate Instagram verification/approval if prompted.")
