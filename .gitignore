@@ -5,3 +5,7 @@ __pycache__/
 .env
 local_empty_chair.db
 test_empty_chair.db
+.hunter-instagram-browser-state.json
+.hunter-instagram-device.json
+.hunter-venv/
+.hunter-venv312/
