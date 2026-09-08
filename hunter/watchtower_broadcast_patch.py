@@ -3,11 +3,32 @@ from __future__ import annotations
 
 import html as html_lib
 import re
+from urllib.parse import urlparse
 
 CHANNEL_URL_RE = re.compile(
     r"(?:https?://(?:www\.)?instagram\.com/channel/[^\s\"'<>\\]+|https?://ig\.me/j/[^\s\"'<>\\]+|/channel/[A-Za-z0-9._?=&%/-]+)",
     re.I,
 )
+
+
+def _real_channel_url(value: str) -> bool:
+    value = (value or "").strip()
+    if not value:
+        return False
+    try:
+        parsed = urlparse(value if value.startswith("http") else f"https://www.instagram.com{value}")
+    except Exception:
+        return False
+    host = parsed.netloc.lower()
+    path = parsed.path.rstrip("/")
+    if host.endswith("ig.me"):
+        return path.startswith("/j/") and len(path.split("/j/", 1)[-1]) >= 4
+    if not host.endswith("instagram.com") or not path.startswith("/channel/"):
+        return False
+    slug = path.split("/channel/", 1)[-1]
+    if not slug or slug.lower().endswith(".php") or slug.lower() in {"reconnect", "reconnect.php"}:
+        return False
+    return len(slug) >= 4
 
 
 def install(service) -> None:
@@ -42,7 +63,7 @@ def install(service) -> None:
         seen_links = set()
         for match in CHANNEL_URL_RE.findall(normalized):
             href = match if match.startswith("http") else f"https://www.instagram.com{match}"
-            if href not in seen_links:
+            if _real_channel_url(href) and href not in seen_links:
                 seen_links.add(href)
                 found_links.append(href)
 
@@ -51,6 +72,8 @@ def install(service) -> None:
         for item in candidates:
             href = str((item or {}).get("href") or "").strip()
             title = str((item or {}).get("title") or "").strip() or "Broadcast channel"
+            if href and not _real_channel_url(href):
+                continue
             marker = href or title.lower()
             if not marker or marker in seen:
                 continue
@@ -74,7 +97,7 @@ def install(service) -> None:
             })
 
         text_lower = (visible or "").lower()
-        if not channels and "channel" in text_lower and visible_matches:
+        if not channels and "broadcast channel" in text_lower and visible_matches:
             channels.append({
                 "title": "Broadcast channel", "href": "",
                 "intent_score": visible_score,
