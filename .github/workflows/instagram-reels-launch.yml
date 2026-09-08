@@ -42,29 +42,48 @@ jobs:
           python -m pip install --quiet playwright
           python -m playwright install --with-deps chromium
 
-      - name: Render and upload all 16 Reels
+      - name: Render and upload unfinished Reels
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
           python - <<'PY'
           import json, os, subprocess
           from pathlib import Path
+          from urllib.parse import urlparse
           from playwright.sync_api import sync_playwright
 
           data=json.load(open('launch.json'))
           items=data['items']
           token=os.environ['AUTOPILOT_TOKEN']
+          raw_static='https://raw.githubusercontent.com/emptychair1/empty-chair-mvp/main/static/'
 
           with sync_playwright() as p:
               browser=p.chromium.launch()
               for index,item in enumerate(items, start=1):
-                  print(f"REEL {index}/16 // {item['slot']} // rerender", flush=True)
+                  if item.get('status') in ('RENDERED','PUBLISHED'):
+                      print(f"REEL {index}/16 // {item['slot']} // already rendered, skipping", flush=True)
+                      continue
+
+                  print(f"REEL {index}/16 // {item['slot']} // render", flush=True)
                   work=Path(f"reel-{index:02d}")
                   work.mkdir(exist_ok=True)
                   urls=item['scene_urls']
                   for i,url in enumerate(urls):
                       page=browser.new_page(viewport={'width':1080,'height':1920},device_scale_factor=1)
                       page.goto(url,wait_until='networkidle',timeout=120000)
+
+                      # Product scenes use real Empty Chair screenshots. If Render's /static
+                      # route fails an image, swap only that failed image to the same repo asset
+                      # on raw.githubusercontent.com before capture.
+                      page.evaluate("""(rawStatic) => {
+                        for (const img of Array.from(document.images)) {
+                          if (!img.complete || img.naturalWidth === 0) {
+                            const path = new URL(img.src, location.href).pathname;
+                            const name = path.split('/').pop();
+                            if (name) img.src = rawStatic + encodeURIComponent(name);
+                          }
+                        }
+                      }""", raw_static)
                       page.wait_for_function("""() => Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)""", timeout=120000)
                       page.screenshot(path=str(work/f'scene-{i}.png'),full_page=False)
                       page.close()
