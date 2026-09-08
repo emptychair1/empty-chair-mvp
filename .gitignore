@@ -11,5 +11,6 @@ hunter-instagram-device.json
 hunter-instagram-safari-session.json
 hunter-instagram-browser-state.json
 hunter-instagram-session*.json
+hunter-story-captures/
 .hunter-venv/
 .hunter-venv312/
