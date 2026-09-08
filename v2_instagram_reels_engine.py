@@ -40,16 +40,16 @@ REEL_TABLE = """CREATE TABLE IF NOT EXISTS growth_ig_reels (
     UNIQUE(local_day, slot)
 )"""
 
-# These stories are constrained to the actual Empty Chair recovery path: a calendar
-# cancellation creates an opening, outreach is sent, a client claims, deposit/payment
-# can be secured, and the recovered appointment returns to the calendar.
+# Scenario values change, but every message below is rendered from the same successful
+# production recovery path that Empty Chair actually sends: artist OPEN -> client OPEN
+# -> deposit/booking -> artist FILLED + client YOURS.
 SCENARIOS = [
-    {"kind":"same_day","artist":"Mara","client":"Jess","time":"3:00 PM","lead":"2 hours","deposit":80,"value":450,"hook":"3 PM JUST CANCELED.","reply":"I can take it."},
-    {"kind":"tomorrow","artist":"Nico","client":"Sam","time":"11:30 AM","lead":"tomorrow","deposit":100,"value":600,"hook":"TOMORROW'S APPOINTMENT DISAPPEARED.","reply":"Yes — book me."},
-    {"kind":"evening","artist":"Rae","client":"Taylor","time":"6:00 PM","lead":"4 hours","deposit":75,"value":350,"hook":"A 6 PM CANCELLATION JUST OPENED UP.","reply":"I'm free. I'll take it."},
-    {"kind":"weekend","artist":"Alex","client":"Jordan","time":"1:00 PM","lead":"Saturday","deposit":120,"value":700,"hook":"SATURDAY OPENED UP.","reply":"Yes please."},
-    {"kind":"short_notice","artist":"June","client":"Casey","time":"4:30 PM","lead":"90 minutes","deposit":60,"value":300,"hook":"90 MINUTES BEFORE THE APPOINTMENT.","reply":"I can be there."},
-    {"kind":"high_value","artist":"Morgan","client":"Drew","time":"12:00 PM","lead":"tomorrow","deposit":150,"value":900,"hook":"A $900 SESSION CANCELED.","reply":"Send me the deposit link."},
+    {"kind":"same_day","artist":"Mara","client":"Jess","day":"TUE","time":"3:00 PM","duration":"3 hr","matches":12,"lead":"2 hours","deposit":80,"value":450,"hook":"3 PM JUST CANCELED."},
+    {"kind":"tomorrow","artist":"Nico","client":"Sam","day":"WED","time":"11:30 AM","duration":"4 hr","matches":9,"lead":"tomorrow","deposit":100,"value":600,"hook":"TOMORROW'S APPOINTMENT DISAPPEARED."},
+    {"kind":"evening","artist":"Rae","client":"Taylor","day":"THU","time":"6:00 PM","duration":"2 hr","matches":7,"lead":"4 hours","deposit":75,"value":350,"hook":"A 6 PM CANCELLATION JUST OPENED UP."},
+    {"kind":"weekend","artist":"Alex","client":"Jordan","day":"SAT","time":"1:00 PM","duration":"5 hr","matches":15,"lead":"Saturday","deposit":120,"value":700,"hook":"SATURDAY OPENED UP."},
+    {"kind":"short_notice","artist":"June","client":"Casey","day":"FRI","time":"4:30 PM","duration":"2 hr","matches":5,"lead":"90 minutes","deposit":60,"value":300,"hook":"90 MINUTES BEFORE THE APPOINTMENT."},
+    {"kind":"high_value","artist":"Morgan","client":"Drew","day":"SUN","time":"12:00 PM","duration":"6 hr","matches":11,"lead":"tomorrow","deposit":150,"value":900,"hook":"A $900 SESSION CANCELED."},
 ]
 
 
@@ -93,8 +93,8 @@ def _scenario(day: str, slot: str) -> dict:
 
 def _caption(s: dict) -> str:
     return (
-        f"{s['hook']} Empty Chair turns a canceled tattoo appointment back into an opening, "
-        "reaches the next client, secures the spot, and gets the recovered appointment back on the calendar.\n\n"
+        f"{s['hook']} This is the actual Empty Chair text flow: the artist gets the cancellation alert, "
+        "the next client gets the opening, the deposit lands, and both sides get confirmation.\n\n"
         "7 DAYS FREE // LINK IN BIO\n\n#tattooartist #tattooshop #tattoocancellation #booksopen #emptychair"
     )
 
@@ -117,22 +117,105 @@ def _scene_shell(title: str, body: str, extra: str = "") -> str:
 <style>*{{box-sizing:border-box}}html,body{{margin:0;width:1080px;height:1920px;overflow:hidden}}body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#111}}.screen{{width:1080px;height:1920px;position:relative;overflow:hidden}}{extra}</style></head><body><main class='screen' aria-label='{html.escape(title)}'>{body}</main></body></html>"""
 
 
+def _money(value: int) -> str:
+    return f"${int(value):,}"
+
+
+def _when(s: dict) -> str:
+    return f"{s.get('day', 'TUE')} // {s.get('time', '3:00 PM')}"
+
+
+def _sms_screen(audience: str, message: str, note: str) -> str:
+    escaped = html.escape(message)
+    body = f"""
+    <div class='statusbar'><span>9:41</span><span>●●● 5G&nbsp;&nbsp;100%</span></div>
+    <div class='nav'><span class='back'>‹</span><div><div class='avatar'>EC</div><div class='name'>Empty Chair</div></div><span></span></div>
+    <div class='audience'>{html.escape(audience)}</div>
+    <div class='thread'><div class='bubble'><pre>{escaped}</pre></div><div class='delivered'>Delivered</div></div>
+    <div class='composer'><span>＋</span><div>iMessage</div><span>🎙</span></div>
+    <div class='reel-note'>{html.escape(note)}</div>
+    """
+    css = """
+    .screen{background:#f5f5f7;color:#111}.statusbar{height:66px;padding:24px 38px 0;display:flex;justify-content:space-between;font-size:22px;font-weight:600}.nav{height:138px;border-bottom:1px solid #d8d8dc;display:grid;grid-template-columns:90px 1fr 90px;align-items:center;text-align:center;background:rgba(249,249,249,.96)}.back{font-size:64px;color:#087cff;font-weight:300}.avatar{width:70px;height:70px;border-radius:50%;background:#0B0905;color:#FFD36A;margin:0 auto 6px;display:grid;place-items:center;font:700 23px/1 ui-monospace,SFMono-Regular,Menlo,monospace}.name{font-size:21px}.audience{position:absolute;top:226px;left:0;right:0;text-align:center;font:700 19px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.15em;color:#8e8e93}.thread{padding:105px 34px 220px}.bubble{background:#e5e5ea;border-radius:38px 38px 38px 10px;padding:30px 32px;max-width:88%;display:inline-block}.bubble pre{margin:0;white-space:pre-wrap;word-break:break-word;font:31px/1.34 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#111}.delivered{font-size:18px;color:#8e8e93;margin:8px 0 0 18px}.composer{position:absolute;bottom:52px;left:28px;right:28px;height:62px;display:grid;grid-template-columns:56px 1fr 56px;gap:10px;align-items:center;color:#8e8e93;font-size:25px}.composer div{border:2px solid #c7c7cc;border-radius:34px;padding:13px 20px}.reel-note{position:absolute;bottom:138px;left:0;right:0;text-align:center;font:700 17px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;color:#8e8e93}
+    """
+    return _scene_shell(f"{audience} text from Empty Chair", body, css)
+
+
 def _render_scene(s: dict, scene: int) -> str:
-    # No decorative phone shell: each HTML document IS the 9:16 device screen.
+    # These are the actual SMS templates used by the successful production recovery path.
+    # We intentionally do not invent client replies: clients claim through the TAKE THE CHAIR link.
+    when = _when(s)
+    value = _money(int(s.get("value", 450)))
+    deposit = _money(int(s.get("deposit", 80)))
+    artist = str(s.get("artist", "Mara"))
+    client = str(s.get("client", "Jess"))
+    matches = int(s.get("matches", 12))
+    duration = str(s.get("duration", "3 hr"))
+
     if scene == 0:
-        body = f"<div class='hook'>{html.escape(s['hook'])}</div><div class='sub'>{html.escape(s['lead'])} before the opening.</div>"
-        return _scene_shell("Hook", body, ".screen{background:#0B0905;color:#FFD36A;display:flex;flex-direction:column;justify-content:center;padding:100px}.hook{font:800 92px/1.02 'Courier New',monospace}.sub{margin-top:50px;font:34px/1.4 'Courier New',monospace;color:#FFB000}")
+        message = (
+            "EMPTY CHAIR // OPEN\n\n"
+            f"{when} canceled.\n\n"
+            f"{value} AT RISK\n\n"
+            f"{matches} matches ready.\n\n"
+            "working..."
+        )
+        return _sms_screen("ARTIST PHONE // CANCELLATION DETECTED", message, "THIS IS WHAT THE ARTIST ACTUALLY GETS")
+
     if scene == 1:
-        body = f"<div class='bar'>Messages <b>{html.escape(s['client'])}</b></div><div class='thread'><div class='bubble'>A tattoo opening just became available at {html.escape(s['time'])}. Want it?</div><div class='bubble me'>{html.escape(s['reply'])}</div></div><div class='composer'>iMessage</div>"
-        return _scene_shell("Messages", body, ".screen{background:#f5f5f7}.bar{text-align:center;padding:72px 40px 28px;font-size:30px;border-bottom:1px solid #ddd}.thread{padding:70px 34px}.bubble{background:#e5e5ea;border-radius:34px;padding:22px 28px;font-size:34px;line-height:1.3;max-width:76%;margin:22px 0}.me{background:#0b84ff;color:white;margin-left:auto}.composer{position:absolute;bottom:54px;left:34px;right:34px;border:2px solid #d1d1d6;border-radius:30px;padding:18px 28px;color:#8e8e93;font-size:27px}")
+        message = (
+            "EMPTY CHAIR // OPEN\n\n"
+            f"{artist} has an opening.\n\n"
+            f"{when}\n"
+            f"{duration}\n"
+            f"{value}\n\n"
+            "+----------------------+\n"
+            "|   TAKE THE CHAIR     |\n"
+            "+----------------------+\n"
+            f"{BASE_URL}/o/••••••••\n\n"
+            f"held for {core.OFFER_MINUTES} min.\n\n"
+            "Reply STOP to opt out."
+        )
+        return _sms_screen("CLIENT PHONE // TOP MATCH", message, "THE CLIENT CLAIMS THROUGH THE LINK — NO FAKE TEXT REPLY")
+
     if scene == 2:
-        body = f"<div class='brand'>EMPTY CHAIR</div><div class='label'>OPENING</div><div class='card'><b>{html.escape(s['time'])}</b><span>Recovery in progress</span><span>Client claimed opening</span></div><div class='label'>DEPOSIT</div><div class='money'>${int(s['deposit'])}</div>"
-        return _scene_shell("Empty Chair recovery", body, ".screen{background:#0B0905;color:#FFB000;padding:100px 70px;font-family:'Courier New',monospace}.brand{font-size:34px;letter-spacing:.24em;margin-bottom:120px}.label{font-size:24px;letter-spacing:.18em;color:#805800;margin:48px 0 18px}.card{border:2px solid #332300;padding:38px;display:flex;flex-direction:column;gap:24px;font-size:32px}.card b{font-size:58px;color:#FFD36A}.money{font-size:96px;color:#FFD36A;font-weight:bold}")
+        body = f"""
+        <div class='brand'>EMPTY CHAIR</div>
+        <div class='eyebrow'>CLIENT CLAIMS + PAYS DEPOSIT</div>
+        <div class='ascii'>+----------------------+<br>|&nbsp;&nbsp;&nbsp;TAKE THE CHAIR&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|<br>+----------------------+</div>
+        <div class='pay'>{deposit}</div>
+        <div class='copy'>Deposit is paid through the real Empty Chair claim flow.<br>No text reply is required.</div>
+        <div class='arrow'>↓</div>
+        <div class='copy bright'>EMPTY CHAIR BOOKS THE SLOT<br>AND SENDS BOTH CONFIRMATIONS.</div>
+        """
+        return _scene_shell(
+            "Claim and deposit",
+            body,
+            ".screen{background:#0B0905;color:#FFB000;padding:110px 78px;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.brand{font-size:27px;letter-spacing:.25em;text-align:left}.eyebrow{margin-top:240px;font-size:26px;letter-spacing:.08em;color:#805800}.ascii{margin-top:70px;font-size:38px;line-height:1.38;color:#FFD36A}.pay{font-size:104px;font-weight:700;color:#FFD36A;margin-top:75px}.copy{font-size:28px;line-height:1.55;margin-top:38px}.arrow{font-size:68px;margin:70px 0 30px}.bright{color:#FFD36A}"
+        )
+
     if scene == 3:
-        body = f"<div class='calhead'>Calendar</div><div class='day'>TODAY</div><div class='hours'><div>11 AM</div><div>12 PM</div><div>1 PM</div><div>2 PM</div><div class='event'>{html.escape(s['time'])}<br><b>{html.escape(s['client'])}</b><br>Recovered appointment</div><div>5 PM</div><div>6 PM</div></div>"
-        return _scene_shell("Calendar", body, ".screen{background:#fff;padding:70px 45px}.calhead{font-size:52px;font-weight:700}.day{margin:55px 0 28px;color:#d00;font-size:28px;font-weight:700}.hours{display:grid;gap:0;font-size:25px;color:#777}.hours>div{height:190px;border-top:1px solid #ddd;padding-top:12px}.event{margin-left:130px!important;margin-top:-10px;height:170px!important;border:0!important;border-left:8px solid #d00!important;background:#fff1f0;padding:18px!important;color:#222;border-radius:8px;font-size:28px}")
-    body = f"<div class='done'>CHAIR FILLED.</div><div class='value'>${int(s['value'])} appointment recovered</div><div class='brand'>EMPTY CHAIR</div>"
-    return _scene_shell("Result", body, ".screen{background:#0B0905;color:#FFD36A;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:80px;font-family:'Courier New',monospace}.done{font-size:104px;font-weight:bold}.value{font-size:42px;color:#FFB000;margin-top:50px}.brand{position:absolute;bottom:110px;font-size:28px;letter-spacing:.25em;color:#805800}")
+        message = (
+            "EMPTY CHAIR // FILLED ✓\n\n"
+            f"{client} took {when}.\n\n"
+            f"deposit........{deposit} [✓]\n"
+            "calendar.................[✓]\n\n"
+            f"{value} SAVED"
+        )
+        return _sms_screen("ARTIST PHONE // RECOVERY COMPLETE", message, "THE ARTIST GETS THE RECEIPT")
+
+    message = (
+        "EMPTY CHAIR // YOURS\n\n"
+        "+----------------------+\n"
+        "|     TAKE A SEAT.     |\n"
+        "+----------------------+\n\n"
+        f"{artist}\n"
+        f"{when}\n\n"
+        f"deposit..........{deposit} [✓]\n"
+        "appointment...........[✓]\n\n"
+        "You're booked."
+    )
+    return _sms_screen("CLIENT PHONE // BOOKING CONFIRMED", message, "THE CLIENT GETS THE FINAL CONFIRMATION")
 
 
 @core.app.post("/internal/instagram/reels/prepare")
@@ -180,4 +263,4 @@ def reel_video(reel_id: str):
 
 
 _init()
-print("Instagram Reels engine loaded // isolated lane // 1080x1920 // 2/day", flush=True)
+print("Instagram Reels engine loaded // exact production SMS exchange // 1080x1920 // 2/day", flush=True)
