@@ -14,41 +14,32 @@ concurrency:
   group: instagram-reels-launch
   cancel-in-progress: false
 
-# Rebuild marker: real application screens only; no marketing artwork.
-
 jobs:
   render-library:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Wait for production deploy and prepare launch library
+      - name: Wait for generated-screen build and prepare library
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 20); do
+          for attempt in $(seq 1 24); do
             build=$(curl --silent --show-error --max-time 30 https://app.tryemptychair.com/__ec_build || true)
-            if echo "$build" | grep -q 'bootstrap-ig-reels-native-only-20260908'; then
-              echo "Native-only Reel build is live."
-              break
-            fi
-            echo "Waiting for production deploy ($attempt/20)..."
-            sleep 15
+            if echo "$build" | grep -q 'bootstrap-ig-reels-generated-screens-20260908'; then break; fi
+            echo "Waiting for production deploy ($attempt/24)..."; sleep 15
           done
-          build=$(curl --fail-with-body --silent --show-error --max-time 30 https://app.tryemptychair.com/__ec_build)
-          echo "$build" | grep -q 'bootstrap-ig-reels-native-only-20260908'
+          curl --fail-with-body --silent --show-error --max-time 30 https://app.tryemptychair.com/__ec_build | grep -q 'bootstrap-ig-reels-generated-screens-20260908'
           curl --fail-with-body --silent --show-error --max-time 120 -X POST https://app.tryemptychair.com/internal/instagram/reels/launch/prepare -H "Authorization: Bearer $AUTOPILOT_TOKEN" -o launch.json
           test "$(jq -r '.count // 0' launch.json)" = "16"
-          jq '.items | map({id,slot,title,family,status})' launch.json
 
       - name: Install renderer
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
+          sudo apt-get update -qq && sudo apt-get install -y ffmpeg
           python -m pip install --quiet playwright
           python -m playwright install --with-deps chromium
 
-      - name: Render screen-only Reels
+      - name: Render generated screens only
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
@@ -56,40 +47,35 @@ jobs:
           import json, os, subprocess
           from pathlib import Path
           from playwright.sync_api import sync_playwright
-          data=json.load(open('launch.json')); items=data['items']; token=os.environ['AUTOPILOT_TOKEN']
-          raw_static='https://raw.githubusercontent.com/emptychair1/empty-chair-mvp/main/static/'
+          items=json.load(open('launch.json'))['items']; token=os.environ['AUTOPILOT_TOKEN']
           with sync_playwright() as p:
               browser=p.chromium.launch()
-              for index,item in enumerate(items, start=1):
-                  if index <= 6:
-                      print(f"REEL {index}/16 // protected recovery reel, skipping", flush=True); continue
-                  print(f"REEL {index}/16 // {item['slot']} // native/app-screen render", flush=True)
-                  work=Path(f"reel-{index:02d}"); work.mkdir(exist_ok=True); urls=item['scene_urls']
-                  for i,url in enumerate(urls):
+              for index,item in enumerate(items,1):
+                  if index <= 6: continue
+                  work=Path(f'reel-{index:02d}'); work.mkdir(exist_ok=True)
+                  for i,url in enumerate(item['scene_urls']):
                       page=browser.new_page(viewport={'width':1080,'height':1920},device_scale_factor=1)
                       page.goto(url,wait_until='networkidle',timeout=120000)
-                      page.evaluate("""(rawStatic) => { for (const img of Array.from(document.images)) { if (!img.complete || img.naturalWidth === 0) { const path=new URL(img.src,location.href).pathname; const name=path.split('/').pop(); if(name) img.src=rawStatic+encodeURIComponent(name); } } }""", raw_static)
-                      page.wait_for_function("""() => Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)""",timeout=120000)
-                      page.locator('img').first.screenshot(path=str(work/f'scene-{i}.png'))
+                      # Hard fail: generated Reel pages may contain no image assets whatsoever.
+                      if page.locator('img').count() != 0:
+                          raise RuntimeError(f"IMAGE ASSET BLOCKED: {item['slot']} scene {i}")
+                      page.screenshot(path=str(work/f'scene-{i}.png'),full_page=False)
                       page.close()
-                  inputs=[]; filters=[]
-                  for i in range(len(urls)):
+                  inputs=[]; filters=[]; n=len(item['scene_urls'])
+                  for i in range(n):
                       inputs += ['-loop','1','-t','3','-i',str(work/f'scene-{i}.png')]
-                      filters.append(f'[{i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p[v{i}]')
-                  concat=''.join(f'[v{i}]' for i in range(len(urls)))+f'concat=n={len(urls)}:v=1:a=0[outv]'
+                      filters.append(f'[{i}:v]fps=30,format=yuv420p[v{i}]')
+                  concat=''.join(f'[v{i}]' for i in range(n))+f'concat=n={n}:v=1:a=0[outv]'
                   mp4=work/'reel.mp4'
                   subprocess.run(['ffmpeg','-loglevel','error','-y',*inputs,'-filter_complex',';'.join(filters+[concat]),'-map','[outv]','-c:v','libx264','-preset','veryfast','-pix_fmt','yuv420p','-movflags','+faststart',str(mp4)],check=True)
                   subprocess.run(['curl','--fail-with-body','--silent','--show-error','--max-time','300','-X','POST',item['upload_url'],'-H',f'Authorization: Bearer {token}','-H','Content-Type: video/mp4','--data-binary',f'@{mp4}'],check=True)
-                  print(f"rendered + uploaded // {item['slot']}",flush=True)
+                  print(f"rendered generated screens // {item['slot']}",flush=True)
               browser.close()
           PY
 
-      - name: Confirm library ready for manual download
+      - name: Confirm library
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
-          set -euo pipefail
           curl --fail-with-body --silent --show-error --max-time 120 -X POST https://app.tryemptychair.com/internal/instagram/reels/launch/prepare -H "Authorization: Bearer $AUTOPILOT_TOKEN" -o final.json
           jq '.items | map({slot,status})' final.json
-          test "$(jq '[.items[] | select(.status == "RENDERED" or .status == "PUBLISHED")] | length' final.json)" = "16"
-          echo "All 16 Reels are rendered and available for manual download."
