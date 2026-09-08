@@ -163,9 +163,6 @@ def install(service) -> None:
         if channels:
             return _result(service, username, channels, "authenticated_dom_hardened")
 
-        # Profile DOM often omits broadcast-channel cards. Ask Instagram's own web
-        # profile transport from inside the already-authenticated browser session,
-        # so cookies and browser identity stay identical to normal web navigation.
         try:
             payload = page.evaluate(
                 """async (username) => {
@@ -186,6 +183,40 @@ def install(service) -> None:
             result["metadata_http_status"] = (payload or {}).get("status")
         except Exception as exc:
             result["metadata_error"] = f"{exc.__class__.__name__}: {exc}"[:500]
+
+        # The explicit profile transport can be throttled even while the profile
+        # itself loads. Re-load once and inspect JSON responses Instagram's own UI
+        # requests successfully; this follows the same authenticated browser flow.
+        captured = []
+        def capture(response):
+            if len(captured) >= 30:
+                return
+            url = (response.url or "").lower()
+            if "graphql" not in url and "/api/v1/users/" not in url and "profile" not in url:
+                return
+            try:
+                ctype = (response.headers.get("content-type") or "").lower()
+                if "json" not in ctype:
+                    return
+                captured.append(response.json())
+            except Exception:
+                return
+        try:
+            page.on("response", capture)
+            page.reload(wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(int(service.SETTLE_SECONDS * 1000))
+            for payload in captured:
+                metadata = _metadata_channels(payload, service)
+                if metadata:
+                    return _result(service, username, metadata, "authenticated_profile_network")
+            result["captured_profile_payloads"] = len(captured)
+        except Exception as exc:
+            result["network_capture_error"] = f"{exc.__class__.__name__}: {exc}"[:500]
+        finally:
+            try:
+                page.remove_listener("response", capture)
+            except Exception:
+                pass
 
         text_lower = (visible or "").lower()
         if "broadcast channel" in text_lower and visible_matches:
