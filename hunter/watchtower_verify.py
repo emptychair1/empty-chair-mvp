@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import os
 from urllib.parse import parse_qs
 
@@ -10,10 +11,30 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 
 import hunter.watchtower_service as service
-import hunter.watchtower_render  # noqa: F401
+import hunter.watchtower_render as render
 from hunter.watchtower_render import app
 
 VERIFY_USERNAME = os.getenv("WATCHTOWER_VERIFY_USERNAME", "nickbriggstattoos").strip().lstrip("@")
+
+# The Render filesystem is ephemeral. If the local bootstrap file disappeared,
+# hydrate the browser from the encrypted durable storage-state blob. The existing
+# render.authenticated_with_bootstrap function resolves this global at call time.
+_original_install_bootstrap_state = render._install_bootstrap_state
+
+def _install_durable_or_local_state(context) -> None:
+    if render.BOOTSTRAP_STATE.exists():
+        _original_install_bootstrap_state(context)
+        return
+    try:
+        payload = service.durable.load_session_state()
+        if payload:
+            cookies = payload.get("cookies") or []
+            if cookies:
+                context.add_cookies(cookies)
+    except Exception as exc:
+        service._worker_state["last_error"] = f"durable session restore: {exc.__class__.__name__}: {exc}"
+
+render._install_bootstrap_state = _install_durable_or_local_state
 
 
 def _page(message: str = "", ok: bool | None = None) -> HTMLResponse:
@@ -32,11 +53,9 @@ def _job_result(job_id: str) -> dict | None:
             with service.db() as conn:
                 row = conn.execute("SELECT id,username,status,result_json,error FROM watchtower_jobs WHERE id=?", (job_id,)).fetchone()
         if not row: return None
-        payload = service.row_payload(row)
-        result = payload.get("result") or {}
+        payload = service.row_payload(row); result = payload.get("result") or {}
         return {"id":payload["id"],"username":payload["username"],"job_status":payload["status"],"collector_status":result.get("status"),"intent_score":result.get("intent_score"),"matches":result.get("matches") or [],"error":payload.get("error")}
-    except Exception:
-        return None
+    except Exception: return None
 
 
 def _format_result(first: dict | None, second: dict | None) -> tuple[str,bool]:
