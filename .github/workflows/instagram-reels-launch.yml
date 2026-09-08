@@ -58,17 +58,14 @@ jobs:
           with sync_playwright() as p:
               browser=p.chromium.launch()
               for index,item in enumerate(items, start=1):
-                  print(f"REEL {index}/16 // {item['slot']} // {item.get('status')}", flush=True)
-                  if str(item.get('status') or '').upper() in {'RENDERED','PUBLISHED'}:
-                      print("already rendered // skip", flush=True)
-                      continue
-
+                  print(f"REEL {index}/16 // {item['slot']} // rerender", flush=True)
                   work=Path(f"reel-{index:02d}")
                   work.mkdir(exist_ok=True)
                   urls=item['scene_urls']
                   for i,url in enumerate(urls):
                       page=browser.new_page(viewport={'width':1080,'height':1920},device_scale_factor=1)
                       page.goto(url,wait_until='networkidle',timeout=120000)
+                      page.wait_for_function("""() => Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)""", timeout=120000)
                       page.screenshot(path=str(work/f'scene-{i}.png'),full_page=False)
                       page.close()
 
