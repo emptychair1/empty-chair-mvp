@@ -76,9 +76,12 @@ jobs:
         run: |
           set -euo pipefail
           PUBLISH_URL=$(jq -r '.publish_url' reel.json)
-          curl --fail-with-body --silent --show-error --max-time 300 \
+          HTTP_CODE=$(curl --silent --show-error --max-time 300 \
             -X POST "$PUBLISH_URL" \
             -H "Authorization: Bearer $AUTOPILOT_TOKEN" \
-            -o publish.json
+            -o publish.json \
+            -w '%{http_code}')
           cat publish.json
+          echo "HTTP $HTTP_CODE"
+          test "$HTTP_CODE" -ge 200 -a "$HTTP_CODE" -lt 300
           test "$(jq -r '.published // false' publish.json)" = "true"
