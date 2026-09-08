@@ -49,4 +49,26 @@ def prepare_test_reel(request: Request):
     }
 
 
+@core.app.post("/internal/instagram/reels/cleanup-obsolete")
+def cleanup_obsolete_reels(request: Request):
+    """Remove temporary test Reels and the pre-fix launch library.
+
+    The launch rows are intentionally recreated by the launch prepare endpoint after
+    cleanup, so there is no way to accidentally download the broken pre-fix MP4s.
+    Normal scheduled Reels are left untouched.
+    """
+    reels._auth(request)
+    test_rows = core.all_rows("SELECT id FROM growth_ig_reels WHERE slot LIKE 'test-%'")
+    launch_rows = core.all_rows("SELECT id FROM growth_ig_reels WHERE slot LIKE 'launch-%'")
+    core.run("DELETE FROM growth_ig_reels WHERE slot LIKE 'test-%' OR slot LIKE 'launch-%'")
+    deleted = len(test_rows) + len(launch_rows)
+    print(f"IG Reels cleanup // deleted {deleted} obsolete rows", flush=True)
+    return {
+        "ok": True,
+        "deleted": deleted,
+        "deleted_tests": len(test_rows),
+        "deleted_launch": len(launch_rows),
+    }
+
+
 print("Instagram Reels test-now endpoint loaded // canonical recovery story // publish disabled", flush=True)
