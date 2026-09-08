@@ -45,6 +45,7 @@ import v2_instagram_growth_report  # noqa: F401,E402
 import v2_instagram_publisher  # noqa: F401,E402
 import v2_instagram_crt_autopilot  # noqa: F401,E402
 import v2_instagram_webhook_subscription  # noqa: F401,E402
+import v2_reel_demo  # noqa: F401,E402
 import v2_hunter_operator  # noqa: F401,E402
 import v2_hunter_operator_transaction_fix  # noqa: F401,E402
 import v2_hunter_operator_phone_auth  # noqa: F401,E402
@@ -61,7 +62,7 @@ import v2_hunter_instagram_reply_graph_fix  # noqa: F401,E402
 import v2_hunter_instagram_reply_retry_fix  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-hunter-reply-retry-fix-20260907"
+BUILD_ID = "bootstrap-reel-demo-full-screens-20260907"
 
 
 @app.middleware("http")
