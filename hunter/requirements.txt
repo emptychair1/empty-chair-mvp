@@ -4,3 +4,4 @@ lxml>=5,<7
 playwright>=1.48,<2
 pytest>=8,<9
 instagrapi[curl]>=2.5,<3
+selenium>=4.25,<5
