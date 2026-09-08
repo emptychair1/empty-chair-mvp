@@ -27,6 +27,7 @@ import v2_settings  # noqa: F401,E402
 import v2_founder_ig_reels  # noqa: F401,E402
 import v2_instagram_stories  # noqa: F401,E402
 import v2_founder_reddit  # noqa: F401,E402
+import v2_founder_reddit_oauth  # noqa: F401,E402
 import v2_artist_payments  # noqa: F401,E402
 import v2_billing_autoadopt  # noqa: F401,E402
 import v2_paypal_sellers  # noqa: F401,E402
@@ -69,7 +70,7 @@ import v2_hunter_instagram_reply_graph_fix  # noqa: F401,E402
 import v2_hunter_instagram_reply_retry_fix  # noqa: F401,E402
 import v2_native_hunter  # noqa: F401,E402
 
-BUILD_ID = "bootstrap-founder-reddit-radar-20260908"
+BUILD_ID = "bootstrap-founder-reddit-oauth-20260908"
 
 @app.middleware("http")
 async def bootstrap_entrypoints(request, call_next):
