@@ -2,6 +2,12 @@ name: Instagram Reels Autopilot
 
 on:
   workflow_dispatch:
+    inputs:
+      test_now:
+        description: 'Generate a Reel immediately without publishing'
+        required: false
+        default: true
+        type: boolean
   schedule:
     - cron: '23 * * * *'
 
@@ -19,19 +25,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Ask Empty Chair whether a Reel is due
+      - name: Ask Empty Chair for scheduled or immediate test Reel
         id: prepare
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
+          TEST_NOW: ${{ github.event_name == 'workflow_dispatch' && inputs.test_now || false }}
         run: |
           set -euo pipefail
+          ENDPOINT="https://app.tryemptychair.com/internal/instagram/reels/prepare"
+          if [ "$TEST_NOW" = "true" ]; then
+            ENDPOINT="https://app.tryemptychair.com/internal/instagram/reels/prepare-test"
+          fi
           curl --fail-with-body --silent --show-error --retry 3 --retry-delay 10 --max-time 120 \
-            -X POST https://app.tryemptychair.com/internal/instagram/reels/prepare \
+            -X POST "$ENDPOINT" \
             -H "Authorization: Bearer $AUTOPILOT_TOKEN" \
             -o reel.json
           cat reel.json
           echo "due=$(jq -r '.due // false' reel.json)" >> "$GITHUB_OUTPUT"
           echo "published=$(jq -r '.published // false' reel.json)" >> "$GITHUB_OUTPUT"
+          echo "video_url=$(jq -r '.video_url // empty' reel.json)" >> "$GITHUB_OUTPUT"
 
       - name: Install renderer
         if: steps.prepare.outputs.due == 'true' && steps.prepare.outputs.published != 'true'
@@ -48,7 +60,6 @@ jobs:
         run: |
           python - <<'PY'
           import json, os, subprocess
-          from pathlib import Path
           from playwright.sync_api import sync_playwright
 
           data=json.load(open('reel.json'))
@@ -62,7 +73,6 @@ jobs:
                   page.close()
               browser.close()
 
-          # Five 3-second screens = concise 15-second Reel. Each source frame is native 1080x1920.
           inputs=[]
           filters=[]
           for i in range(len(urls)):
@@ -73,9 +83,11 @@ jobs:
 
           token=os.environ['AUTOPILOT_TOKEN']
           subprocess.run(['curl','--fail-with-body','--silent','--show-error','--max-time','180','-X','POST',data['upload_url'],'-H',f'Authorization: Bearer {token}','-H','Content-Type: video/mp4','--data-binary','@reel.mp4'],check=True)
+          print('VIDEO_URL='+data['video_url'])
           PY
 
       - name: Publish is intentionally gated
         if: steps.prepare.outputs.due == 'true' && steps.prepare.outputs.published != 'true'
         run: |
-          echo "Reel rendered and stored. Automatic Meta REELS publishing remains gated until the video lane is verified independently."
+          echo "Reel rendered and stored. Meta publishing is disabled for this test lane."
+          echo "Preview: ${{ steps.prepare.outputs.video_url }}"
