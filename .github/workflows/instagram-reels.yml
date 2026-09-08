@@ -1,6 +1,10 @@
 name: Instagram Reels Autopilot
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/instagram-reels.yml'
   workflow_dispatch:
     inputs:
       test_now:
@@ -29,7 +33,7 @@ jobs:
         id: prepare
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
-          TEST_NOW: ${{ github.event_name == 'workflow_dispatch' && inputs.test_now || false }}
+          TEST_NOW: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.test_now) }}
         run: |
           set -euo pipefail
           ENDPOINT="https://app.tryemptychair.com/internal/instagram/reels/prepare"
