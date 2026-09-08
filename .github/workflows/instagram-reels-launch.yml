@@ -14,26 +14,30 @@ concurrency:
   group: instagram-reels-launch
   cancel-in-progress: false
 
-# Rebuild marker: corrected screen-only Reels 7-16
+# Rebuild marker: real application screens only; no marketing artwork.
 
 jobs:
   render-library:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Prepare launch library
+      - name: Wait for production deploy and prepare launch library
         env:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 12); do
-            if curl --fail-with-body --silent --show-error --max-time 120 \
-              -X POST https://app.tryemptychair.com/internal/instagram/reels/launch/prepare \
-              -H "Authorization: Bearer $AUTOPILOT_TOKEN" -o launch.json; then
-              if [ "$(jq -r '.count // 0' launch.json)" = "16" ]; then break; fi
+          for attempt in $(seq 1 20); do
+            build=$(curl --silent --show-error --max-time 30 https://app.tryemptychair.com/__ec_build || true)
+            if echo "$build" | grep -q 'bootstrap-ig-reels-native-only-20260908'; then
+              echo "Native-only Reel build is live."
+              break
             fi
+            echo "Waiting for production deploy ($attempt/20)..."
             sleep 15
           done
+          build=$(curl --fail-with-body --silent --show-error --max-time 30 https://app.tryemptychair.com/__ec_build)
+          echo "$build" | grep -q 'bootstrap-ig-reels-native-only-20260908'
+          curl --fail-with-body --silent --show-error --max-time 120 -X POST https://app.tryemptychair.com/internal/instagram/reels/launch/prepare -H "Authorization: Bearer $AUTOPILOT_TOKEN" -o launch.json
           test "$(jq -r '.count // 0' launch.json)" = "16"
           jq '.items | map({id,slot,title,family,status})' launch.json
 
@@ -57,11 +61,9 @@ jobs:
           with sync_playwright() as p:
               browser=p.chromium.launch()
               for index,item in enumerate(items, start=1):
-                  status=item.get('status')
                   if index <= 6:
                       print(f"REEL {index}/16 // protected recovery reel, skipping", flush=True); continue
-                  if status == 'PUBLISHED': continue
-                  print(f"REEL {index}/16 // {item['slot']} // screen-only rerender", flush=True)
+                  print(f"REEL {index}/16 // {item['slot']} // native/app-screen render", flush=True)
                   work=Path(f"reel-{index:02d}"); work.mkdir(exist_ok=True); urls=item['scene_urls']
                   for i,url in enumerate(urls):
                       page=browser.new_page(viewport={'width':1080,'height':1920},device_scale_factor=1)
