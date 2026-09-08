@@ -1,0 +1,30 @@
+name: Hunter Watchtower Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "hunter/watchtower_service.py"
+      - "hunter/watchtower-requirements.txt"
+      - "hunter/Dockerfile.watchtower"
+      - "hunter/story_watch.py"
+      - ".github/workflows/hunter-watchtower-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Watchtower image
+        run: docker build -f hunter/Dockerfile.watchtower -t hunter-watchtower:test .
+      - name: Import service module
+        run: |
+          docker run --rm \
+            -e WATCHTOWER_API_TOKEN=test-token \
+            --entrypoint python \
+            hunter-watchtower:test \
+            -c "import hunter.watchtower_service as w; print(w.SCHEMA)"
