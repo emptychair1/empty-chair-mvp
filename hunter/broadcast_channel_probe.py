@@ -1,8 +1,9 @@
-"""Detect public Instagram broadcast-channel metadata for Hunter qualification.
+"""Detect Instagram broadcast-channel metadata for Hunter qualification.
 
-Instagram's web-profile JSON endpoint can rate-limit datacenter IPs. Hunter
-therefore tries the documented public page as a second, low-rate fallback and
-extracts only channel metadata already present in the returned HTML/JSON.
+Primary path uses the maintained third-party instagrapi public-profile transport
+with browser TLS impersonation. Existing direct public JSON/HTML parsing remains
+as a fallback. All failures are treated as unknown, never as proof that an artist
+has no channel.
 """
 from __future__ import annotations
 
@@ -83,7 +84,7 @@ def _candidate_channel_dicts(container: Any) -> list[dict]:
     for node in _walk(container):
         title = str(node.get("title") or node.get("name") or node.get("channel_name") or "").strip()
         invite = str(node.get("invite_link") or node.get("invite_url") or node.get("link") or "").strip()
-        thread_id = str(node.get("thread_id") or node.get("id") or node.get("thread_v2_id") or "").strip()
+        thread_id = str(node.get("thread_id") or node.get("id") or node.get("thread_v2_id") or node.get("thread_igid") or "").strip()
         if not title and not invite:
             continue
         marker = (thread_id, title.lower())
@@ -104,9 +105,9 @@ def _int_or_none(value: Any) -> int | None:
 def _classify(node: dict, fallback_creator: str) -> Channel:
     title = str(node.get("title") or node.get("name") or node.get("channel_name") or "").strip()
     invite = str(node.get("invite_link") or node.get("invite_url") or node.get("link") or "").strip() or None
-    thread_id = str(node.get("thread_id") or node.get("id") or node.get("thread_v2_id") or "").strip() or None
+    thread_id = str(node.get("thread_id") or node.get("id") or node.get("thread_v2_id") or node.get("thread_igid") or "").strip() or None
     creator = str(node.get("creator_username") or node.get("username") or (node.get("creator") or {}).get("username") or fallback_creator).strip() or None
-    member_count = _int_or_none(node.get("member_count") or node.get("subscriber_count") or node.get("participant_count") or node.get("members_count"))
+    member_count = _int_or_none(node.get("member_count") or node.get("subscriber_count") or node.get("participant_count") or node.get("members_count") or node.get("number_of_members"))
     haystack = " ".join(str(x or "") for x in (title, node.get("description"), node.get("subtitle"))).lower()
     matches = sorted({term for term in RECOVERY_TERMS if term in haystack})
     recovery = bool(matches)
@@ -143,15 +144,12 @@ def parse_profile_payload(username: str, payload: dict) -> ProbeResult:
 
 
 def parse_profile_html(username: str, text: str) -> ProbeResult:
-    """Extract channel metadata from JSON/script data embedded in a public profile page."""
     username = _clean_username(username)
     decoded = html_lib.unescape(text or "")
     soup = BeautifulSoup(decoded, "html.parser")
     nodes: list[dict] = []
-
     for script in soup.find_all("script"):
-        raw = script.string or script.get_text() or ""
-        raw = raw.strip()
+        raw = (script.string or script.get_text() or "").strip()
         if not raw or ("channel" not in raw.lower() and "pinned_channels" not in raw.lower()):
             continue
         try:
@@ -162,9 +160,6 @@ def parse_profile_html(username: str, text: str) -> ProbeResult:
             for key in ("pinned_channels_info", "broadcast_channel", "broadcast_channels"):
                 if item.get(key):
                     nodes.extend(_candidate_channel_dicts(item[key]))
-
-    # Some Instagram pages serialize data into non-JSON script strings. Parse the
-    # small public fields directly as a final fallback without bypassing access controls.
     if not nodes:
         title_pat = re.compile(r'\\?"(?:title|channel_name)\\?"\s*:\s*\\?"([^"\\]+)')
         invite_pat = re.compile(r'https:\\?/\\?/(?:www\\?\.)?instagram\\?\.com\\?/channel\\?/[^"\\\\< ]+', re.I)
@@ -175,9 +170,47 @@ def parse_profile_html(username: str, text: str) -> ProbeResult:
         if not titles:
             for link in links:
                 nodes.append({"title": "Broadcast channel", "invite_link": link})
-
     channels = [_classify(node, username) for node in _candidate_channel_dicts(nodes)]
     return _result(username, channels, status="channels_found_html")
+
+
+def parse_instagrapi_user(username: str, user: Any) -> ProbeResult:
+    """Normalize instagrapi's User.broadcast_channel objects into Hunter signals."""
+    username = _clean_username(username)
+    raw_channels = getattr(user, "broadcast_channel", None) or []
+    nodes: list[dict] = []
+    for channel in raw_channels:
+        if hasattr(channel, "model_dump"):
+            node = channel.model_dump()
+        elif hasattr(channel, "dict"):
+            node = channel.dict()
+        elif isinstance(channel, dict):
+            node = channel
+        else:
+            node = {k: getattr(channel, k, None) for k in (
+                "title", "thread_igid", "subtitle", "invite_link",
+                "number_of_members", "creator_username"
+            )}
+        nodes.append(node)
+    channels = [_classify(node, username) for node in _candidate_channel_dicts(nodes)]
+    return _result(username, channels, status="channels_found_instagrapi")
+
+
+def probe_instagrapi(username: str) -> ProbeResult:
+    """Use instagrapi's maintained public transport before raw HTTP fallbacks."""
+    username = _clean_username(username)
+    try:
+        from instagrapi import Client
+        cl = Client(
+            public_transport="curl",
+            public_transport_impersonate="chrome136",
+            public_request_retries_count=1,
+        )
+        user = cl.user_info_by_username_gql(username)
+        return parse_instagrapi_user(username, user)
+    except Exception as exc:
+        return ProbeResult(username, False, "instagrapi_unavailable", [],
+                           error=f"{type(exc).__name__}: {exc}")
 
 
 def _headers(username: str) -> dict[str, str]:
@@ -192,6 +225,20 @@ def _headers(username: str) -> dict[str, str]:
 
 def probe(username: str, *, timeout: float = 8.0, client: httpx.Client | None = None) -> ProbeResult:
     username = _clean_username(username)
+
+    # Production/default path: use the maintained third-party architecture first.
+    # Tests can inject an httpx client and bypass this network adapter.
+    third_party_error: str | None = None
+    if client is None:
+        third = probe_instagrapi(username)
+        if third.ok and third.channel_count:
+            return third
+        if third.ok and third.status == "no_channels":
+            # Do not trust an opportunistic no-channel response as definitive; fall through.
+            third_party_error = "instagrapi returned no channel metadata"
+        else:
+            third_party_error = third.error
+
     own_client = client is None
     client = client or httpx.Client(timeout=timeout, follow_redirects=True)
     headers = _headers(username)
@@ -207,28 +254,20 @@ def probe(username: str, *, timeout: float = 8.0, client: httpx.Client | None = 
         elif response.status_code == 404:
             return ProbeResult(username, False, "not_found", [], error="profile not found")
 
-        # Public-page fallback. This is deliberately one additional request only.
         page = client.get(PROFILE_URL.format(username=username), params={"hl": "en"}, headers=headers)
         if page.status_code == 200:
             parsed_html = parse_profile_html(username, page.text)
             if parsed_html.channel_count:
                 return parsed_html
-            # If the JSON endpoint was usable, preserve its clean no-channel result.
-            if response.status_code == 200:
-                try:
-                    return parse_profile_payload(username, response.json())
-                except Exception:
-                    pass
-            return parsed_html
+            return ProbeResult(username, False, "unknown_no_channel_metadata", [],
+                               error=third_party_error or "No channel metadata exposed by available transports")
 
         codes = {response.status_code, page.status_code}
         if 429 in codes:
-            return ProbeResult(username, False, "rate_limited", [], error=f"Instagram returned HTTP {response.status_code}/{page.status_code}")
+            return ProbeResult(username, False, "rate_limited", [], error=third_party_error or f"Instagram returned HTTP {response.status_code}/{page.status_code}")
         if codes & {401, 403}:
-            return ProbeResult(username, False, "blocked", [], error=f"Instagram returned HTTP {response.status_code}/{page.status_code}")
-        page.raise_for_status()
-        response.raise_for_status()
-        return ProbeResult(username, False, "no_profile_data", [], error="Instagram returned no usable channel metadata")
+            return ProbeResult(username, False, "blocked", [], error=third_party_error or f"Instagram returned HTTP {response.status_code}/{page.status_code}")
+        return ProbeResult(username, False, "no_profile_data", [], error=third_party_error or "Instagram returned no usable channel metadata")
     except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
         return ProbeResult(username, False, "error", [], error=f"{type(exc).__name__}: {exc}")
     finally:
@@ -247,7 +286,7 @@ def main() -> int:
     parser.add_argument("--out")
     args = parser.parse_args()
     results = [result_dict(probe(name, timeout=args.timeout)) for name in args.usernames]
-    payload = {"schema": "empty-chair-hunter-broadcast-probe-v1", "count": len(results),
+    payload = {"schema": "empty-chair-hunter-broadcast-probe-v2", "count": len(results),
                "recovery_signal_count": sum(1 for r in results if r.get("recovery_channel_count", 0) > 0),
                "results": results}
     text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
