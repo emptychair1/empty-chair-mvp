@@ -10,6 +10,7 @@ import v2_sms_only
 import v2_timezone
 import v2_offer_delivery
 import v2_auth
+import v2_apple_signin_repair
 import v2_apple_calendar_web
 import v2_phone_safe
 import v2_client_sources
@@ -66,7 +67,7 @@ import v2_hunter_instagram_reply_graph_fix
 import v2_hunter_instagram_reply_retry_fix
 import v2_native_hunter
 
-BUILD_ID = "bootstrap-founder-reddit-public-discovery-20260908"
+BUILD_ID = "bootstrap-apple-signin-repair-20260908"
 
 @app.middleware("http")
 async def bootstrap_entrypoints(request, call_next):
