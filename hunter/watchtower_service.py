@@ -10,9 +10,10 @@ from pydantic import BaseModel,Field
 from playwright.sync_api import BrowserContext,Page,sync_playwright
 from hunter.story_watch import classify_recovery
 from hunter import watchtower_persistence as durable
-SCHEMA="empty-chair-hunter-watchtower-v1";DATA_DIR=Path(os.getenv("WATCHTOWER_DATA_DIR","/data"));DB_PATH=Path(os.getenv("WATCHTOWER_DB_PATH",str(DATA_DIR/"watchtower.sqlite3")));PROFILE_DIR=Path(os.getenv("WATCHTOWER_PROFILE_DIR",str(DATA_DIR/"chromium-profile")));API_TOKEN=os.getenv("WATCHTOWER_API_TOKEN","").strip();HEADLESS=os.getenv("WATCHTOWER_HEADLESS","true").lower() not in {"0","false","no"};POLL_SECONDS=max(1.,float(os.getenv("WATCHTOWER_POLL_SECONDS","3")));SETTLE_SECONDS=max(1.,float(os.getenv("WATCHTOWER_SETTLE_SECONDS","4")));SCHEDULER_SECONDS=max(15.,float(os.getenv("WATCHTOWER_SCHEDULER_SECONDS","30")))
-app=FastAPI(title="Hunter Watchtower",version="1.3.0");_stop=threading.Event();_worker=None;_scheduler=None
-_worker_state={"started_at":None,"last_heartbeat":None,"last_job_id":None,"browser_started":False,"authenticated":False,"last_error":None,"durable_jobs":durable.enabled(),"durable_session":durable.session_enabled(),"durable_session_restored":False,"scheduler_started":False,"last_schedule_at":None,"last_scheduled_count":0}
+from hunter.watchtower_discovery import discover_daily
+SCHEMA="empty-chair-hunter-watchtower-v1";DATA_DIR=Path(os.getenv("WATCHTOWER_DATA_DIR","/data"));DB_PATH=Path(os.getenv("WATCHTOWER_DB_PATH",str(DATA_DIR/"watchtower.sqlite3")));PROFILE_DIR=Path(os.getenv("WATCHTOWER_PROFILE_DIR",str(DATA_DIR/"chromium-profile")));API_TOKEN=os.getenv("WATCHTOWER_API_TOKEN","").strip();HEADLESS=os.getenv("WATCHTOWER_HEADLESS","true").lower() not in {"0","false","no"};POLL_SECONDS=max(1.,float(os.getenv("WATCHTOWER_POLL_SECONDS","3")));SETTLE_SECONDS=max(1.,float(os.getenv("WATCHTOWER_SETTLE_SECONDS","4")));SCHEDULER_SECONDS=max(15.,float(os.getenv("WATCHTOWER_SCHEDULER_SECONDS","30")));DISCOVERY_SECONDS=max(900.,float(os.getenv("WATCHTOWER_DISCOVERY_SECONDS","3600")))
+app=FastAPI(title="Hunter Watchtower",version="1.4.0");_stop=threading.Event();_worker=None;_scheduler=None
+_worker_state={"started_at":None,"last_heartbeat":None,"last_job_id":None,"browser_started":False,"authenticated":False,"last_error":None,"durable_jobs":durable.enabled(),"durable_session":durable.session_enabled(),"durable_session_restored":False,"scheduler_started":False,"last_schedule_at":None,"last_scheduled_count":0,"last_discovery_at":None,"last_discovery":None}
 class JobRequest(BaseModel):username:str=Field(min_length=1,max_length=64);collector:str=Field(default="instagram_story")
 class BatchRequest(BaseModel):usernames:list[str]=Field(min_length=1,max_length=500);collector:str=Field(default="instagram_story")
 class TargetRequest(BaseModel):username:str=Field(min_length=1,max_length=64);interval_minutes:int=Field(default=60,ge=15,le=1440);priority:int=Field(default=50,ge=0,le=100);source:str=Field(default="manual",max_length=64);enabled:bool=True
@@ -53,7 +54,7 @@ def finish_job(jid,result):
     with db() as c:c.execute("UPDATE watchtower_jobs SET status='finished',finished_at=?,result_json=?,error=NULL WHERE id=?",(utcnow(),json.dumps(result),jid))
 def fail_job(jid,error):
     if durable.enabled():durable.fail_job(jid,error);return
-    with db() as c:c.execute("UPDATE watchtower_jobs SET status='failed',finished_at=?,error=? WHERE id=?",(utcnow(),error[:2000],jid))
+    with db() as c:c.execute("UPDATE watchtower_jobs SET status='failed',finished_at=NOW(),error=%s WHERE id=%s",(error[:2000],jid)) if durable.enabled() else c.execute("UPDATE watchtower_jobs SET status='failed',finished_at=?,error=? WHERE id=?",(utcnow(),error[:2000],jid))
 def visible_text(page):
     try:return page.locator("body").inner_text(timeout=5000).strip()
     except Exception:return ""
@@ -87,9 +88,12 @@ def probe_story(page,context,username):
     if f"/stories/{username}/" not in current.lower():return {"schema":SCHEMA,"username":username,"collector":"instagram_story","status":"unknown_no_viewable_story","intent_score":0,"matches":[],"interstitial_clicked":clicked,"observed_at":utcnow()}
     classification=classify_recovery(text);return {"schema":SCHEMA,"username":username,"collector":"instagram_story","status":"recovery_story_found" if classification['recovery'] else "story_visible_no_recovery_text","intent_score":classification['intent_score'],"matches":classification['matches'],"interstitial_clicked":clicked,"visible_text":text[:4000],"observed_at":utcnow()}
 def scheduler_loop():
-    _worker_state['scheduler_started']=True
+    _worker_state['scheduler_started']=True;last_discovery=0.0
     while not _stop.is_set():
         try:
+            now=time.monotonic()
+            if durable.enabled() and (not last_discovery or now-last_discovery>=DISCOVERY_SECONDS):
+                _worker_state['last_discovery_at']=utcnow();_worker_state['last_discovery']=discover_daily(100);last_discovery=now
             jobs=durable.enqueue_due_targets(25) if durable.enabled() else [];_worker_state['last_schedule_at']=utcnow();_worker_state['last_scheduled_count']=len(jobs)
         except Exception as exc:_worker_state['last_error']=f"scheduler: {exc.__class__.__name__}: {exc}"
         _stop.wait(SCHEDULER_SECONDS)
@@ -121,7 +125,7 @@ def on_startup():
 @app.on_event("shutdown")
 def on_shutdown():_stop.set()
 @app.get("/healthz")
-def healthz():return {"ok":True,"schema":SCHEMA,"browser_started":_worker_state['browser_started'],"authenticated":_worker_state['authenticated'],"last_heartbeat":_worker_state['last_heartbeat'],"durable_jobs":durable.enabled(),"durable_session":durable.session_enabled(),"durable_session_restored":_worker_state['durable_session_restored'],"scheduler_started":_worker_state['scheduler_started'],"last_schedule_at":_worker_state['last_schedule_at']}
+def healthz():return {"ok":True,"schema":SCHEMA,"browser_started":_worker_state['browser_started'],"authenticated":_worker_state['authenticated'],"last_heartbeat":_worker_state['last_heartbeat'],"durable_jobs":durable.enabled(),"durable_session":durable.session_enabled(),"durable_session_restored":_worker_state['durable_session_restored'],"scheduler_started":_worker_state['scheduler_started'],"last_schedule_at":_worker_state['last_schedule_at'],"last_discovery_at":_worker_state['last_discovery_at'],"last_discovery":_worker_state['last_discovery']}
 @app.get("/v1/status",dependencies=[Depends(require_token)])
 def status():return {"schema":SCHEMA,"worker":dict(_worker_state),"jobs":durable.job_counts() if durable.enabled() else {}}
 @app.post("/v1/jobs",dependencies=[Depends(require_token)])

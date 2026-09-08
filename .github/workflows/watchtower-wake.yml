@@ -1,0 +1,12 @@
+name: Wake Hunter Watchtower
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake Watchtower scheduler
+        run: curl --fail --retry 3 --retry-delay 10 --max-time 90 https://empty-chair-hunter-watchtower.onrender.com/healthz
