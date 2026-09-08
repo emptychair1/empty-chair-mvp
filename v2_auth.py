@@ -23,6 +23,20 @@ APPLE_CLIENT_ID = os.getenv("APPLE_CLIENT_ID", "")  # Services ID
 APPLE_TEAM_ID = os.getenv("APPLE_TEAM_ID", "")
 APPLE_KEY_ID = os.getenv("APPLE_KEY_ID", "")
 APPLE_PRIVATE_KEY = os.getenv("APPLE_PRIVATE_KEY", "").replace("\\n", "\n")
+# Safety gate: Apple login stays out of production until the Services ID,
+# production domain/return URL, key, and end-to-end flow have been verified.
+APPLE_SIGNIN_ENABLED = os.getenv("APPLE_SIGNIN_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _apple_ready() -> bool:
+    return bool(
+        APPLE_SIGNIN_ENABLED
+        and APPLE_CLIENT_ID
+        and APPLE_TEAM_ID
+        and APPLE_KEY_ID
+        and APPLE_PRIVATE_KEY
+        and core.BASE_URL.startswith("https://")
+    )
 
 
 def _drop_route(path: str, methods: set[str]):
@@ -119,7 +133,7 @@ def landing(request: Request):
         return RedirectResponse("/setup")
 
     google = '<a class="button" href="/auth/google/login">CONTINUE WITH GOOGLE</a>' if GOOGLE_CLIENT_ID else '<a class="button quiet" href="/auth/google/login">CONTINUE WITH GOOGLE</a>'
-    apple = '<a class="button" href="/auth/apple/login">CONTINUE WITH APPLE</a>'
+    apple = '<a class="button" href="/auth/apple/login">CONTINUE WITH APPLE</a>' if _apple_ready() else ''
     phone = '<a class="button" href="/auth/phone">CONTINUE WITH PHONE</a>'
     return core.page("Sign in", f'''<div class="center"><h1>DON'T LEAVE IT EMPTY.</h1><p class="dim">When they cancel, we fill the chair.</p></div><div class="space"></div><div class="stack">{apple}{google}{phone}</div>''', chair=True)
 
@@ -137,9 +151,6 @@ def phone_signup(name: str = Form(...), phone: str = Form(...)):
     artist = core.one("SELECT * FROM artists WHERE phone=? ORDER BY created_at LIMIT 1", (phone,))
     if artist:
         aid = artist["id"]
-        # Signing back in must never destroy an already-completed setup state. The
-        # verification screen is only a temporary authentication step; setup_state
-        # remains whatever the artist had before signing in (including ARMED).
         core.run("UPDATE artists SET name=?,updated_at=? WHERE id=?", (name.strip() or artist["name"], core.utcnow(), aid))
     else:
         aid = secrets.token_hex(16)
@@ -245,8 +256,8 @@ def _apple_client_secret() -> str:
 
 @core.app.get("/auth/apple/login")
 def apple_login():
-    if not (APPLE_CLIENT_ID and APPLE_TEAM_ID and APPLE_KEY_ID and APPLE_PRIVATE_KEY):
-        return core.page("Apple", "<div class='error'>APPLE SIGN-IN IS TEMPORARILY UNAVAILABLE.</div><p class='dim'>You can continue with phone or Google right now.</p><a class='button' href='/'>BACK</a>")
+    if not _apple_ready():
+        return core.page("Apple", "<div class='error'>APPLE SIGN-IN IS TEMPORARILY UNAVAILABLE.</div><p class='dim'>Please continue with phone or Google.</p><a class='button' href='/'>BACK</a>")
     params = {
         "client_id": APPLE_CLIENT_ID,
         "redirect_uri": f"{core.BASE_URL}/auth/apple/callback",
@@ -261,6 +272,8 @@ def apple_login():
 
 @core.app.post("/auth/apple/callback")
 def apple_callback(code: str = Form(...), state: str = Form(...), user: str | None = Form(None)):
+    if not _apple_ready():
+        return RedirectResponse("/", status_code=303)
     if not _valid_state(state, "apple"):
         return core.page("Apple", "<div class='error'>SIGN-IN SESSION EXPIRED.</div>")
     token = core.http_json("https://appleid.apple.com/auth/token", "POST", form={
