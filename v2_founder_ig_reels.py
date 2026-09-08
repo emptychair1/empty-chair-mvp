@@ -33,7 +33,7 @@ def _founder(request: Request):
 
 REELS_CSS = """
 <style>
-.reels-wrap{max-width:760px;margin:0 auto}.reels-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px}.reels-head h1{margin:0}.reels-badge{font-size:11px;color:var(--dim);text-align:right}.reel-list{display:grid;gap:24px}.reel-card{border:1px solid var(--off);padding:14px}.reel-meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;font-size:11px;color:var(--dim)}.reel-title{color:var(--bright);font-size:15px}.reel-video{display:block;width:100%;max-height:72svh;background:#000;border:1px solid rgba(255,176,0,.18)}.reel-caption{white-space:pre-wrap;color:var(--dim);font-size:11px;line-height:1.5;margin:12px 0 0}.empty{border:1px dashed var(--off);padding:28px 16px;text-align:center;color:var(--dim)}
+.reels-wrap{max-width:760px;margin:0 auto}.reels-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px}.reels-head h1{margin:0}.reels-badge{font-size:11px;color:var(--dim);text-align:right}.reel-list{display:grid;gap:24px}.reel-card{border:1px solid var(--off);padding:14px}.reel-meta{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;font-size:11px;color:var(--dim)}.reel-title{color:var(--bright);font-size:15px}.reel-video{display:block;width:100%;max-height:72svh;background:#000;border:1px solid rgba(255,176,0,.18)}.reel-actions{display:flex;gap:10px;margin-top:12px}.reel-download{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border:1px solid var(--amber);color:var(--bright);text-decoration:none;font-size:12px;letter-spacing:.08em}.reel-download:hover{background:rgba(255,176,0,.08)}.reel-caption{white-space:pre-wrap;color:var(--dim);font-size:11px;line-height:1.5;margin:12px 0 0}.empty{border:1px dashed var(--off);padding:28px 16px;text-align:center;color:var(--dim)}
 </style>
 """
 
@@ -62,10 +62,18 @@ def founder_ig_reels(request: Request):
         rid = html.escape(str(reel["id"]), quote=True)
         caption = html.escape(str(reel.get("caption") or ""))
         video = ""
+        actions = ""
         if str(reel.get("status") or "").upper() in {"RENDERED", "PUBLISHED"}:
+            video_url = f"/instagram/reels/video/{rid}.mp4"
             video = (
                 f'<video class="reel-video" controls playsinline preload="metadata" '
-                f'src="/instagram/reels/video/{rid}.mp4"></video>'
+                f'src="{video_url}"></video>'
+            )
+            safe_name = html.escape(f"empty-chair-{slot}.mp4", quote=True)
+            actions = (
+                '<div class="reel-actions">'
+                f'<a class="reel-download" href="{video_url}" download="{safe_name}">DOWNLOAD MP4</a>'
+                '</div>'
             )
         else:
             video = '<div class="empty">VIDEO NOT RENDERED YET</div>'
@@ -75,6 +83,7 @@ def founder_ig_reels(request: Request):
               <div class="reel-title">{hook}</div>
               <div class="space"></div>
               {video}
+              {actions}
               <p class="reel-caption">{caption}</p>
             </article>'''
         )
@@ -125,4 +134,4 @@ def settings_home_with_reels(request: Request):
     return HTMLResponse(content=body, status_code=response.status_code, headers=dict(response.headers))
 
 
-print("Founder IG Reels library loaded // generated video previews // settings nav enabled", flush=True)
+print("Founder IG Reels library loaded // generated video previews + downloads // settings nav enabled", flush=True)
