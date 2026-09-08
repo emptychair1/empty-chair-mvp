@@ -116,6 +116,28 @@ def _auth_status(driver) -> tuple[bool, str]:
     return True, "authenticated"
 
 
+def _open_story_interstitial(driver, *, settle_seconds: float) -> bool:
+    """Click Instagram's legitimate 'View story' confirmation when present."""
+    try:
+        clicked = bool(driver.execute_script(r"""
+const wanted = 'view story';
+const candidates = Array.from(document.querySelectorAll('button,[role="button"],a'));
+for (const el of candidates) {
+  const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (text === wanted) {
+    el.click();
+    return true;
+  }
+}
+return false;
+"""))
+    except WebDriverException:
+        return False
+    if clicked:
+        time.sleep(settle_seconds)
+    return clicked
+
+
 def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dict[str, Any]:
     clean = username.strip().lower().lstrip("@")
     story_url = f"https://www.instagram.com/stories/{clean}/"
@@ -135,6 +157,11 @@ def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dic
                 "error": auth_status,
             }
 
+        pre_text = _visible_text(driver)
+        interstitial_clicked = False
+        if "view story" in pre_text.lower() and "will be able to see that you viewed their story" in pre_text.lower():
+            interstitial_clicked = _open_story_interstitial(driver, settle_seconds=settle_seconds)
+
         current_url = driver.current_url
         text = _visible_text(driver)
         lowered_url = current_url.lower()
@@ -148,6 +175,20 @@ def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dic
                 "intent_score": 0,
                 "matches": [],
                 "visible_text": text[:1000],
+                "interstitial_clicked": interstitial_clicked,
+                "error": None,
+            }
+
+        if "view story" in text.lower() and "will be able to see that you viewed their story" in text.lower():
+            return {
+                "username": clean,
+                "ok": True,
+                "status": "unknown_story_confirmation_not_opened",
+                "current_url": current_url,
+                "intent_score": 0,
+                "matches": [],
+                "visible_text": text[:1000],
+                "interstitial_clicked": interstitial_clicked,
                 "error": None,
             }
 
@@ -160,6 +201,7 @@ def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dic
                 "intent_score": 0,
                 "matches": [],
                 "visible_text": "",
+                "interstitial_clicked": interstitial_clicked,
                 "error": None,
             }
 
@@ -172,6 +214,7 @@ def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dic
             "intent_score": classification["intent_score"],
             "matches": classification["matches"],
             "visible_text": text[:4000],
+            "interstitial_clicked": interstitial_clicked,
             "error": None,
         }
     except Exception as exc:
@@ -183,6 +226,7 @@ def probe_username(driver, username: str, *, settle_seconds: float = 4.0) -> dic
             "intent_score": 0,
             "matches": [],
             "visible_text": "",
+            "interstitial_clicked": False,
             "error": f"{exc.__class__.__name__}: {exc}",
         }
 
