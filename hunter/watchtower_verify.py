@@ -17,10 +17,18 @@ import hunter.watchtower_render as render
 from hunter.watchtower_render import app
 
 VERIFY_USERNAME = os.getenv("WATCHTOWER_VERIFY_USERNAME", "nickbriggstattoos").strip().lstrip("@")
+BRIDGE_TOKEN = os.getenv("HUNTER_WATCHTOWER_BRIDGE_TOKEN", "").strip()
 
-# The Render filesystem is ephemeral. If the local bootstrap file disappeared,
-# hydrate the browser from the encrypted durable storage-state blob. The existing
-# render.authenticated_with_bootstrap function resolves this global at call time.
+@app.middleware("http")
+async def authorize_empty_chair_bridge(request: Request, call_next):
+    """Translate the app-only bridge credential into the existing Watchtower control credential."""
+    supplied = request.headers.get("authorization", "")
+    if BRIDGE_TOKEN and supplied == f"Bearer {BRIDGE_TOKEN}" and service.API_TOKEN:
+        headers = [(k, v) for k, v in request.scope.get("headers", []) if k.lower() != b"authorization"]
+        headers.append((b"authorization", f"Bearer {service.API_TOKEN}".encode()))
+        request.scope["headers"] = headers
+    return await call_next(request)
+
 _original_install_bootstrap_state = render._install_bootstrap_state
 
 def _install_durable_or_local_state(context) -> None:
