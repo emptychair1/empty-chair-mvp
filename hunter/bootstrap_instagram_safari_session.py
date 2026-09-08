@@ -11,13 +11,12 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.safari.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 
 OUT = Path(os.environ.get("HUNTER_IG_SAFARI_SESSION_OUT", "hunter-instagram-safari-session.json"))
@@ -44,6 +43,17 @@ def _set_input_value(driver, element, value: str) -> None:
     )
 
 
+def _find_first(driver, selectors: list[tuple[str, str]], timeout: int = 30):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for by, selector in selectors:
+            found = driver.find_elements(by, selector)
+            if found:
+                return found[0]
+        time.sleep(0.5)
+    return None
+
+
 def main() -> int:
     username = os.environ.get("HUNTER_IG_USERNAME", "").strip()
     password = os.environ.get("HUNTER_IG_PASSWORD", "")
@@ -54,15 +64,47 @@ def main() -> int:
     driver = webdriver.Safari(options=options)
     try:
         driver.get("https://www.instagram.com/accounts/login/")
-        wait = WebDriverWait(driver, 30)
 
-        user_field = wait.until(EC.presence_of_element_located((By.NAME, "username")))
-        pass_field = wait.until(EC.presence_of_element_located((By.NAME, "password")))
+        user_field = _find_first(
+            driver,
+            [
+                (By.NAME, "username"),
+                (By.CSS_SELECTOR, "input[autocomplete='username']"),
+                (By.CSS_SELECTOR, "input[type='text']"),
+            ],
+        )
+        pass_field = _find_first(
+            driver,
+            [
+                (By.NAME, "password"),
+                (By.CSS_SELECTOR, "input[autocomplete='current-password']"),
+                (By.CSS_SELECTOR, "input[type='password']"),
+            ],
+            timeout=5,
+        )
+
+        if user_field is None or pass_field is None:
+            print("Instagram login form was not detected.")
+            print(f"Current URL: {driver.current_url}")
+            print(f"Page title: {driver.title}")
+            print("Leave the Safari window open and tell me exactly what page/message you see.")
+            input("Press ENTER here only when you are ready to close Safari... ")
+            return 2
 
         _set_input_value(driver, user_field, username)
         _set_input_value(driver, pass_field, password)
 
-        login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
+        login_button = _find_first(
+            driver,
+            [
+                (By.CSS_SELECTOR, "button[type='submit']"),
+                (By.XPATH, "//button[contains(., 'Log in') or contains(., 'Log In')]"),
+            ],
+            timeout=10,
+        )
+        if login_button is None:
+            raise SystemExit("Instagram login fields were found, but the Log in button was not detected")
+
         driver.execute_script("arguments[0].click();", login_button)
 
         print("Safari submitted the Instagram login using local environment credentials.")
