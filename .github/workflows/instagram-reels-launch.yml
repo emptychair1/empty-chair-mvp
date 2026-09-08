@@ -14,6 +14,8 @@ concurrency:
   group: instagram-reels-launch
   cancel-in-progress: false
 
+# Rebuild marker: corrected screen-only Reels 7-16
+
 jobs:
   render-library:
     runs-on: ubuntu-latest
@@ -50,76 +52,33 @@ jobs:
           import json, os, subprocess
           from pathlib import Path
           from playwright.sync_api import sync_playwright
-
-          data=json.load(open('launch.json'))
-          items=data['items']
-          token=os.environ['AUTOPILOT_TOKEN']
+          data=json.load(open('launch.json')); items=data['items']; token=os.environ['AUTOPILOT_TOKEN']
           raw_static='https://raw.githubusercontent.com/emptychair1/empty-chair-mvp/main/static/'
-
           with sync_playwright() as p:
               browser=p.chromium.launch()
               for index,item in enumerate(items, start=1):
                   status=item.get('status')
-                  if status == 'PUBLISHED':
-                      print(f"REEL {index}/16 // {item['slot']} // published, skipping", flush=True)
-                      continue
-                  if index <= 6 and status == 'RENDERED':
-                      print(f"REEL {index}/16 // {item['slot']} // recovery reel already good, skipping", flush=True)
-                      continue
-
+                  if index <= 6:
+                      print(f"REEL {index}/16 // protected recovery reel, skipping", flush=True); continue
+                  if status == 'PUBLISHED': continue
                   print(f"REEL {index}/16 // {item['slot']} // screen-only rerender", flush=True)
-                  work=Path(f"reel-{index:02d}")
-                  work.mkdir(exist_ok=True)
-                  urls=item['scene_urls']
-
+                  work=Path(f"reel-{index:02d}"); work.mkdir(exist_ok=True); urls=item['scene_urls']
                   for i,url in enumerate(urls):
                       page=browser.new_page(viewport={'width':1080,'height':1920},device_scale_factor=1)
                       page.goto(url,wait_until='networkidle',timeout=120000)
-
-                      page.evaluate("""(rawStatic) => {
-                        for (const img of Array.from(document.images)) {
-                          if (!img.complete || img.naturalWidth === 0) {
-                            const path = new URL(img.src, location.href).pathname;
-                            const name = path.split('/').pop();
-                            if (name) img.src = rawStatic + encodeURIComponent(name);
-                          }
-                        }
-                      }""", raw_static)
-                      page.wait_for_function("""() => Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)""", timeout=120000)
-
-                      if index >= 7:
-                          # Product Reels contain ONLY the real product/native screen.
-                          # No title cards, borders, captions, hooks, fake phone frames,
-                          # or decorative Empty Chair Reel chrome are baked into the video.
-                          img=page.locator('img').first
-                          img.screenshot(path=str(work/f'scene-{i}.png'))
-                      else:
-                          # Recovery Reels already render only actual app/native-app states.
-                          page.screenshot(path=str(work/f'scene-{i}.png'),full_page=False)
+                      page.evaluate("""(rawStatic) => { for (const img of Array.from(document.images)) { if (!img.complete || img.naturalWidth === 0) { const path=new URL(img.src,location.href).pathname; const name=path.split('/').pop(); if(name) img.src=rawStatic+encodeURIComponent(name); } } }""", raw_static)
+                      page.wait_for_function("""() => Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)""",timeout=120000)
+                      page.locator('img').first.screenshot(path=str(work/f'scene-{i}.png'))
                       page.close()
-
                   inputs=[]; filters=[]
                   for i in range(len(urls)):
                       inputs += ['-loop','1','-t','3','-i',str(work/f'scene-{i}.png')]
-                      filters.append(
-                          f'[{i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,'
-                          f'pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p[v{i}]'
-                      )
+                      filters.append(f'[{i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p[v{i}]')
                   concat=''.join(f'[v{i}]' for i in range(len(urls)))+f'concat=n={len(urls)}:v=1:a=0[outv]'
                   mp4=work/'reel.mp4'
-                  subprocess.run([
-                      'ffmpeg','-loglevel','error','-y',*inputs,
-                      '-filter_complex',';'.join(filters+[concat]),'-map','[outv]',
-                      '-c:v','libx264','-preset','veryfast','-pix_fmt','yuv420p',
-                      '-movflags','+faststart',str(mp4)
-                  ],check=True)
-                  subprocess.run([
-                      'curl','--fail-with-body','--silent','--show-error','--max-time','300',
-                      '-X','POST',item['upload_url'],
-                      '-H',f'Authorization: Bearer {token}',
-                      '-H','Content-Type: video/mp4','--data-binary',f'@{mp4}'
-                  ],check=True)
-                  print(f"screen-only rendered + uploaded // {item['slot']}", flush=True)
+                  subprocess.run(['ffmpeg','-loglevel','error','-y',*inputs,'-filter_complex',';'.join(filters+[concat]),'-map','[outv]','-c:v','libx264','-preset','veryfast','-pix_fmt','yuv420p','-movflags','+faststart',str(mp4)],check=True)
+                  subprocess.run(['curl','--fail-with-body','--silent','--show-error','--max-time','300','-X','POST',item['upload_url'],'-H',f'Authorization: Bearer {token}','-H','Content-Type: video/mp4','--data-binary',f'@{mp4}'],check=True)
+                  print(f"rendered + uploaded // {item['slot']}",flush=True)
               browser.close()
           PY
 
@@ -128,9 +87,7 @@ jobs:
           AUTOPILOT_TOKEN: ${{ secrets.HUNTER_OPERATOR_INGEST_TOKEN }}
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error --max-time 120 \
-            -X POST https://app.tryemptychair.com/internal/instagram/reels/launch/prepare \
-            -H "Authorization: Bearer $AUTOPILOT_TOKEN" -o final.json
+          curl --fail-with-body --silent --show-error --max-time 120 -X POST https://app.tryemptychair.com/internal/instagram/reels/launch/prepare -H "Authorization: Bearer $AUTOPILOT_TOKEN" -o final.json
           jq '.items | map({slot,status})' final.json
           test "$(jq '[.items[] | select(.status == "RENDERED" or .status == "PUBLISHED")] | length' final.json)" = "16"
           echo "All 16 Reels are rendered and available for manual download."
