@@ -1,4 +1,4 @@
-"""Hunter Watchtower: authenticated cloud Story observer and control API."""
+"""Hunter Watchtower: authenticated cloud Instagram observer and control API."""
 from __future__ import annotations
 import json,os,re,sqlite3,threading,time,uuid
 from contextlib import contextmanager
@@ -11,9 +11,11 @@ from playwright.sync_api import BrowserContext,Page,sync_playwright
 from hunter.story_watch import classify_recovery
 from hunter import watchtower_persistence as durable
 from hunter.watchtower_discovery import discover_daily
-SCHEMA="empty-chair-hunter-watchtower-v1";DATA_DIR=Path(os.getenv("WATCHTOWER_DATA_DIR","/data"));DB_PATH=Path(os.getenv("WATCHTOWER_DB_PATH",str(DATA_DIR/"watchtower.sqlite3")));PROFILE_DIR=Path(os.getenv("WATCHTOWER_PROFILE_DIR",str(DATA_DIR/"chromium-profile")));API_TOKEN=os.getenv("WATCHTOWER_API_TOKEN","").strip();HEADLESS=os.getenv("WATCHTOWER_HEADLESS","true").lower() not in {"0","false","no"};POLL_SECONDS=max(1.,float(os.getenv("WATCHTOWER_POLL_SECONDS","3")));SETTLE_SECONDS=max(1.,float(os.getenv("WATCHTOWER_SETTLE_SECONDS","4")));SCHEDULER_SECONDS=max(15.,float(os.getenv("WATCHTOWER_SCHEDULER_SECONDS","30")));DISCOVERY_SECONDS=max(900.,float(os.getenv("WATCHTOWER_DISCOVERY_SECONDS","900")))
-app=FastAPI(title="Hunter Watchtower",version="1.4.1");_stop=threading.Event();_worker=None;_scheduler=None
-_worker_state={"started_at":None,"last_heartbeat":None,"last_job_id":None,"browser_started":False,"authenticated":False,"last_error":None,"durable_jobs":durable.enabled(),"durable_session":durable.session_enabled(),"durable_session_restored":False,"scheduler_started":False,"last_schedule_at":None,"last_scheduled_count":0,"last_discovery_at":None,"last_discovery":None}
+SCHEMA="empty-chair-hunter-watchtower-v1";DATA_DIR=Path(os.getenv("WATCHTOWER_DATA_DIR","/data"));DB_PATH=Path(os.getenv("WATCHTOWER_DB_PATH",str(DATA_DIR/"watchtower.sqlite3")));PROFILE_DIR=Path(os.getenv("WATCHTOWER_PROFILE_DIR",str(DATA_DIR/"chromium-profile")));API_TOKEN=os.getenv("WATCHTOWER_API_TOKEN","").strip();HEADLESS=os.getenv("WATCHTOWER_HEADLESS","true").lower() not in {"0","false","no"};POLL_SECONDS=max(1.,float(os.getenv("WATCHTOWER_POLL_SECONDS","3")));SETTLE_SECONDS=max(1.,float(os.getenv("WATCHTOWER_SETTLE_SECONDS","4")));SCHEDULER_SECONDS=max(15.,float(os.getenv("WATCHTOWER_SCHEDULER_SECONDS","30")));DISCOVERY_SECONDS=max(900.,float(os.getenv("WATCHTOWER_DISCOVERY_SECONDS","900")));BROADCAST_INTERVAL_HOURS=max(1.,float(os.getenv("WATCHTOWER_BROADCAST_INTERVAL_HOURS","6")))
+app=FastAPI(title="Hunter Watchtower",version="1.5.0");_stop=threading.Event();_worker=None;_scheduler=None
+_worker_state={"started_at":None,"last_heartbeat":None,"last_job_id":None,"browser_started":False,"authenticated":False,"last_error":None,"durable_jobs":durable.enabled(),"durable_session":durable.session_enabled(),"durable_session_restored":False,"scheduler_started":False,"last_schedule_at":None,"last_scheduled_count":0,"last_broadcast_scheduled_count":0,"last_discovery_at":None,"last_discovery":None}
+COLLECTORS={"instagram_story","instagram_broadcast_channel"}
+BROADCAST_RECOVERY_TERMS=("cancellation","cancellations","cancelled","canceled","last minute","last-minute","opening","openings","availability","available","waitlist","wait list","open spot","open spots","appointment","appointments","same day","same-day")
 class JobRequest(BaseModel):username:str=Field(min_length=1,max_length=64);collector:str=Field(default="instagram_story")
 class BatchRequest(BaseModel):usernames:list[str]=Field(min_length=1,max_length=500);collector:str=Field(default="instagram_story")
 class TargetRequest(BaseModel):username:str=Field(min_length=1,max_length=64);interval_minutes:int=Field(default=60,ge=15,le=1440);priority:int=Field(default=50,ge=0,le=100);source:str=Field(default="manual",max_length=64);enabled:bool=True
@@ -35,7 +37,7 @@ def require_token(authorization:str|None=Header(default=None)):
     if not API_TOKEN:raise HTTPException(status_code=503,detail="WATCHTOWER_API_TOKEN is not configured")
     if authorization!=f"Bearer {API_TOKEN}":raise HTTPException(status_code=401,detail="unauthorized")
 def enqueue(username,collector):
-    if collector!="instagram_story":raise HTTPException(status_code=400,detail="unsupported collector")
+    if collector not in COLLECTORS:raise HTTPException(status_code=400,detail="unsupported collector")
     try:clean=clean_username(username)
     except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     jid,created=str(uuid.uuid4()),utcnow()
@@ -54,7 +56,7 @@ def finish_job(jid,result):
     with db() as c:c.execute("UPDATE watchtower_jobs SET status='finished',finished_at=?,result_json=?,error=NULL WHERE id=?",(utcnow(),json.dumps(result),jid))
 def fail_job(jid,error):
     if durable.enabled():durable.fail_job(jid,error);return
-    with db() as c:c.execute("UPDATE watchtower_jobs SET status='failed',finished_at=NOW(),error=%s WHERE id=%s",(error[:2000],jid)) if durable.enabled() else c.execute("UPDATE watchtower_jobs SET status='failed',finished_at=?,error=? WHERE id=?",(utcnow(),error[:2000],jid))
+    with db() as c:c.execute("UPDATE watchtower_jobs SET status='failed',finished_at=?,error=? WHERE id=?",(utcnow(),error[:2000],jid))
 def visible_text(page):
     try:return page.locator("body").inner_text(timeout=5000).strip()
     except Exception:return ""
@@ -87,6 +89,33 @@ def probe_story(page,context,username):
     clicked=maybe_open_story_confirmation(page);persist_browser_state(context);text,current=visible_text(page),page.url
     if f"/stories/{username}/" not in current.lower():return {"schema":SCHEMA,"username":username,"collector":"instagram_story","status":"unknown_no_viewable_story","intent_score":0,"matches":[],"interstitial_clicked":clicked,"observed_at":utcnow()}
     classification=classify_recovery(text);return {"schema":SCHEMA,"username":username,"collector":"instagram_story","status":"recovery_story_found" if classification['recovery'] else "story_visible_no_recovery_text","intent_score":classification['intent_score'],"matches":classification['matches'],"interstitial_clicked":clicked,"visible_text":text[:4000],"observed_at":utcnow()}
+def _broadcast_score(title):
+    text=(title or "").lower();matches=sorted({term for term in BROADCAST_RECOVERY_TERMS if term in text})
+    score=15 if title else 0
+    if matches:
+        score=60 if any(x in matches for x in ("cancellation","cancellations","cancelled","canceled")) else 55 if any(x in matches for x in ("last minute","last-minute","opening","openings","open spot","open spots")) else 50
+    return score,matches
+def probe_broadcast_channel(page,context,username):
+    page.goto(f"https://www.instagram.com/{username}/",wait_until="domcontentloaded",timeout=45000);page.wait_for_timeout(int(SETTLE_SECONDS*1000));auth=authenticated(page,context);_worker_state['authenticated']=auth
+    if not auth:return {"schema":SCHEMA,"username":username,"collector":"instagram_broadcast_channel","status":"unknown_auth_failure","intent_score":0,"matches":[],"channels":[],"observed_at":utcnow()}
+    persist_browser_state(context)
+    try:
+        raw=page.locator("a").evaluate_all("""els => els.map(a => ({href:a.href||'', title:(a.innerText||a.getAttribute('aria-label')||'').trim()})).filter(x => /instagram\\.com\\/channel\\/|ig\\.me\\/j\\//i.test(x.href))""")
+    except Exception:raw=[]
+    channels=[];seen=set();all_matches=set();best=0
+    for item in raw[:20]:
+        href=str((item or {}).get('href') or '').strip();title=str((item or {}).get('title') or '').strip() or 'Broadcast channel'
+        marker=href or title.lower()
+        if not marker or marker in seen:continue
+        seen.add(marker);score,matches=_broadcast_score(title);best=max(best,score);all_matches.update(matches);channels.append({'title':title[:240],'href':href[:1000],'intent_score':score,'recovery_matches':matches,'recovery_signal':bool(matches)})
+    recovery=any(c['recovery_signal'] for c in channels)
+    status='recovery_broadcast_channel_found' if recovery else 'broadcast_channel_found' if channels else 'unknown_no_broadcast_channel_visible'
+    return {"schema":SCHEMA,"username":username,"collector":"instagram_broadcast_channel","status":status,"intent_score":best,"matches":sorted(all_matches),"channels":channels,"channel_count":len(channels),"recovery_channel_count":sum(1 for c in channels if c['recovery_signal']),"observed_at":utcnow()}
+def _broadcast_recent(username):
+    if not durable.enabled():return False
+    with durable.connection() as c:
+        row=c.execute(f"SELECT 1 FROM {durable.SCHEMA}.watchtower_jobs WHERE username=%s AND collector='instagram_broadcast_channel' AND created_at>NOW()-(%s*INTERVAL '1 hour') LIMIT 1",(username,BROADCAST_INTERVAL_HOURS)).fetchone()
+    return bool(row)
 def scheduler_loop():
     _worker_state['scheduler_started']=True;last_discovery=0.0
     while not _stop.is_set():
@@ -94,7 +123,13 @@ def scheduler_loop():
             now=time.monotonic()
             if durable.enabled() and (not last_discovery or now-last_discovery>=DISCOVERY_SECONDS):
                 _worker_state['last_discovery_at']=utcnow();_worker_state['last_discovery']=discover_daily(100);last_discovery=now
-            jobs=durable.enqueue_due_targets(25) if durable.enabled() else [];_worker_state['last_schedule_at']=utcnow();_worker_state['last_scheduled_count']=len(jobs)
+            jobs=durable.enqueue_due_targets(25) if durable.enabled() else [];broadcast_jobs=[]
+            if durable.enabled():
+                for job in jobs:
+                    username=job['username']
+                    if _broadcast_recent(username):continue
+                    jid=str(uuid.uuid4());durable.enqueue_job(jid,'instagram_broadcast_channel',username,utcnow());broadcast_jobs.append({'id':jid,'username':username})
+            _worker_state['last_schedule_at']=utcnow();_worker_state['last_scheduled_count']=len(jobs);_worker_state['last_broadcast_scheduled_count']=len(broadcast_jobs)
         except Exception as exc:_worker_state['last_error']=f"scheduler: {exc.__class__.__name__}: {exc}"
         _stop.wait(SCHEDULER_SECONDS)
 def worker_loop():
@@ -109,7 +144,9 @@ def worker_loop():
                     _worker_state['last_heartbeat']=utcnow();row=next_job()
                     if not row:time.sleep(POLL_SECONDS);continue
                     _worker_state['last_job_id']=row['id']
-                    try:finish_job(row['id'],probe_story(page,context,row['username']));_worker_state['last_error']=None
+                    try:
+                        result=probe_broadcast_channel(page,context,row['username']) if row['collector']=='instagram_broadcast_channel' else probe_story(page,context,row['username'])
+                        finish_job(row['id'],result);_worker_state['last_error']=None
                     except Exception as exc:message=f"{exc.__class__.__name__}: {exc}";fail_job(row['id'],message);_worker_state['last_error']=message
                 context.close()
         except Exception as exc:_worker_state['browser_started']=False;_worker_state['authenticated']=False;_worker_state['last_error']=f"browser loop: {exc.__class__.__name__}: {exc}";time.sleep(5)
