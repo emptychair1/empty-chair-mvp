@@ -1,0 +1,59 @@
+name: Hunter Broadcast Channel Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      usernames:
+        description: "Instagram usernames separated by spaces or commas"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Hunter dependencies
+        run: pip install -r hunter/requirements.txt
+
+      - name: Run unit tests
+        run: pytest -q hunter/test_broadcast_channel_probe.py
+
+      - name: Probe Instagram public profile channel metadata
+        env:
+          RAW_USERNAMES: ${{ inputs.usernames }}
+        run: |
+          python - <<'PY'
+          import os, re, subprocess, sys
+          raw = os.environ["RAW_USERNAMES"]
+          names = [x for x in re.split(r"[\s,]+", raw.strip()) if x]
+          if not names:
+              raise SystemExit("No usernames supplied")
+          cmd = [sys.executable, "hunter/broadcast_channel_probe.py", *names, "--timeout", "8", "--out", "broadcast-channel-probe.json"]
+          raise SystemExit(subprocess.call(cmd))
+          PY
+
+      - name: Show proof summary
+        if: always()
+        run: |
+          if [ -f broadcast-channel-probe.json ]; then
+            cat broadcast-channel-probe.json
+          fi
+
+      - name: Upload proof JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hunter-broadcast-channel-probe
+          path: broadcast-channel-probe.json
+          if-no-files-found: warn
+          retention-days: 7
