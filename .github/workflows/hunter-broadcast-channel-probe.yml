@@ -11,6 +11,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/hunter-broadcast-channel-probe.yml"
+      - "hunter/broadcast_channel_probe.py"
+      - "hunter/test_broadcast_channel_probe.py"
 
 permissions:
   contents: read
