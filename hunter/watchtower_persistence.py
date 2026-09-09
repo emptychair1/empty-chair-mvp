@@ -47,7 +47,7 @@ def enqueue_job(job_id,collector,username,created_at):
     with connection() as c:c.execute(f"INSERT INTO {SCHEMA}.watchtower_jobs(id,collector,username,status,created_at) VALUES (%s,%s,%s,'queued',%s)",(job_id,collector,username,created_at))
 def next_job():
     with connection() as c:
-        row=c.execute(f"SELECT * FROM {SCHEMA}.watchtower_jobs WHERE status='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1").fetchone()
+        row=c.execute(f"SELECT * FROM {SCHEMA}.watchtower_jobs WHERE status='queued' ORDER BY CASE WHEN collector='instagram_broadcast_channel' THEN 0 ELSE 1 END, created_at FOR UPDATE SKIP LOCKED LIMIT 1").fetchone()
         if row:c.execute(f"UPDATE {SCHEMA}.watchtower_jobs SET status='running',started_at=NOW() WHERE id=%s",(row['id'],))
     return dict(row) if row else None
 def finish_job(job_id,result):
