@@ -1,0 +1,24 @@
+name: Deploy Cutlass
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/cutlass/**'
+      - '.github/workflows/cutlass-deploy.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Modal CLI
+        run: pip install 'modal>=1.0,<2'
+      - name: Deploy Cutlass
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: modal deploy tools/cutlass/modal_app.py
