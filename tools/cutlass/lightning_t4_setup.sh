@@ -17,8 +17,7 @@ fi
 
 python -m pip install --upgrade pip wheel setuptools
 
-# Do not touch the NVIDIA driver. Install only Python dependencies into the
-# Studio's existing conda environment.
+# Runtime stack used by Wan2.2 generate.py. Keep the NVIDIA driver untouched.
 python -m pip install \
   'torch>=2.4.0' torchvision torchaudio \
   'opencv-python-headless>=4.9.0.80' \
@@ -27,15 +26,17 @@ python -m pip install \
   'tokenizers>=0.20.3' \
   'accelerate>=1.1.1' tqdm 'imageio[ffmpeg]' easydict ftfy \
   dashscope imageio-ffmpeg 'huggingface_hub[hf_transfer]' \
+  einops safetensors packaging psutil \
   'numpy>=1.23.5,<2'
 
 python - <<'PY'
-import torch
+import torch, einops
 print('CUTLASS CUDA:', torch.cuda.is_available())
 if not torch.cuda.is_available():
     raise SystemExit('CUDA is not available to PyTorch')
 print('CUTLASS GPU:', torch.cuda.get_device_name(0))
 print('CUTLASS VRAM_GB:', round(torch.cuda.get_device_properties(0).total_memory/1024**3, 2))
+print('CUTLASS EINOPS: OK')
 PY
 
 python - <<'PY'
