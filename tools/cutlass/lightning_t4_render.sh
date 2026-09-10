@@ -13,12 +13,10 @@ ROOT="$HOME/cutlass"
 WAN_DIR="$ROOT/Wan2.2"
 MODEL_DIR="$ROOT/models/Wan2.2-TI2V-5B"
 
-source "$ROOT/.venv/bin/activate"
 mkdir -p "$OUTPUT_DIR"
 cd "$OUTPUT_DIR"
 
 # T4/16GB path: keep text encoder and inactive model components off GPU.
-# 704x1280 is the native vertical TI2V size used by the existing Cutlass renderer.
 python "$WAN_DIR/generate.py" \
   --task ti2v-5B \
   --size '704*1280' \
