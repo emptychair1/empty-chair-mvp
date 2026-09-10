@@ -26,17 +26,17 @@ python -m pip install \
   'tokenizers>=0.20.3' \
   'accelerate>=1.1.1' tqdm 'imageio[ffmpeg]' easydict ftfy \
   dashscope imageio-ffmpeg 'huggingface_hub[hf_transfer]' \
-  einops safetensors packaging psutil \
+  einops decord safetensors packaging psutil \
   'numpy>=1.23.5,<2'
 
 python - <<'PY'
-import torch, einops
+import torch, einops, decord
 print('CUTLASS CUDA:', torch.cuda.is_available())
 if not torch.cuda.is_available():
     raise SystemExit('CUDA is not available to PyTorch')
 print('CUTLASS GPU:', torch.cuda.get_device_name(0))
 print('CUTLASS VRAM_GB:', round(torch.cuda.get_device_properties(0).total_memory/1024**3, 2))
-print('CUTLASS EINOPS: OK')
+print('CUTLASS WAN RUNTIME IMPORTS: OK')
 PY
 
 python - <<'PY'
