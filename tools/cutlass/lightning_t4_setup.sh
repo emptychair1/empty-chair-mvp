@@ -17,7 +17,9 @@ fi
 
 python -m pip install --upgrade pip wheel setuptools
 
-# Runtime stack used by Wan2.2 generate.py. Keep the NVIDIA driver untouched.
+# Runtime stack used by Wan2.2 generate.py. Wan's top-level package imports
+# speech2video even for TI2V, so its transitive media/audio imports must exist.
+# Keep the NVIDIA driver untouched.
 python -m pip install \
   'torch>=2.4.0' torchvision torchaudio \
   'opencv-python-headless>=4.9.0.80' \
@@ -26,11 +28,11 @@ python -m pip install \
   'tokenizers>=0.20.3' \
   'accelerate>=1.1.1' tqdm 'imageio[ffmpeg]' easydict ftfy \
   dashscope imageio-ffmpeg 'huggingface_hub[hf_transfer]' \
-  einops decord safetensors packaging psutil \
+  einops decord librosa soundfile safetensors packaging psutil \
   'numpy>=1.23.5,<2'
 
 python - <<'PY'
-import torch, einops, decord
+import torch, einops, decord, librosa, soundfile
 print('CUTLASS CUDA:', torch.cuda.is_available())
 if not torch.cuda.is_available():
     raise SystemExit('CUDA is not available to PyTorch')
