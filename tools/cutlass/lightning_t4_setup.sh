@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # Cutlass / Lightning AI T4 bootstrap.
-# Keeps the existing Modal renderer intact; this is the no-card T4 path.
+# Lightning Studios prohibit venv creation and provide a persistent default
+# conda environment, so install into that environment instead.
 
 ROOT="$HOME/cutlass"
 WAN_DIR="$ROOT/Wan2.2"
 MODEL_DIR="$ROOT/models/Wan2.2-TI2V-5B"
-VENV="$ROOT/.venv"
 
 mkdir -p "$ROOT/models" "$ROOT/output"
 
@@ -15,12 +15,11 @@ if [ ! -d "$WAN_DIR/.git" ]; then
   git clone --depth 1 https://github.com/Wan-Video/Wan2.2.git "$WAN_DIR"
 fi
 
-python3 -m venv "$VENV"
-source "$VENV/bin/activate"
 python -m pip install --upgrade pip wheel setuptools
 
-# Do not replace Lightning's working CUDA driver. Install the Python stack only.
-pip install \
+# Do not touch the NVIDIA driver. Install only Python dependencies into the
+# Studio's existing conda environment.
+python -m pip install \
   'torch>=2.4.0' torchvision torchaudio \
   'opencv-python-headless>=4.9.0.80' \
   'diffusers>=0.31.0' \
@@ -39,7 +38,6 @@ print('CUTLASS GPU:', torch.cuda.get_device_name(0))
 print('CUTLASS VRAM_GB:', round(torch.cuda.get_device_properties(0).total_memory/1024**3, 2))
 PY
 
-# Download once into persistent Studio storage. This is the large step.
 python - <<'PY'
 from huggingface_hub import snapshot_download
 from pathlib import Path
@@ -52,4 +50,3 @@ PY
 echo 'CUTLASS T4 READY'
 echo "Wan:   $WAN_DIR"
 echo "Model: $MODEL_DIR"
-echo "Venv:  $VENV"
