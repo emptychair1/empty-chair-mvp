@@ -1,0 +1,88 @@
+name: Hunter Story Access Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_username:
+        description: 'Optional external Instagram professional username to test via Business Discovery'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-story-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: hunter/requirements.txt
+
+      - name: Install Hunter dependencies
+        run: pip install -r hunter/requirements.txt
+
+      - name: Run Story access unit tests
+        working-directory: hunter
+        run: pytest -q test_story_access_probe.py
+
+      - name: Check Meta configuration
+        id: meta_config
+        env:
+          HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+          HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
+        run: |
+          if [ -n "$HUNTER_META_ACCESS_TOKEN" ] && [ -n "$HUNTER_META_IG_USER_ID" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'Meta Story validation skipped because Hunter Meta credentials are not configured.'
+          fi
+
+      - name: Probe official Meta Story access boundary
+        if: steps.meta_config.outputs.configured == 'true'
+        env:
+          HUNTER_META_ACCESS_TOKEN: ${{ secrets.HUNTER_META_ACCESS_TOKEN }}
+          HUNTER_META_IG_USER_ID: ${{ vars.HUNTER_META_IG_USER_ID }}
+          HUNTER_META_GRAPH_VERSION: v26.0
+          TARGET_USERNAME: ${{ inputs.target_username }}
+        run: |
+          ARGS=""
+          if [ -n "$TARGET_USERNAME" ]; then
+            ARGS="--target-username $TARGET_USERNAME"
+          fi
+          python hunter/story_access_probe.py --out hunter-story-access.json $ARGS
+
+      - name: Publish Story access result
+        if: always()
+        run: |
+          echo '## Hunter Story Access Validation' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f hunter-story-access.json ]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          p=json.load(open('hunter-story-access.json'))
+          own=p.get('authorized_account') or {}
+          ext=p.get('external_professional_account') or {}
+          print(f"- authorized Story edge supported: **{own.get('supported')}**")
+          print(f"- active authorized Stories returned: **{own.get('story_count', 0)}**")
+          print(f"- external Business Discovery supported: **{ext.get('supported') if ext else 'not tested'}**")
+          print(f"- arbitrary public Story access assumed: **{p.get('safe_to_assume_arbitrary_public_story_access')}**")
+          print(f"- observed boundary: `{p.get('boundary')}`")
+          PY
+          else
+            echo '- No Story access artifact produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Story access artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hunter-story-access-${{ github.run_id }}
+          path: hunter-story-access.json
+          if-no-files-found: warn
+          retention-days: 14
